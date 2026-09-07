@@ -66,8 +66,10 @@ def g:Test_parse_vim9_symbols()
   assert_equal(11, outer.name_col)
   assert_equal(16, outer.name_end)
   assert_equal('(x: number): string', outer.detail)
-  assert_equal(['Inner'], Names(outer.children))
-  assert_equal(6, outer.children[0].end_line)
+  assert_equal(['x', 'Inner'], Names(outer.children))
+  assert_true(outer.children[0].param)
+  assert_equal(17, outer.children[0].name_col)
+  assert_equal(6, outer.children[1].end_line)
 
   var shape = top[4]
   assert_equal(parse.KIND_CLASS, shape.kind)
@@ -118,6 +120,9 @@ def g:Test_parse_legacy_symbols()
   assert_equal(['s:count', 'g:x', 's:Init', 'Other', 'g:y', 's:p', 's:q'],
     Names(parsed.symbols))
   assert_equal(['l:a'], Names(parsed.symbols[2].children))
+  # Legacy parameters are known under their "a:" name.
+  var legacy = parse.Parse(['function Add(x, y, ...)', 'endfunction'])
+  assert_equal(['a:x', 'a:y'], Names(legacy.symbols[0].children))
   assert_equal(6, parsed.symbols[2].end_line)
   assert_equal(8, parsed.symbols[3].end_line)
 enddef

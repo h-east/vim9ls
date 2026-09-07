@@ -79,14 +79,36 @@ their values, interfaces, augroups, imports and user commands of the script,
 nested the way they are written.  Legacy "function" and Vim9 "def" both
 count.
 
+Definition, references and rename ~
+For the names the script defines: functions, variables and parameters,
+classes and their members, enum values, imports and user commands.  A name
+is looked up from where it is used: the innermost function that declares it
+wins, so a local hides a script variable of the same name.  A member counts
+only after a ".", and a function named in a string ("function('Name')")
+counts as a use; a variable named in a string does not.
+Under Vim9 rules "s:Name" and "Name" are the same script-local name; in
+legacy script they are two different functions.
+Definition also follows an import: "alias.Name" goes to the exported name
+in the imported script, and the alias itself to that file.  A relative
+import is found next to the script, an autoload import in the autoload
+directories above it and in $VIMRUNTIME.  A legacy "foo#bar#Func()" goes to
+autoload/foo/bar.vim the same way.
+Rename changes the name proper and leaves a "s:" or "<SID>" in place.  A
+name that is not defined in the document, a builtin for one, cannot be
+renamed.
+A Vim9 "var" inside a block is treated as if it belonged to the whole
+function; two blocks of one function declaring the same name are told apart
+by neither definition nor rename.
+
 Diagnostics ~
 Reported on open and on every change:
 - a block that is not closed ("if" without "endif", "def" without "enddef",
   and so on) and an end without a start, with the error Vim would give;
 - ":let" where Vim9 rules apply, in a |vim9script| file or inside a ":def";
-- a word at the start of a statement that is not a command, as a warning.
-  An assignment, a call or a user command does not count, so this is quiet
-  in Vim9 code; it is meant for typos in legacy scripts.
+- in legacy script, a word at the start of a statement that is not a
+  command, as a warning; an assignment, a call or a user command does not
+  count.  Under Vim9 rules a statement may start with any expression, so
+  nothing is reported there.
 The reading is line by line and does not run the script.
 
 ==============================================================================

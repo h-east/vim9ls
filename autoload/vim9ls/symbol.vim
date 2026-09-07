@@ -10,6 +10,10 @@ export def DocumentSymbols(symbols: list<dict<any>>, lines: list<string>,
     encoding: string): list<dict<any>>
   var out: list<dict<any>> = []
   for s in symbols
+    # A parameter is not part of the outline.
+    if s->get('param', false)
+      continue
+    endif
     var end_line = s.end_line
     var item = {
       name: s.name,

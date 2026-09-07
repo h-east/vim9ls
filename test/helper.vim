@@ -1,7 +1,7 @@
 vim9script
 # What the tests use to drive the server: this Vim is the client.
 
-const HERE = expand('<sfile>:p:h')
+export const HERE = expand('<sfile>:p:h')
 export const SERVER = fnamemodify(HERE, ':h') .. '/autoload/vim9ls.vim'
 export const LOG = HERE .. '/Xserver.log'
 # The document the tests open; the server never reads it from disk.
@@ -87,6 +87,20 @@ export def ChangeDoc(lines: list<string>, uri = URI, version = 2)
   Notify('textDocument/didChange', {
     textDocument: {uri: uri, version: version},
     contentChanges: [{text: join(lines, "\n") .. "\n"}],
+  })
+enddef
+
+# One incremental change: "range" is [start line, start character, end line,
+# end character].
+export def ChangeRange(range: list<number>, text: string, version: number,
+    uri = URI)
+  Notify('textDocument/didChange', {
+    textDocument: {uri: uri, version: version},
+    contentChanges: [{
+      range: {start: {line: range[0], character: range[1]},
+        end: {line: range[2], character: range[3]}},
+      text: text,
+    }],
   })
 enddef
 

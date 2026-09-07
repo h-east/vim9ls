@@ -37,6 +37,8 @@ See `:help vim9ls` for the details.
   defines.
 - Document symbols: functions, variables, classes and their members, enums,
   interfaces, augroups, imports and user commands.
+- Definition, references and rename for what the script defines; definition
+  also follows imports and legacy autoload functions into other files.
 - Diagnostics: blocks that do not add up, `:let` under Vim9 rules, and words
   that are not commands.
 
