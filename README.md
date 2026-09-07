@@ -8,8 +8,8 @@ starts it as
     vim --clean --stdio-channel -S /path/to/autoload/vim9ls.vim
 
 and talks LSP to it on stdin and stdout.  The server answers from what Vim
-knows: the help files for hover, `getcompletion()` for the builtin
-functions, options and commands, and the user's own `'runtimepath'`.
+knows: the help files for hover, `getcompletion()` for the builtin functions,
+options and commands, and the user's own `'runtimepath'`.
 Nothing else needs to be installed.
 
 ## Requirements
@@ -24,23 +24,23 @@ add the server to `g:lsp_server_list`:
 
     {name: 'vim9ls', filetypes: ['vim'], cmd: vim9ls#Command()}
 
-With another editor: point its LSP client at `bin/vim9ls` (`bin/vim9ls.cmd`
-on MS-Windows).
+With another editor: point its LSP client at `bin/vim9ls` (`bin/vim9ls.cmd` on
+MS-Windows).
 
 See `:help vim9ls` for the details.
 
 ## What it does
 
-- Hover: the help entry for the builtin function, option, Ex command or
-  `v:` variable under the cursor.
+- Hover: the help entry for the builtin function, option, Ex command or `v:`
+  variable under the cursor.
 - Completion: builtin functions, options, commands, and what the script
   defines.
 - Document symbols: functions, variables, classes and their members, enums,
   interfaces, augroups, imports and user commands.
 - Definition, references and rename for what the script defines; definition
   also follows imports and legacy autoload functions into other files.
-- Diagnostics: blocks that do not add up, `:let` under Vim9 rules, and words
-  that are not commands.
+- Diagnostics: blocks that do not add up, `:let` under Vim9 rules, and, in
+  legacy script, words that are not commands.
 
 ## Tests
 

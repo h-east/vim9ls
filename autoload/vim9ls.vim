@@ -79,8 +79,7 @@ def SplitText(text: string): list<string>
 enddef
 
 # The parse of a document, made when something asks for it.  A change marks
-# it stale; what only needs the names, completion, may still use it, what
-# needs positions gets a fresh one.
+# it stale; a caller that can do with the old names passes "fresh" false.
 def Parsed(d: dict<any>, fresh = true): dict<any>
   if d.parsed == null_dict || (fresh && d.stale)
     d.parsed = parse.Parse(d.lines)

@@ -212,8 +212,6 @@ def Statement(st: dict<any>, lnum: number, text: string, col: number,
   var cmd = first_cmd
   var arg_text = ArgText(rest, 0, word)
 
-  # Modifiers, "export" and the class member qualifiers only say something
-  # about the command after them.
   while MODIFIERS->has_key(cmd)
     offset += strlen(rest) - strlen(arg_text)
     rest = arg_text
@@ -425,8 +423,7 @@ export def AllSymbols(symbols: list<dict<any>>): list<dict<any>>
   return out
 enddef
 
-# For each of "count" lines, whether Vim9 rules apply there: the innermost
-# function decides, then the script.
+# InVim9At() for each of "count" lines at once.
 export def Vim9Lines(parsed: dict<any>, count: number): list<bool>
   var out = repeat([parsed.vim9], count)
   # Parents come before their children, so an inner function overrides.
