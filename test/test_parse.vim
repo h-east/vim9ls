@@ -1,0 +1,133 @@
+vim9script
+
+import autoload '../autoload/vim9ls/parse.vim'
+
+export const VIM9_SAMPLE =<< trim END
+  vim9script
+  import autoload 'foo.vim' as foo
+  var count = 0
+  const LIMIT: number = 10
+  export def Outer(x: number): string
+    def Inner()
+    enddef
+    return ''
+  enddef
+  class Shape
+    var name: string
+    static var total = 0
+    def new(name: string)
+      this.name = name
+    enddef
+    def Area(): number
+      return 0
+    enddef
+  endclass
+  enum Color
+    Red,
+    Green
+    def Describe(): string
+      return ''
+    enddef
+  endenum
+  interface Drawable
+    def Draw(): void
+  endinterface
+  augroup MyGroup
+    autocmd!
+    autocmd BufEnter * echo 'x'
+  augroup END
+  command! -nargs=1 Hello echo <q-args>
+END
+
+def Names(symbols: list<dict<any>>): list<string>
+  return symbols->mapnew((_, s) => s.name)
+enddef
+
+def g:Test_parse_vim9_symbols()
+  var parsed = parse.Parse(VIM9_SAMPLE)
+  assert_true(parsed.vim9)
+  assert_equal([], parsed.diags)
+  var top = parsed.symbols
+  assert_equal(['foo', 'count', 'LIMIT', 'Outer', 'Shape', 'Color',
+    'Drawable', 'MyGroup', 'Hello'], Names(top))
+
+  assert_equal(parse.KIND_MODULE, top[0].kind)
+  assert_equal('foo.vim', top[0].detail)
+  assert_equal(parse.KIND_VARIABLE, top[1].kind)
+  assert_equal(0, top[1].col)
+  assert_equal(4, top[1].name_col)
+  assert_equal(parse.KIND_CONSTANT, top[2].kind)
+  assert_equal('number', top[2].detail)
+
+  var outer = top[3]
+  assert_equal(parse.KIND_FUNCTION, outer.kind)
+  assert_equal(4, outer.line)
+  assert_equal(8, outer.end_line)
+  assert_equal(11, outer.name_col)
+  assert_equal(16, outer.name_end)
+  assert_equal('(x: number): string', outer.detail)
+  assert_equal(['Inner'], Names(outer.children))
+  assert_equal(6, outer.children[0].end_line)
+
+  var shape = top[4]
+  assert_equal(parse.KIND_CLASS, shape.kind)
+  assert_equal(18, shape.end_line)
+  assert_equal(['name', 'total', 'new', 'Area'], Names(shape.children))
+  assert_equal(parse.KIND_FIELD, shape.children[0].kind)
+  assert_equal('string', shape.children[0].detail)
+  assert_equal(parse.KIND_FIELD, shape.children[1].kind)
+  assert_equal(parse.KIND_METHOD, shape.children[2].kind)
+
+  var color = top[5]
+  assert_equal(parse.KIND_ENUM, color.kind)
+  assert_equal(['Red', 'Green', 'Describe'], Names(color.children))
+  assert_equal(parse.KIND_ENUM_MEMBER, color.children[0].kind)
+  assert_equal(parse.KIND_METHOD, color.children[2].kind)
+
+  var drawable = top[6]
+  assert_equal(parse.KIND_INTERFACE, drawable.kind)
+  assert_equal(['Draw'], Names(drawable.children))
+  assert_equal(28, drawable.end_line)
+
+  var group = top[7]
+  assert_equal(parse.KIND_NAMESPACE, group.kind)
+  assert_equal(29, group.line)
+  assert_equal(32, group.end_line)
+
+  assert_equal(parse.KIND_FUNCTION, top[8].kind)
+  assert_equal(':command', top[8].detail)
+enddef
+
+def g:Test_parse_legacy_symbols()
+  var lines =<< trim END
+    " a comment
+    let s:count = 0
+    let g:x = 1
+    let g:x += 1
+    function! s:Init() abort
+      let l:a = 1
+    endfunction
+    fu Other()
+    endfu
+    if exists('g:y') | let g:y = 2 | endif
+    let [s:p, s:q] = [1, 2]
+  END
+  var parsed = parse.Parse(lines)
+  assert_false(parsed.vim9)
+  assert_equal([], parsed.diags)
+  assert_equal(['s:count', 'g:x', 's:Init', 'Other', 'g:y', 's:p', 's:q'],
+    Names(parsed.symbols))
+  assert_equal(['l:a'], Names(parsed.symbols[2].children))
+  assert_equal(6, parsed.symbols[2].end_line)
+  assert_equal(8, parsed.symbols[3].end_line)
+enddef
+
+def g:Test_parse_all_symbols()
+  var parsed = parse.Parse(VIM9_SAMPLE)
+  var names = Names(parse.AllSymbols(parsed.symbols))
+  assert_true(index(names, 'Inner') >= 0)
+  assert_true(index(names, 'Area') >= 0)
+  assert_true(index(names, 'Green') >= 0)
+enddef
+
+# vim: ts=2 sw=0 et

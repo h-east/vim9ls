@@ -1,0 +1,112 @@
+*vim9ls.txt*	A language server for Vim script, run by Vim itself
+
+Author:  Hirohito Higashi <h.east.727@gmail.com>
+License: Vim license, see |license|
+
+==============================================================================
+CONTENTS						*vim9ls-contents*
+
+1. Introduction				|vim9ls-introduction|
+2. Requirements				|vim9ls-requirements|
+3. Setup				|vim9ls-setup|
+4. What it does				|vim9ls-features|
+5. Environment				|vim9ls-environment|
+6. Development				|vim9ls-development|
+
+==============================================================================
+1. Introduction						*vim9ls-introduction*
+
+vim9ls is a language server for Vim script, both |Vim9| script and legacy.
+It is written in Vim9 script and runs in a Vim of its own: the client starts
+it as >
+	vim --clean --stdio-channel -S /path/to/autoload/vim9ls.vim
+and talks to it on stdin and stdout, see |--stdio-channel|.
+
+Running in Vim is the point.  The server answers from what Vim knows: the
+help files for documentation, |getcompletion()| for the builtin functions,
+options and commands, and the same 'runtimepath' the user has.  Nothing is
+copied out of Vim and nothing else needs to be installed.
+
+==============================================================================
+2. Requirements						*vim9ls-requirements*
+
+A Vim with the |+channel| and |+job| features and the |--stdio-channel|
+argument.  The Vim that runs the server does not have to be the one that is
+editing, but with lsp.vim it is: |vim9ls#Command()| names |v:progpath|.
+
+==============================================================================
+3. Setup						*vim9ls-setup*
+
+With lsp.vim ~
+Install both plugins the same way (a plugin manager, or "packadd") and add
+an entry for "vim" files to |g:lsp_server_list|: >
+	{name: 'vim9ls', filetypes: ['vim'], cmd: vim9ls#Command()}
+vim9ls has to be in 'runtimepath' when that line runs, since it calls an
+autoload function.
+
+						*vim9ls#Command()*
+vim9ls#Command() returns the command that starts the server with the Vim it
+is called in.  On MS-Windows it names vim.exe when called from gvim.exe, so
+that no window opens.  It throws when that Vim lacks |+channel| or |+job|.
+
+With another editor ~
+Point the editor's LSP client at bin/vim9ls (bin/vim9ls.cmd on MS-Windows),
+a script that starts the server with "vim" from $PATH.  $VIM9LS_VIM names
+another Vim.  The server talks stdio, which every client supports.
+
+==============================================================================
+4. What it does						*vim9ls-features*
+
+Positions are counted the way the client asks for at initialize: "utf-8"
+when it offers that, which needs no conversion, "utf-16" otherwise.
+
+Hover ~
+The help entry for the builtin function, option, Ex command or "v:" variable
+under the cursor, as Vim's help has it.  An option is recognized after "&"
+and in a ":set" command, a command at the start of a statement.  Variables
+and functions of the script itself have no help and give nothing.
+This is for editors other than Vim.  In Vim, |K| opens the same entry in a
+help window, which is the better place to read it.
+
+Completion ~
+Builtin functions, plus the functions, variables, classes and other names
+the script defines.  After "&" and in a ":set" command: options.  At the
+start of a statement: Ex commands as well.  "v:" variables after "v:".
+
+Document symbols ~
+The functions, variables, constants, classes with their members, enums with
+their values, interfaces, augroups, imports and user commands of the script,
+nested the way they are written.  Legacy "function" and Vim9 "def" both
+count.
+
+Diagnostics ~
+Reported on open and on every change:
+- a block that is not closed ("if" without "endif", "def" without "enddef",
+  and so on) and an end without a start, with the error Vim would give;
+- ":let" where Vim9 rules apply, in a |vim9script| file or inside a ":def";
+- a word at the start of a statement that is not a command, as a warning.
+  An assignment, a call or a user command does not count, so this is quiet
+  in Vim9 code; it is meant for typos in legacy scripts.
+The reading is line by line and does not run the script.
+
+==============================================================================
+5. Environment						*vim9ls-environment*
+
+$VIM9LS_LOG	When set, the server appends its channel log to this file,
+		see |ch_logfile()|.  Requests, responses and the errors the
+		server ran into end up there.
+
+$VIM9LS_VIM	The Vim that bin/vim9ls starts.  Default: "vim" from $PATH.
+
+==============================================================================
+6. Development						*vim9ls-development*
+
+The tests are in test/ and run with: >
+	cd test && ./run
+	VIMPROG=/path/to/vim ./run
+	TEST_FILTER=hover ./run
+The Vim they run in is also the server they start, so it needs
+|--stdio-channel|.  Unit tests read the parser and the conversions directly;
+the server tests start the server and talk LSP to it.
+
+ vim:tw=78:ts=8:noet:ft=help:norl:

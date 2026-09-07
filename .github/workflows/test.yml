@@ -1,0 +1,41 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # The server needs --stdio-channel, which is in vim/vim#21245.  Until
+      # that is in a release this builds the branch it comes from.
+      - name: Build Vim
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libncurses-dev
+          git clone --depth 1 --branch stdio-channel \
+              https://github.com/h-east/vim.git "$RUNNER_TEMP/vim"
+          cd "$RUNNER_TEMP/vim"
+          ./configure --prefix="$HOME/vim" \
+              --enable-gui=no --without-x --disable-nls
+          make -j"$(nproc)"
+          make install
+          echo "$HOME/vim/bin" >> "$GITHUB_PATH"
+
+      - name: Run the tests
+        run: |
+          vim --version | head -1
+          cd test && ./run

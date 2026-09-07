@@ -1,0 +1,27 @@
+#!/bin/sh
+# Run the tests and print what they reported.
+#
+#   ./run
+#   VIMPROG=/path/to/vim ./run       # which Vim to test with
+#   TEST_FILTER=hover ./run          # only the tests whose name matches
+#
+# The Vim needs --stdio-channel; the server the tests start is that same Vim.
+# The exit status is 0 when everything passed.
+here=$(cd "$(dirname "$0")" && pwd)
+rm -f "$here/messages"
+
+# Have every :def compiled while the scripts are read, so that a mistake in
+# one that no test reaches is reported here rather than turning into "E1091:
+# Function is not compiled" much later.
+VIM9LS_COMPILE_CHECK=1 \
+"${VIMPROG:-vim}" -u NONE -N -n --not-a-term -S "$here/runtest.vim" \
+    >/dev/null 2>&1
+status=$?
+
+if [ -f "$here/messages" ]; then
+    cat "$here/messages"
+else
+    echo "Nothing was written to $here/messages."
+    echo "\"${VIMPROG:-vim}\" may have failed to start; run it by hand to see."
+fi
+exit $status

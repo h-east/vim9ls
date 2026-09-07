@@ -1,0 +1,38 @@
+vim9script
+
+# vim9ls - document symbols
+# Maintainer: Hirohito Higashi <h.east.727@gmail.com>
+
+import autoload './util.vim'
+
+# The parsed symbols as LSP DocumentSymbol items, positions in "encoding".
+export def DocumentSymbols(symbols: list<dict<any>>, lines: list<string>,
+    encoding: string): list<dict<any>>
+  var out: list<dict<any>> = []
+  for s in symbols
+    var end_line = s.end_line
+    var item = {
+      name: s.name,
+      kind: s.kind,
+      range: util.Range(lines, s.line, s.col, end_line,
+        strlen(lines->get(end_line, '')), encoding),
+      selectionRange: util.Range(lines, s.line, s.name_col, s.line,
+        s.name_end, encoding),
+    }
+    if s.detail != ''
+      item.detail = s.detail
+    endif
+    if !s.children->empty()
+      item.children = DocumentSymbols(s.children, lines, encoding)
+    endif
+    add(out, item)
+  endfor
+  return out
+enddef
+
+# test/run sets this to have every :def compiled as the script is read.
+if $VIM9LS_COMPILE_CHECK != ''
+  defcompile
+endif
+
+# vim: ts=2 sw=0 et
