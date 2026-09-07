@@ -15,6 +15,7 @@ import autoload './vim9ls/complete.vim'
 import autoload './vim9ls/symbol.vim'
 import autoload './vim9ls/diag.vim'
 import autoload './vim9ls/refs.vim'
+import autoload './vim9ls/sig.vim'
 
 export const VERSION = '0.1.0'
 const SCRIPT = expand('<sfile>:p')
@@ -69,6 +70,7 @@ def Initialize(params: dict<any>): dict<any>
       definitionProvider: true,
       referencesProvider: true,
       renameProvider: {prepareProvider: true},
+      signatureHelpProvider: {triggerCharacters: ['(', ',']},
     },
     serverInfo: {name: 'vim9ls', version: VERSION},
   }
@@ -160,8 +162,10 @@ def Where(params: dict<any>, fresh = true): dict<any>
   endif
   var lnum = params.position.line
   var line = d.lines->get(lnum, '')
+  var uri = params.textDocument.uri
   return {doc: d, parsed: Parsed(d, fresh), lnum: lnum, line: line,
-    col: util.ColFromLsp(line, params.position.character, encoding)}
+    col: util.ColFromLsp(line, params.position.character, encoding),
+    uri: uri, path: util.UriToPath(uri)}
 enddef
 
 # The identifier at byte "col" in "line", or the one just before it when the
@@ -322,17 +326,12 @@ def TokenWhere(params: dict<any>): dict<any>
     return null_dict
   endif
   w.token = token
-  w.uri = params.textDocument.uri
-  w.path = util.UriToPath(w.uri)
   return w
 enddef
 
-def Definition(params: dict<any>): any
-  var w = TokenWhere(params)
-  if w == null_dict
-    return v:null
-  endif
-  var token = w.token
+# What defines the token at "w": the symbol and the script it is in, as
+# {uri, lines, symbol}.  null_dict when nothing does.
+def Lookup(w: dict<any>, token: dict<any>): dict<any>
   var parsed = w.parsed
 
   # "alias.Name": a name from an imported script.
@@ -345,23 +344,14 @@ def Definition(params: dict<any>): any
       var script = file == '' ? null_dict : ScriptAt(file)
       var target = script == null_dict ? null_dict
         : TopLevel(script.parsed, token.text)
-      return target == null_dict ? v:null
-        : [Location(script.uri, script.lines, target)]
+      return target == null_dict ? null_dict
+        : {uri: script.uri, lines: script.lines, symbol: target}
     endif
   endif
 
   var found = refs.Resolve(parsed, token, w.lnum)
   if found != null_dict
-    if found.kind == parse.KIND_MODULE
-      # The import itself: go to the file.
-      var file = refs.ImportFile(w.path, found.detail,
-        found->get('autoload', false))
-      if file != ''
-        return [{uri: util.PathToUri(file), range: util.Range([''], 0, 0, 0,
-          0, encoding)}]
-      endif
-    endif
-    return [Location(w.uri, w.doc.lines, found)]
+    return {uri: w.uri, lines: w.doc.lines, symbol: found}
   endif
 
   # "foo#bar#Func": a legacy autoload function in autoload/foo/bar.vim.
@@ -376,10 +366,69 @@ def Definition(params: dict<any>): any
       target = TopLevel(script.parsed, matchstr(token.text, '[^#]*$'))
     endif
     if target != null_dict
-      return [Location(script.uri, script.lines, target)]
+      return {uri: script.uri, lines: script.lines, symbol: target}
     endif
   endif
-  return v:null
+  return null_dict
+enddef
+
+def Definition(params: dict<any>): any
+  var w = TokenWhere(params)
+  if w == null_dict
+    return v:null
+  endif
+  var hit = Lookup(w, w.token)
+  if hit == null_dict
+    return v:null
+  endif
+  if hit.symbol.kind == parse.KIND_MODULE
+    # The import itself: go to the file.
+    var file = refs.ImportFile(w.path, hit.symbol.detail,
+      hit.symbol->get('autoload', false))
+    if file != ''
+      return [{uri: util.PathToUri(file),
+        range: util.Range([''], 0, 0, 0, 0, encoding)}]
+    endif
+  endif
+  return [Location(hit.uri, hit.lines, hit.symbol)]
+enddef
+
+# The signature of the function a script defines: its name and what follows
+# it on the "def" or "function" line, up to the ")" for a legacy function.
+def ScriptSignature(s: dict<any>): string
+  var detail = s.detail
+  if s->get('legacy', false)
+    detail = matchstr(detail, '^([^)]*)')
+  endif
+  return s.name .. detail
+enddef
+
+def SignatureHelp(params: dict<any>): any
+  var w = Where(params)
+  if w == null_dict
+    return v:null
+  endif
+  var hit = sig.Call(w.line, w.col, parse.InVim9At(w.parsed, w.lnum))
+  if hit == null_dict
+    return v:null
+  endif
+  var active = hit.active + (hit.method ? 1 : 0)
+
+  if hit.prev != '.' && doc.HasTag(hit.name .. '()')
+    var text = doc.HelpText(hit.name .. '()')
+    var nl = stridx(text, "\n")
+    var label = nl < 0 ? text : text[: nl - 1]
+    return sig.Help(label, active, nl < 0 ? '' : text[nl + 1 :])
+  endif
+
+  var token = {text: hit.name, col: hit.col, end: hit.col
+    + strlen(hit.name), prev: hit.prev, in_string: false}
+  var found = Lookup(w, token)
+  if found == null_dict || (found.symbol.kind != parse.KIND_FUNCTION
+      && found.symbol.kind != parse.KIND_METHOD)
+    return v:null
+  endif
+  return sig.Help(ScriptSignature(found.symbol), active)
 enddef
 
 def References(params: dict<any>): any
@@ -458,6 +507,8 @@ def Request(method: string, params: dict<any>): any
     return PrepareRename(params)
   elseif method == 'textDocument/rename'
     return Rename(params)
+  elseif method == 'textDocument/signatureHelp'
+    return SignatureHelp(params)
   endif
   throw 'MethodNotFound'
 enddef

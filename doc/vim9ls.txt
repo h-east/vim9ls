@@ -98,6 +98,14 @@ A Vim9 "var" inside a block is treated as if it belonged to the whole
 function; two blocks of one function declaring the same name are told apart by
 neither definition nor rename.
 
+Signature help ~
+Inside a call, the signature of the function with the argument the cursor is
+in marked: for a builtin the first line of its help entry, with the rest of
+the entry as documentation, for a function of the script or an imported one
+its "def" or "function" line.  After "->" the value in front counts as the
+first argument.  Only the line of the cursor is read, so a call that starts on
+an earlier line is not seen.
+
 Diagnostics ~
 Reported when a document is opened and after its changes pause:
 - a block that is not closed ("if" without "endif", "def" without "enddef",

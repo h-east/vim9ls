@@ -39,6 +39,7 @@ See `:help vim9ls` for the details.
   interfaces, augroups, imports and user commands.
 - Definition, references and rename for what the script defines; definition
   also follows imports and legacy autoload functions into other files.
+- Signature help for builtin functions and the script's own.
 - Diagnostics: blocks that do not add up, `:let` under Vim9 rules, and, in
   legacy script, words that are not commands.
 

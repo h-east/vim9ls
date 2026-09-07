@@ -22,6 +22,7 @@ def g:Test_initialize()
   assert_true(caps.hoverProvider)
   assert_true(caps.documentSymbolProvider)
   assert_equal(['&', ':'], caps.completionProvider.triggerCharacters)
+  assert_equal(['(', ','], caps.signatureHelpProvider.triggerCharacters)
   assert_equal('vim9ls', resp.result.serverInfo.name)
 enddef
 
@@ -340,6 +341,53 @@ def g:Test_rename()
   assert_equal(-32602, resp.error.code)
   resp = helper.Request('textDocument/prepareRename', helper.Params(4, 6))
   assert_equal(null, resp.result)
+enddef
+
+def g:Test_signature_help()
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc([
+    'vim9script',
+    'def Add(a: number, b: number = 1): number',
+    '  return a + b',
+    'enddef',
+    "echo matchstr('abc', 'b', ",
+    'echo Add(1, ',
+    "echo 'x'->matchstr('a', ",
+    'echo nothing(1, ',
+    'echo 1 + 2',
+    'function s:Init(x, y) abort',
+    'endfunction',
+    'call s:Init(1, ',
+  ])
+  var resp = helper.Request('textDocument/signatureHelp',
+    helper.Params(4, 26))
+  var help = resp.result
+  assert_equal(2, help.activeParameter)
+  assert_equal('matchstr({expr}, {pat} [, {start} [, {count}]])',
+    help.signatures[0].label)
+  assert_equal(4, len(help.signatures[0].parameters))
+  assert_match('^Same as', help.signatures[0].documentation.value)
+
+  resp = helper.Request('textDocument/signatureHelp', helper.Params(5, 12))
+  assert_equal('Add(a: number, b: number = 1): number',
+    resp.result.signatures[0].label)
+  assert_equal(1, resp.result.activeParameter)
+  assert_equal([[4, 13], [15, 28]],
+    resp.result.signatures[0].parameters->mapnew((_, p) => p.label))
+
+  # The value in front of "->" is the first argument.
+  resp = helper.Request('textDocument/signatureHelp', helper.Params(6, 24))
+  assert_equal(2, resp.result.activeParameter)
+
+  resp = helper.Request('textDocument/signatureHelp', helper.Params(7, 16))
+  assert_equal(null, resp.result)
+  resp = helper.Request('textDocument/signatureHelp', helper.Params(8, 8))
+  assert_equal(null, resp.result)
+
+  resp = helper.Request('textDocument/signatureHelp', helper.Params(11, 15))
+  assert_equal('s:Init(x, y)', resp.result.signatures[0].label)
+  assert_equal(1, resp.result.activeParameter)
 enddef
 
 # Changes come as ranges; the server keeps the text up to date from them.
