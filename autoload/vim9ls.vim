@@ -408,11 +408,16 @@ def SignatureHelp(params: dict<any>): any
   if w == null_dict
     return v:null
   endif
-  var hit = sig.Call(w.line, w.col, parse.InVim9At(w.parsed, w.lnum))
+  var lines = w.doc.lines
+  var hit = sig.CallAt(lines, w.lnum, w.col,
+    parse.Vim9Lines(w.parsed, len(lines)))
   if hit == null_dict
     return v:null
   endif
   var active = hit.active + (hit.method ? 1 : 0)
+  # The name may be on an earlier line than the cursor.
+  w.lnum = hit.line
+  w.line = lines[hit.line]
 
   if hit.prev != '.' && doc.HasTag(hit.name .. '()')
     var text = doc.HelpText(hit.name .. '()')

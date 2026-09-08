@@ -103,8 +103,7 @@ Inside a call, the signature of the function with the argument the cursor is
 in marked: for a builtin the first line of its help entry, with the rest of
 the entry as documentation, for a function of the script or an imported one
 its "def" or "function" line.  After "->" the value in front counts as the
-first argument.  Only the line of the cursor is read, so a call that starts on
-an earlier line is not seen.
+first argument.  A call that started up to 30 lines above the cursor is found.
 
 Diagnostics ~
 Reported when a document is opened and after its changes pause:

@@ -359,6 +359,9 @@ def g:Test_signature_help()
     'function s:Init(x, y) abort',
     'endfunction',
     'call s:Init(1, ',
+    'echo Add(',
+    '  1,',
+    '  ',
   ])
   var resp = helper.Request('textDocument/signatureHelp',
     helper.Params(4, 26))
@@ -387,6 +390,12 @@ def g:Test_signature_help()
 
   resp = helper.Request('textDocument/signatureHelp', helper.Params(11, 15))
   assert_equal('s:Init(x, y)', resp.result.signatures[0].label)
+  assert_equal(1, resp.result.activeParameter)
+
+  # The call started two lines up.
+  resp = helper.Request('textDocument/signatureHelp', helper.Params(14, 2))
+  assert_equal('Add(a: number, b: number = 1): number',
+    resp.result.signatures[0].label)
   assert_equal(1, resp.result.activeParameter)
 enddef
 

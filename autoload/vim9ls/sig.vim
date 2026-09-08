@@ -5,46 +5,67 @@ vim9script
 
 import autoload './refs.vim'
 
-# The innermost call that is still open at byte "col" of "line": the name
-# of the function, the character in front of the name, whether it is a
-# method call ("x->F(" makes "x" the first argument) and which argument the
-# cursor is in.  null_dict when the cursor is not inside a call.
-export def Call(line: string, col: number, vim9: bool): dict<any>
+# How far up a call may have started.
+const LOOKBACK = 30
+
+# The innermost call still open at byte "col" of line "lnum": the name of
+# the function, its line and column, the character in front of the name,
+# whether it is a method call ("x->F(" makes "x" the first argument) and
+# which argument the cursor is in.  null_dict when the cursor is not inside
+# a call.  "vim9_at" tells for each line whether Vim9 rules apply.
+export def CallAt(lines: list<string>, lnum: number, col: number,
+    vim9_at: list<bool>): dict<any>
   var frames: list<dict<any>> = []
-  for [seg_start, seg_end] in refs.CodeSpans(line, vim9).code
-    var stop = min([seg_end, col]) - 1
-    if stop < seg_start
-      break
-    endif
-    for pos in range(seg_start, stop)
-      var c = line[pos]
-      if c == '('
-        add(frames, {open: pos, commas: 0})
-      elseif c == ')' && !frames->empty()
-        remove(frames, -1)
-      elseif c == ',' && !frames->empty()
-        frames[-1].commas += 1
-      endif
+  # The call may have started on an earlier line; read from each line above
+  # in turn until one leaves a "(" open at the cursor.
+  for start in range(lnum, max([0, lnum - LOOKBACK]), -1)
+    frames = []
+    for at in range(start, lnum)
+      var line = lines[at]
+      var limit = at == lnum ? col : strlen(line)
+      for [seg_start, seg_end] in refs.CodeSpans(line, vim9_at[at]).code
+        var stop = min([seg_end, limit]) - 1
+        if stop < seg_start
+          break
+        endif
+        for pos in range(seg_start, stop)
+          var c = line[pos]
+          if c == '('
+            add(frames, {line: at, open: pos, commas: 0})
+          elseif c == ')' && !frames->empty()
+            remove(frames, -1)
+          elseif c == ',' && !frames->empty()
+            frames[-1].commas += 1
+          endif
+        endfor
+      endfor
     endfor
+    # A "(" that opens a list, a lambda or a grouping is not a call.
+    while !frames->empty()
+      var frame = frames[-1]
+      var line = lines[frame.line]
+      var name = matchstr(line[: frame.open - 1], refs.NAME .. '\+$')
+      if name != '' && name =~ '^\h'
+        var name_col = frame.open - strlen(name)
+        var before = name_col == 0 ? '' : line[: name_col - 1]
+        return {
+          name: name,
+          line: frame.line,
+          col: name_col,
+          prev: name_col == 0 ? '' : line[name_col - 1],
+          method: before =~ '->$',
+          active: frame.commas,
+        }
+      endif
+      remove(frames, -1)
+    endwhile
   endfor
-  # A "(" that opens a list, a lambda or a grouping is not a call.
-  while !frames->empty()
-    var frame = frames[-1]
-    var name = matchstr(line[: frame.open - 1], refs.NAME .. '\+$')
-    if name != '' && name =~ '^\h'
-      var name_col = frame.open - strlen(name)
-      var before = name_col == 0 ? '' : line[: name_col - 1]
-      return {
-        name: name,
-        col: name_col,
-        prev: name_col == 0 ? '' : line[name_col - 1],
-        method: before =~ '->$',
-        active: frame.commas,
-      }
-    endif
-    remove(frames, -1)
-  endwhile
   return null_dict
+enddef
+
+# CallAt() for a single line.
+export def Call(line: string, col: number, vim9: bool): dict<any>
+  return CallAt([line], 0, col, [vim9])
 enddef
 
 # The spans of the parameters in a signature label, as [start, end) byte

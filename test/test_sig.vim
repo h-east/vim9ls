@@ -36,6 +36,30 @@ def g:Test_call()
   assert_equal(null_dict, sig.Call('# Fn(1, ', 8, true))
 enddef
 
+def g:Test_call_over_lines()
+  var lines = [
+    'echo matchstr(a,',
+    "  'b',  # a comment (with parens)",
+    '  Fn(1,',
+    '    2),',
+    '  ',
+  ]
+  var vim9_at = repeat([true], len(lines))
+  var hit = sig.CallAt(lines, 4, 2, vim9_at)
+  assert_equal('matchstr', hit.name)
+  assert_equal(0, hit.line)
+  assert_equal(5, hit.col)
+  assert_equal(3, hit.active)
+  # Inside the nested call on its own lines.
+  hit = sig.CallAt(lines, 3, 4, vim9_at)
+  assert_equal('Fn', hit.name)
+  assert_equal(2, hit.line)
+  assert_equal(1, hit.active)
+  # A closed statement above does not count.
+  assert_equal(null_dict, sig.CallAt(['echo Fn(1)', 'echo x'], 1, 6,
+    [true, true]))
+enddef
+
 # The text each parameter span of "label" covers.
 def Spans(label: string): list<string>
   return sig.Parameters(label)->mapnew((_, p) => label[p[0] : p[1] - 1])
