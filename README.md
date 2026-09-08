@@ -1,5 +1,7 @@
 # vim9ls
 
+[![Vim 9.2.1049+](https://img.shields.io/badge/Vim-9.2.1049%2B-015b01?logo=vim&logoColor=white)](#requirements)
+
 A language server for Vim script, run by Vim itself.
 
 vim9ls is written in Vim9 script and runs in a Vim of its own.  A client
@@ -14,8 +16,8 @@ Nothing else needs to be installed.
 
 ## Requirements
 
-A Vim with `+channel`, `+job` and the `--stdio-channel` argument
-([vim/vim#21245](https://github.com/vim/vim/pull/21245)).
+Vim 9.2.1049 or later with `+channel` and `+job`. The `--stdio-channel`
+argument came with that patch.
 
 ## Setup
 

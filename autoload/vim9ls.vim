@@ -17,14 +17,17 @@ import autoload './vim9ls/diag.vim'
 import autoload './vim9ls/refs.vim'
 import autoload './vim9ls/sig.vim'
 
-export const VERSION = '0.1.0'
+export const VERSION = '0.1.001'
+
 const SCRIPT = expand('<sfile>:p')
 
 export def Command(): list<string>
-  # --stdio-channel cannot be checked from here; a Vim without it says so
-  # when the server is started.
   if !has('channel') || !has('job')
     throw 'vim9ls: this Vim needs +channel and +job to run the server'
+  endif
+  # --stdio-channel came with this patch.
+  if !has('patch-9.2.1049')
+    throw 'vim9ls: this Vim needs 9.2.1049 or later to run the server'
   endif
   var vim = v:progpath
   # gvim.exe would open a window; vim.exe next to it does not.

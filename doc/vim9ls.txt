@@ -30,9 +30,10 @@ of Vim and nothing else needs to be installed.
 ==============================================================================
 2. Requirements					*vim9ls-requirements*
 
-A Vim with the |+channel| and |+job| features and the |--stdio-channel|
-argument.  The Vim that runs the server does not have to be the one that is
-editing, but with lsp.vim it is: |vim9ls#Command()| names |v:progpath|.
+Vim 9.2.1049 or later with the |+channel| and |+job| features.  The
+|--stdio-channel| argument came with that patch.  The Vim that runs the
+server does not have to be the one that is editing, but with lsp.vim it is:
+|vim9ls#Command()| names |v:progpath|.
 
 ==============================================================================
 3. Setup					*vim9ls-setup*
