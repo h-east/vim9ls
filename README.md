@@ -26,7 +26,7 @@ argument came with that patch.
 With [lsp.vim](https://github.com/h-east/lsp.vim): install both plugins and
 add the server to `g:lsp_server_list`:
 
-    {name: 'vim9ls', filetypes: ['vim'], cmd: vim9ls#Command()}
+    {name: 'vim9ls', filetypes: ['vim'], cmd: function('vim9ls#Command')}
 
 With another editor: point its LSP client at `bin/vim9ls` (`bin/vim9ls.cmd` on
 MS-Windows).

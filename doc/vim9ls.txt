@@ -41,14 +41,15 @@ server does not have to be the one that is editing, but with lsp.vim it is:
 With lsp.vim ~
 Install both plugins the same way (a plugin manager, or "packadd") and add an
 entry for "vim" files to |g:lsp_server_list|: >
-	{name: 'vim9ls', filetypes: ['vim'], cmd: vim9ls#Command()}
-vim9ls has to be in 'runtimepath' when that line runs, since it calls an
-autoload function.
+	{name: 'vim9ls', filetypes: ['vim'], cmd: function('vim9ls#Command')}
+lsp.vim calls the Funcref when the server starts, so vim9ls does not have to
+be in 'runtimepath' yet when the vimrc is read.
 
 						*vim9ls#Command()*
 vim9ls#Command() returns the command that starts the server with the Vim it is
 called in.  On MS-Windows it names vim.exe when called from gvim.exe, so that
-no window opens.  It throws when that Vim lacks |+channel| or |+job|.
+no window opens.  It throws when that Vim lacks |+channel| or |+job|, or is
+older than 9.2.1049.
 
 With another editor ~
 Point the editor's LSP client at bin/vim9ls (bin/vim9ls.cmd on MS-Windows), a
