@@ -83,8 +83,22 @@ def g:Test_diag_no_false_positives()
     @a = 'x'
     var d = {
       name: 'x',
-      other: 2,
+      end: {line: 1},
+      enddef: 2,
     }
+    var for_buf = 0
+    for_buf = 1
+    if for_buf == 0|for_buf = 2|endif
+    command! Rexplore if 1|echo 1|else|echo 2|endif
+    augroup! Gone
+    def Header(a: number,
+        Cb: func(any),
+        b = 1): number
+      return a + b
+    enddef
+    py3 << EOF
+    if True:
+    EOF
     var t =<< trim EOT
       garbage here
       more garbage

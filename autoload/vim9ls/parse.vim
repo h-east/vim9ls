@@ -62,6 +62,14 @@ const CLOSES = {
 const CONTINUES = {else: 'if', elseif: 'if', catch: 'try', finally: 'try'}
 const OPENS = {if: 1, while: 1, for: 1, try: 1}
 const DECLARES = {var: 1, const: 1, final: 1, let: 1}
+# Commands that take a script in another language as a heredoc.
+const LANGUAGES = {python: 1, python3: 1, pythonx: 1, py3: 1, pyx: 1,
+  perl: 1, lua: 1, ruby: 1, tcl: 1, mzscheme: 1}
+# Commands that take the rest of the line, bars included; see ":help :bar".
+# A mapping is not one of them.
+const TAKES_REST = {command: 1, autocmd: 1, normal: 1, global: 1, vglobal: 1,
+  windo: 1, bufdo: 1, argdo: 1, tabdo: 1, cdo: 1, cfdo: 1, ldo: 1, lfdo: 1,
+  folddoopen: 1, folddoclosed: 1, help: 1, sign: 1, terminal: 1}
 const TYPES = {class: KIND_CLASS, interface: KIND_INTERFACE, enum: KIND_ENUM}
 
 # The commands that shape a script; every other command is left alone.
@@ -74,10 +82,12 @@ const SHAPING = extend({
 # and again.
 var commands: dict<string> = {}
 
-# The command "word" stands for, expanded; empty when it is not one.
-def CommandOf(word: string): string
+# The command "word" stands for, expanded; empty when it is not one.  A
+# command name has no underscore: for "for_buf" fullcommand() would settle
+# for "for".
+export def CommandOf(word: string): string
   if !commands->has_key(word)
-    commands[word] = fullcommand(word, false)
+    commands[word] = word =~ '_' ? '' : fullcommand(word, false)
   endif
   return commands[word]
 enddef
@@ -127,7 +137,8 @@ enddef
 
 # The state of one parse, handed to the functions below.
 def NewState(): dict<any>
-  return {vim9: false, stack: [], top: [], diags: [], heredoc: ''}
+  return {vim9: false, stack: [], top: [], diags: [], heredoc: '',
+    heredoc_lines: [], params: null_dict, params_depth: 0}
 enddef
 
 def Container(st: dict<any>): list<dict<any>>
@@ -173,27 +184,94 @@ def Close(st: dict<any>, closer: string, lnum: number, col: number,
   endif
 enddef
 
-# The parameters of a function as variables of it; a legacy script refers
-# to them with "a:".
-def AddParams(symbol: dict<any>, arg_text: string, lnum: number,
-    name_col: number, legacy: bool)
-  var params = matchstrpos(arg_text, '(\zs[^)]*\ze)')
-  if params[1] < 0
-    return
-  endif
+# The parameters in "text", at "col" of line "lnum", as variables of the
+# function; a legacy script refers to them with "a:".  A header may go on
+# over several lines, "text" is what one line has of it.
+def AddParams(symbol: dict<any>, text: string, lnum: number, col: number,
+    legacy: bool)
   var pos = 0
   while true
-    var m = matchstrpos(params[0], '\h\w*', pos)
+    var m = matchstrpos(text, '\h\w*', pos)
     if m[1] < 0
       break
     endif
     # Skip a type and a default: what follows ":" or "=" up to ",".
-    pos = m[2] + strlen(matchstr(params[0], '^\s*[:=][^,]*', m[2]))
+    pos = m[2] + strlen(matchstr(text, '^\s*[:=][^,]*', m[2]))
     var param = NewSymbol((legacy ? 'a:' : '') .. m[0], KIND_VARIABLE, lnum,
-      name_col + params[1] + m[1], name_col + params[1] + m[1])
+      col + m[1], col + m[1])
     param.param = true
     add(symbol.children, param)
   endwhile
+enddef
+
+# Where the parameters in "text" end: the ")" that brings the depth of
+# parentheses, "depth" at the start, to zero.  Returns that index and the
+# depth at the end of "text" when there is no such ")".
+def HeaderEnd(text: string, depth: number): list<number>
+  var d = depth
+  for i in range(strlen(text))
+    if text[i] == '('
+      d += 1
+    elseif text[i] == ')'
+      d -= 1
+      if d == 0
+        return [i, 0]
+      endif
+    endif
+  endfor
+  return [strlen(text), d]
+enddef
+
+# The commands of "text", each with its offset: a bar separates them, but
+# not "||", not "\|" and not one inside a string.  A legacy comment counts as
+# a string that does not end.
+def Parts(text: string): list<list<any>>
+  var parts: list<list<any>> = []
+  var start = 0
+  var quote = ''
+  var len = strlen(text)
+  var i = 0
+  while i < len
+    var c = text[i]
+    if quote != ''
+      if c == quote
+        if quote == "'" && text[i + 1] == "'"
+          i += 1
+        else
+          quote = ''
+        endif
+      elseif quote == '"' && c == '\'
+        i += 1
+      endif
+    elseif c == "'" || c == '"'
+      quote = c
+    elseif c == '|'
+      if text[i + 1] == '|'
+        i += 1
+      elseif i == 0 || text[i - 1] != '\'
+        add(parts, [start, text[start : i - 1]])
+        start = i + 1
+      endif
+    endif
+    i += 1
+  endwhile
+  add(parts, [start, text[start :]])
+  return parts
+enddef
+
+# Whether the statement "text" starts with a command that takes the rest of
+# the line, so that a bar after it does not separate a command.
+def TakesRest(text: string): bool
+  var rest = text
+  while true
+    var word = matchstr(rest, '^\h\w*')
+    var cmd = CommandOf(word)
+    if word == '' || !MODIFIERS->has_key(cmd)
+      return TAKES_REST->has_key(cmd)
+    endif
+    rest = ArgText(rest, 0, word)
+  endwhile
+  return false
 enddef
 
 # The text of "line" after the word at "col": past a "!" and the blanks.
@@ -281,7 +359,17 @@ def Statement(st: dict<any>, lnum: number, text: string, col: number,
       lnum, col, name_col, matchstr(arg_text, '(.*'))
     symbol.legacy = cmd == 'function'
     add(Container(st), symbol)
-    AddParams(symbol, arg_text, lnum, name_col, cmd == 'function')
+    var params = matchstrpos(arg_text, '(\zs.*')
+    if params[1] >= 0
+      var [stop, depth] = HeaderEnd(params[0], 1)
+      AddParams(symbol, strpart(params[0], 0, stop), lnum,
+        name_col + params[1], symbol.legacy)
+      # Without the ")" the header continues on the next line.
+      if depth > 0
+        st.params = symbol
+        st.params_depth = depth
+      endif
+    endif
     # An interface only declares its methods, there is no body to close.
     if !InKind(st, 'interface')
       Open(st, cmd, symbol, lnum)
@@ -294,6 +382,14 @@ def Statement(st: dict<any>, lnum: number, text: string, col: number,
         END_WITHOUT_START[cmd]))
     endif
   elseif OPENS->has_key(cmd)
+    if cmd == 'for'
+      # The loop variables, as variables of the block around them.
+      var container = Container(st)
+      for name in VariableNames(arg_text)
+        add(container, NewSymbol(name, KIND_VARIABLE, lnum, col,
+          name_col + stridx(arg_text, name)))
+      endfor
+    endif
     Open(st, cmd, null_dict, lnum)
   elseif TYPES->has_key(cmd)
     var name = matchstr(arg_text, '^\h\w*')
@@ -307,13 +403,16 @@ def Statement(st: dict<any>, lnum: number, text: string, col: number,
   elseif cmd == 'vim9script'
     st.vim9 = true
   elseif cmd == 'augroup'
+    if rest[strlen(word)] == '!'
+      # ":augroup!" deletes a group, nothing opens.
+      return
+    endif
     if arg_text =~? '^end\>'
+      # Without a group of its own this ends one that ":execute" opened,
+      # or nothing; Vim does not mind either.
       if InKind(st, 'augroup')
         var entry = remove(st.stack, -1)
         entry.symbol.end_line = lnum
-      else
-        add(st.diags, Diag(lnum, offset, offset + strlen(text) - col,
-          ':augroup END without :augroup'))
       endif
     elseif arg_text =~ '^\S'
       var name = matchstr(arg_text, '^\S\+')
@@ -345,9 +444,21 @@ export def Parse(lines: list<string>): dict<any>
   for lnum in range(len(lines))
     var line = lines[lnum]
     if st.heredoc != ''
+      add(st.heredoc_lines, lnum)
       if line->trim() == st.heredoc
         st.heredoc = ''
       endif
+      continue
+    endif
+    if st.params != null_dict
+      # The rest of a function header, up to the ")" that closes it.
+      var head = st.params.legacy ? line : substitute(line, '\s#.*', '', '')
+      var [stop, depth] = HeaderEnd(head, st.params_depth)
+      AddParams(st.params, strpart(head, 0, stop), lnum, 0, st.params.legacy)
+      if depth == 0
+        st.params = null_dict
+      endif
+      st.params_depth = depth
       continue
     endif
     # Only a line that starts with a name can be a statement of interest;
@@ -358,7 +469,18 @@ export def Parse(lines: list<string>): dict<any>
     endif
     var word = m[0]
     var col = m[1]
+    # "end: 1" in a dictionary that goes over lines is a key, not ":endif".
+    if line[m[2]] == ':'
+      continue
+    endif
     var cmd = CommandOf(word)
+
+    # A script in another language, up to its end marker.
+    if LANGUAGES->has_key(cmd) && line =~ '<<'
+      var marker = matchstr(line, '<<\s*\%(trim\s\+\)\=\zs\S*')
+      st.heredoc = marker == '' ? '.' : marker
+      continue
+    endif
 
     # Most lines are expressions or commands that do not shape the script;
     # they matter only inside an enum, and in legacy script as a typo.
@@ -385,18 +507,18 @@ export def Parse(lines: list<string>): dict<any>
       Statement(st, lnum, line[col :], col, true, word, cmd)
       continue
     endif
-    # A bar separates commands; one inside a string is taken along, which
-    # is rare enough in the statements looked at here.
-    var pos = col
     var is_first = true
-    for part in split(line[col :], '\s\+|\s\+', true)
-      var pword = matchstr(part, '^\h\w*')
+    for [offset, part] in Parts(line[col :])
+      var text = substitute(part, '^\s*', '', '')
+      var pword = matchstr(text, '^\h\w*')
       if pword != ''
-        Statement(st, lnum, part, pos, is_first, pword, CommandOf(pword))
+        Statement(st, lnum, text, col + offset + strlen(part) - strlen(text),
+          is_first, pword, CommandOf(pword))
       endif
       is_first = false
-      pos += strlen(part)
-      pos += strlen(matchstr(line[pos :], '^\s\+|\s\+'))
+      if TakesRest(text)
+        break
+      endif
     endfor
   endfor
 
@@ -410,7 +532,8 @@ export def Parse(lines: list<string>): dict<any>
     endif
   endfor
 
-  return {vim9: st.vim9, symbols: st.top, diags: st.diags}
+  return {vim9: st.vim9, symbols: st.top, diags: st.diags,
+    heredoc_lines: st.heredoc_lines}
 enddef
 
 # Every symbol in the tree, flattened.

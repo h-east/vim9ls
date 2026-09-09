@@ -134,21 +134,25 @@ Reported when a document is opened and after its changes pause:
 - in legacy script, a word at the start of a statement that is not a command,
   as a warning; an assignment, a call or a user command does not count.  Under
   Vim9 rules a statement may start with any expression, so nothing is reported
-  there.
+  there;
+- a call of a function that is not defined: a builtin Vim does not have, a
+  script-local function the script does not define, a legacy autoload function
+  its file does not have, and under Vim9 rules a name the script does not
+  define.  A global function may be defined anywhere and is left alone, and so
+  is a call in a pattern, in keys or in the value of an option;
+- a "v:" variable Vim does not have.
 The reading is line by line and does not run the script.
 
 At the same time Vim itself reads the document.  The checker, a Vim of its
 own that the server starts once and keeps, sources the text under the file's
 own name, so that a relative import is found, with |:source-dryrun|: what
 the script defines is defined, nothing in it runs, and every ":def" is
-compiled.  In a |vim9script| file the script level is then read once more as
+compiled.  In a |vim9script| file the script level goes along once more as
 the body of a function, so that it is compiled as well; a declaration is
 checked against its type.  What Vim reports is added, each on the line it is
 about: a type mismatch, a name that is not found, an argument too many.
-Vim stops compiling a function at its first error, and the script level
-counts as one function.  What a legacy "function" does is not read until it
-is called, and neither is a mapping or an autocommand.  A Vim without
-|:source-dryrun| leaves this out.
+What a legacy "function" does is not read until it is called, and neither is
+a mapping or an autocommand.  A Vim without |:source-dryrun| leaves this out.
 
 ==============================================================================
 6. Environment					*vim9ls-environment*

@@ -41,7 +41,7 @@ def g:Test_wrap_script_level()
     defcompile
   END
   var expected =<< trim END
-    def ScriptLevel()
+
 
 
 
@@ -71,7 +71,6 @@ def g:Test_wrap_script_level()
     echo undefined_name
     return
 
-    enddef
   END
   # The trim leaves the indent of a blank line as is; compare without it.
   assert_equal(expected->mapnew((_, l) => l =~ '^\s*$' ? '' : l),
@@ -87,8 +86,7 @@ def g:Test_wrap_legacy_function()
     endfunction
     Old()
   END
-  assert_equal(['def ScriptLevel()', '', '', '', 'Old()', 'enddef'],
-    Wrapped(lines))
+  assert_equal(['', '', '', '', 'Old()'], Wrapped(lines))
 enddef
 
 # vim: ts=2 sw=0 et

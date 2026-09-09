@@ -19,8 +19,14 @@ const SELF = expand('<sfile>:p')
 
 # The buffer for "path" with "lines" as its text.  The same buffer serves
 # the same path again, so that Vim sees one script sourced once more and
-# lets it redefine its functions.
+# lets it redefine its functions.  A script in a plugin directory has the
+# plugin put on 'runtimepath', for what it imports by name.
 function Load(path, lines)
+  let root = matchstr(a:path,
+    \ '.*\ze[/\\]\%(autoload\|plugin\|ftplugin\|import\|syntax\|indent\)[/\\]')
+  if root != '' && index(split(&runtimepath, ','), root) < 0
+    let &runtimepath = root .. ',' .. &runtimepath
+  endif
   if bufexists(a:path)
     execute 'silent! keepalt buffer!' bufnr(a:path)
   else
@@ -120,22 +126,25 @@ function Errors(messages, path)
 endfunction
 
 # What Vim reports for "lines" as the script at "path".  "wrapped" is the
-# script level of a Vim9 script as a function, see wrap.vim; it is read
-# after the script, in the same script context, so that it can use what the
-# script defines.
+# script level of a Vim9 script as the body of a function, see wrap.vim; it
+# is appended to the script, so that it is compiled along with the rest.
+# An error in it is reported on the line of the script it came from.
 function Check(path, lines, wrapped)
   let path = fnamemodify(a:path, ':p')
   " This script is running here, its functions cannot be defined again.
   if path ==# s:SELF
     let path ..= '.dryrun'
   endif
-  call s:Load(path, a:lines)
-  let messages = s:Source('%source ++dryrun')
-  if type(a:wrapped) == v:t_list
-    call s:Load(path, a:wrapped)
-    let messages ..= s:Source('vim9cmd :%source ++dryrun')
-  endif
-  return s:Errors(messages, path)
+  let text = type(a:wrapped) != v:t_list ? a:lines
+    \ : a:lines + ['def ScriptLevel()'] + a:wrapped + ['enddef']
+  call s:Load(path, text)
+  let errors = s:Errors(s:Source('%source ++dryrun'), path)
+  for e in errors
+    if e.line > len(a:lines)
+      let e.line -= len(a:lines) + 1
+    endif
+  endfor
+  return sort(errors, {a, b -> a.line - b.line})
 endfunction
 
 function OnMessage(ch, msg)

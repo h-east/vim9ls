@@ -26,39 +26,30 @@ export def CodeSpans(line: string, vim9: bool): dict<list<list<number>>>
   endif
   var len = strlen(line)
   var at = 0
-  var seg_start = 0
   while at < len
-    var c = line[at]
-    if c == "'" || c == '"'
-      if at > seg_start
-        add(code, [seg_start, at])
+    # The next thing that is not code: a quote, or "#" that starts a comment.
+    var m = matchstrpos(line, vim9 ? '''\|"\|\%(^\|\s\)\zs#' : '''\|"', at)
+    if m[1] < 0 || m[0] == '#'
+      var stop = m[1] < 0 ? len : m[1]
+      if stop > at
+        add(code, [at, stop])
       endif
-      var scan = at + 1
-      while scan < len
-        if line[scan] == c
-          # Two single quotes in a row stand for one.
-          if c == "'" && line[scan + 1] == "'"
-            scan += 2
-            continue
-          endif
-          break
-        elseif c == '"' && line[scan] == '\'
-          scan += 1
-        endif
-        scan += 1
-      endwhile
-      add(strings, [at + 1, scan])
-      at = scan + 1
-      seg_start = at
-    elseif vim9 && c == '#' && (at == 0 || line[at - 1] =~ '\s')
       break
-    else
-      at += 1
     endif
+    if m[1] > at
+      add(code, [at, m[1]])
+    endif
+    # Two single quotes in a row stand for one; a backslash escapes a double
+    # quote.  Without the closing quote the string runs to the end.
+    var s = matchstrpos(line, m[0] == "'" ? "'\\%(''\\|[^']\\)*'"
+      : '"\%(\\.\|[^"\\]\)*"', m[1])
+    if s[1] != m[1]
+      add(strings, [m[1] + 1, len])
+      break
+    endif
+    add(strings, [m[1] + 1, s[2] - 1])
+    at = s[2]
   endwhile
-  if seg_start < min([at, len])
-    add(code, [seg_start, min([at, len])])
-  endif
   return {code: code, strings: strings}
 enddef
 
@@ -148,15 +139,28 @@ def Scoped(symbols: list<dict<any>>, first: number, last: number,
   endfor
 enddef
 
-# The symbol a token at "lnum" stands for, or null_dict.  With several to
-# choose from, the one whose scope is the smallest wins.
-export def Resolve(parsed: dict<any>, token: dict<any>,
-    lnum: number): dict<any>
+# Every symbol with its scope, by the name without its script prefix, for
+# looking many names up in one parse.
+export def Index(parsed: dict<any>): dict<list<dict<any>>>
   var scoped: list<dict<any>> = []
   Scoped(parsed.symbols, 0, 1000000000, scoped)
-  var vim9 = parse.InVim9At(parsed, lnum)
-  var best: dict<any> = null_dict
+  var index: dict<list<dict<any>>> = {}
   for entry in scoped
+    var core = Core(entry.symbol.name)
+    if !index->has_key(core)
+      index[core] = []
+    endif
+    add(index[core], entry)
+  endfor
+  return index
+enddef
+
+# The symbol a token at "lnum" stands for in "index", or null_dict.  With
+# several to choose from, the one whose scope is the smallest wins.
+export def Find(index: dict<list<dict<any>>>, token: dict<any>, lnum: number,
+    vim9: bool): dict<any>
+  var best: dict<any> = null_dict
+  for entry in index->get(Core(token.text), [])
     if !Matches(token, entry.symbol, vim9) || lnum < entry.first
         || lnum > entry.last
       continue
@@ -166,6 +170,14 @@ export def Resolve(parsed: dict<any>, token: dict<any>,
     endif
   endfor
   return best == null_dict ? null_dict : best.symbol
+enddef
+
+# Find() for one token, with the index made on the spot.  In a Vim9 script
+# "s:Name" and "Name" are the same, also in a legacy function of it.
+export def Resolve(parsed: dict<any>, token: dict<any>,
+    lnum: number): dict<any>
+  return Find(Index(parsed), token, lnum,
+    parsed.vim9 || parse.InVim9At(parsed, lnum))
 enddef
 
 # The token at byte "col" in "line", or the one just before it.
@@ -196,14 +208,17 @@ export def References(parsed: dict<any>, lines: list<string>,
   endif
   var core = Core(symbol.name)
   var vim9_at = parse.Vim9Lines(parsed, len(lines))
+  var index = Index(parsed)
   for lnum in range(len(lines))
     # Only a line that holds the name at all needs reading.
     if stridx(lines[lnum], core) < 0
       continue
     endif
     var vim9 = vim9_at[lnum]
+    var same = parsed.vim9 || vim9
     for token in Tokens(lines[lnum], vim9)
-      if Matches(token, symbol, vim9) && Resolve(parsed, token, lnum) is symbol
+      if Matches(token, symbol, same)
+          && Find(index, token, lnum, same) is symbol
         var skip = strlen(token.text) - strlen(Core(token.text))
         var col = token.col + skip
         if !(lnum == symbol.line && col == decl_col)

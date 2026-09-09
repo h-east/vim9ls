@@ -18,6 +18,7 @@ import autoload './vim9ls/refs.vim'
 import autoload './vim9ls/sig.vim'
 import autoload './vim9ls/compile.vim'
 import autoload './vim9ls/wrap.vim'
+import autoload './vim9ls/names.vim'
 
 export const VERSION = '0.1.001'
 
@@ -114,7 +115,9 @@ def PublishDiagnostics(uri: string)
       d.compiled = errors
     endif
   endif
-  var items = diag.Diagnostics(parsed.diags, d.lines, encoding)
+  var undefined = names.Undefined(parsed, d.lines,
+    (name: string): number => AutoloadDefined(path, name))
+  var items = diag.Diagnostics(parsed.diags + undefined, d.lines, encoding)
   for item in compile.Diagnostics(d.compiled, d.lines, encoding)
     if items->indexof((_, i) => i.message == item.message
         && i.range.start.line == item.range.start.line) < 0
@@ -326,6 +329,20 @@ enddef
 def Location(uri: string, lines: list<string>, s: dict<any>): dict<any>
   return {uri: uri, range: util.Range(lines, s.line, s.name_col, s.line,
     s.name_end, encoding)}
+enddef
+
+# The "Autoload" of names.Undefined(): whether the legacy autoload function
+# "name", used in the script at "path", is defined in its file.
+def AutoloadDefined(path: string, name: string): number
+  var rel = substitute(name, '#[^#]*$', '', '')->substitute('#', '/', 'g')
+    .. '.vim'
+  var file = path == '' ? '' : refs.AutoloadFile(path, rel)
+  var script = file == '' ? null_dict : ScriptAt(file)
+  if script == null_dict
+    return -1
+  endif
+  return TopLevel(script.parsed, name) != null_dict
+    || TopLevel(script.parsed, matchstr(name, '[^#]*$')) != null_dict ? 1 : 0
 enddef
 
 # The top-level symbol "name" of a script; a legacy autoload function is

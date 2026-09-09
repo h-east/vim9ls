@@ -197,6 +197,18 @@ def g:Test_diagnostics()
   note = helper.WaitNotification('textDocument/publishDiagnostics')
   assert_equal(2, note.params.version)
   assert_equal([], note.params.diagnostics)
+
+  # A call of a function that nothing defines.
+  helper.ChangeDoc(['call s:Nope()', 'call nosuch()', 'echo v:nosuch'],
+    helper.URI, 3)
+  note = helper.WaitNotification('textDocument/publishDiagnostics')
+  assert_equal([
+    [0, 'E117: Unknown function: s:Nope'],
+    [1, 'E117: Unknown function: nosuch'],
+    [2, 'E121: Undefined variable: v:nosuch'],
+  ], note.params.diagnostics->mapnew((_, d) => [d.range.start.line, d.message]))
+  assert_equal({start: {line: 0, character: 5}, end: {line: 0, character: 11}},
+    note.params.diagnostics[0].range)
 enddef
 
 # The diagnostics after "lines" replaced the document: [line, message] of
@@ -243,11 +255,17 @@ def g:Test_compile_diagnostics()
     After(['vim9script', 'let x = 1', 'def Fine(): number', '  return 1',
       'enddef'], 2))
 
-  # A "const" is left alone, and what comes after "finish" is read as well;
-  # the script level is one function to Vim, it reports one error for it.
-  assert_equal([[4, 'E1012: Type mismatch; expected number but got string']],
-    After(['vim9script', 'var n: number = 1', 'const LIMIT = 10', 'finish',
-      'var m: number = "s"'], 3))
+  # A "const" is left alone, what comes after "finish" is read as well, and
+  # every line with an error is reported, in a function and at the script
+  # level.
+  assert_equal([
+    [1, 'E1012: Type mismatch; expected number but got string'],
+    [4, 'E1012: Type mismatch; expected number but got string'],
+    [6, 'E1012: Type mismatch; expected string but got number'],
+    [7, 'E1001: Variable not found: undefined_name'],
+  ], After(['vim9script', 'var n: number = "t"', 'const LIMIT = 10', 'finish',
+      'var m: number = "s"', 'def Two(): number', '  var s: string = 1',
+      '  echo undefined_name', '  return 1', 'enddef'], 3))
 
   # A legacy script defines its functions and nothing is compiled.
   assert_equal([], After(['function Legacy()', '  return undefined_a',

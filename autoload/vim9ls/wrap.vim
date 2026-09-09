@@ -5,11 +5,12 @@ vim9script
 #
 # ":source ++dryrun" defines what a script defines and compiles its
 # functions, but skips the statements at the script level.  To have Vim
-# compile those as well, they are made the body of a function: what the dry
-# run has already read (functions, classes, imports, type aliases) is
-# blanked, a declaration becomes an assignment to the script variable the
-# dry run declared, and "vim9script" becomes the "def" line.  Line numbers
-# are kept.
+# compile those as well, they are made the body of a function that the
+# checker appends to the script: what the dry run has already read
+# (functions, classes, imports, type aliases, "vim9script" and what comes
+# before it) is blanked, and a declaration becomes an assignment to the
+# script variable the dry run declared.  The body has one line for each
+# line of the script.
 
 import autoload './parse.vim'
 
@@ -49,12 +50,13 @@ export def Lines(parsed: dict<any>, lines: list<string>): list<string>
       out[s.line] = Assignment(out[s.line])
     endif
   endfor
-  var opened = false
+  var started = false
   for lnum in range(len(out))
     var line = out[lnum]
-    if !opened && line =~ '^\s*vim9script\>'
-      out[lnum] = 'def ScriptLevel()'
-      opened = true
+    if !started
+      # Up to "vim9script": comments in the legacy style at most.
+      out[lnum] = ''
+      started = line =~ '^\s*vim9script\>'
     elseif line =~ '^\s*fini\%[sh]\>'
       out[lnum] = 'return'
     elseif line =~ '^\s*\%(export\s\+\)\=type\s\+\u'
@@ -63,7 +65,6 @@ export def Lines(parsed: dict<any>, lines: list<string>): list<string>
       out[lnum] = ''
     endif
   endfor
-  add(out, 'enddef')
   return out
 enddef
 

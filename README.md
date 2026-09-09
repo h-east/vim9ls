@@ -61,8 +61,9 @@ See `:help vim9ls` for the details.
 - Definition, references and rename for what the script defines; definition
   also follows imports and legacy autoload functions into other files.
 - Signature help for builtin functions and the script's own.
-- Diagnostics: blocks that do not add up, `:let` under Vim9 rules, and, in
-  legacy script, words that are not commands.  And what Vim itself reports
+- Diagnostics: blocks that do not add up, `:let` under Vim9 rules, in legacy
+  script words that are not commands, calls of functions that are not
+  defined, and `v:` variables Vim does not have.  And what Vim itself reports
   when it reads the script with `:source ++dryrun`, which runs nothing in
   it, and compiles its `:def` functions and, in a Vim9 script, the script
   level: a type mismatch, a name that is not found, an argument too many.
@@ -202,8 +203,8 @@ below, and 65 are left out for the reason given.
 
 In the order they are meant to be taken up.
 
-- [ ] Diagnostics for a function or variable that is neither defined by the
-      script nor a builtin.
+- [x] Diagnostics for a function that is neither defined by the script nor
+      a builtin, and for a `v:` variable Vim does not have.
 - [ ] Definition, references and rename across files: a name defined in an
       imported script or an autoload file, found in the files that use it.
 - [ ] Vim9 block scope: a `var` inside a block belongs to that block, so two
