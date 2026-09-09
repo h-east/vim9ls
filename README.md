@@ -61,6 +61,175 @@ See `:help vim9ls` for the details.
 - Diagnostics: blocks that do not add up, `:let` under Vim9 rules, and, in
   legacy script, words that are not commands.
 
+## Protocol coverage
+
+What this server does with each of the 95 requests and notifications in the
+LSP 3.18 meta model: 16 are answered, 14 are planned and listed in the TODO
+below, and 65 are left out for the reason given.
+
+<details>
+<summary>Method-by-method tables</summary>
+
+### Lifecycle
+
+| Method | State | Note |
+| --- | --- | --- |
+| `initialize` | yes | position encoding "utf-8" when the client offers it, "utf-16" otherwise |
+| `initialized` | yes | nothing to do |
+| `shutdown` | yes |  |
+| `exit` | yes |  |
+| `client/registerCapability` | no | every capability is announced at `initialize` |
+| `client/unregisterCapability` | no |  |
+| `$/cancelRequest` | no | a request is answered before the next one is read |
+| `$/progress` | no | nothing takes long enough to report on |
+| `$/setTrace` | no | `$VIM9LS_LOG` holds the channel log anyway |
+| `$/logTrace` | no |  |
+
+### Keeping the server in step with the buffer
+
+| Method | State | Note |
+| --- | --- | --- |
+| `textDocument/didOpen` | yes |  |
+| `textDocument/didChange` | yes | incremental |
+| `textDocument/didSave` | planned | when to compile the script for diagnostics |
+| `textDocument/didClose` | yes |  |
+| `textDocument/willSave` | no | nothing to do before a write |
+| `textDocument/willSaveWaitUntil` | no |  |
+| `notebookDocument/didOpen` | no | Vim script has no notebooks |
+| `notebookDocument/didChange` | no |  |
+| `notebookDocument/didSave` | no |  |
+| `notebookDocument/didClose` | no |  |
+
+### Language features
+
+| Method | State | Note |
+| --- | --- | --- |
+| `textDocument/completion` | yes | triggered by `&` and `:` as well |
+| `completionItem/resolve` | planned | the help entry of a builtin, fetched for the item that is looked at |
+| `textDocument/hover` | yes | the help entry; for editors other than Vim, which has `K` |
+| `textDocument/signatureHelp` | yes | triggered by `(` and `,` as well |
+| `textDocument/declaration` | no | Vim script declares nothing apart from the definition |
+| `textDocument/definition` | yes |  |
+| `textDocument/typeDefinition` | planned | the class a Vim9 variable is typed with |
+| `textDocument/implementation` | planned | the classes that implement a Vim9 interface |
+| `textDocument/references` | yes |  |
+| `textDocument/documentHighlight` | planned | the other uses of the name, from what references knows |
+| `textDocument/documentSymbol` | yes |  |
+| `textDocument/codeAction` | planned | a quick fix for what a diagnostic reports: `:let` to `var`, a missing `endif` |
+| `codeAction/resolve` | no | an action comes with its edit |
+| `textDocument/codeLens` | no | nothing here has a line to put above the code |
+| `codeLens/resolve` | no |  |
+| `textDocument/documentLink` | no | definition already follows an import to its file |
+| `documentLink/resolve` | no |  |
+| `textDocument/foldingRange` | planned | the blocks the parser already finds |
+| `textDocument/selectionRange` | no | Vim has text objects for that |
+| `textDocument/prepareCallHierarchy` | no |  |
+| `callHierarchy/incomingCalls` | no | references show the callers, and a function body its calls |
+| `callHierarchy/outgoingCalls` | no |  |
+| `textDocument/prepareTypeHierarchy` | planned | what a Vim9 class extends and implements, and what extends it |
+| `typeHierarchy/supertypes` | planned |  |
+| `typeHierarchy/subtypes` | planned |  |
+| `textDocument/semanticTokens/full` | no | Vim's syntax file does the highlighting |
+| `textDocument/semanticTokens/full/delta` | no |  |
+| `textDocument/semanticTokens/range` | no |  |
+| `textDocument/inlayHint` | planned | the parameter names at a call, and the type of a `var` that leaves it to the initializer |
+| `inlayHint/resolve` | no | a hint comes complete |
+| `textDocument/publishDiagnostics` | yes | after the changes pause |
+| `textDocument/diagnostic` | no | diagnostics are sent, not asked for |
+| `textDocument/formatting` | planned | Vim's own indent script, run in the server; for editors other than Vim |
+| `textDocument/rangeFormatting` | planned |  |
+| `textDocument/rangesFormatting` | no |  |
+| `textDocument/onTypeFormatting` | no | Vim indents as you type on its own |
+| `textDocument/rename` | yes |  |
+| `textDocument/prepareRename` | yes | turns a rename down before it is tried |
+| `textDocument/linkedEditingRange` | no | nothing here mirrors an edit into another range |
+| `textDocument/documentColor` | no | nothing here is a color |
+| `textDocument/colorPresentation` | no |  |
+| `textDocument/inlineValue` | no | for a debugger, which this is not |
+| `textDocument/inlineCompletion` | no | completion is asked for, not offered while typing |
+| `textDocument/moniker` | no | for an indexer, which this is not |
+
+### Workspace
+
+| Method | State | Note |
+| --- | --- | --- |
+| `workspace/symbol` | planned | the names the autoload and plugin files on 'runtimepath' define |
+| `workspaceSymbol/resolve` | no |  |
+| `workspace/configuration` | no | nothing to configure |
+| `workspace/didChangeConfiguration` | no |  |
+| `workspace/workspaceFolders` | no | the server reads the file it is given and the files it imports; there is no workspace |
+| `workspace/didChangeWorkspaceFolders` | no |  |
+| `workspace/didChangeWatchedFiles` | no |  |
+| `workspace/executeCommand` | no | nothing here runs a command |
+| `workspace/applyEdit` | no | the edits of a rename go back as its answer |
+| `workspace/diagnostic` | no | diagnostics are sent per document |
+| `workspace/willCreateFiles` | no | nothing here depends on a file being made, moved or deleted |
+| `workspace/didCreateFiles` | no |  |
+| `workspace/willRenameFiles` | no |  |
+| `workspace/didRenameFiles` | no |  |
+| `workspace/willDeleteFiles` | no |  |
+| `workspace/didDeleteFiles` | no |  |
+| `workspace/codeLens/refresh` | no | nothing changes behind the client's back |
+| `workspace/inlayHint/refresh` | no |  |
+| `workspace/semanticTokens/refresh` | no |  |
+| `workspace/diagnostic/refresh` | no |  |
+| `workspace/foldingRange/refresh` | no |  |
+| `workspace/inlineValue/refresh` | no |  |
+| `workspace/textDocumentContent` | no | nothing here makes a document up |
+| `workspace/textDocumentContent/refresh` | no |  |
+
+### Window
+
+| Method | State | Note |
+| --- | --- | --- |
+| `window/showMessage` | no | nothing here needs the user's attention |
+| `window/showMessageRequest` | no |  |
+| `window/logMessage` | no | what goes wrong goes to `$VIM9LS_LOG`, with the messages around it |
+| `window/showDocument` | no | nothing here opens a document |
+| `window/workDoneProgress/create` | no |  |
+| `window/workDoneProgress/cancel` | no |  |
+| `telemetry/event` | no | there is nothing to report |
+
+</details>
+
+## TODO
+
+In the order they are meant to be taken up.
+
+- [ ] Diagnostics for a function or variable that is neither defined by the
+      script nor a builtin.
+- [ ] Definition, references and rename across files: a name defined in an
+      imported script or an autoload file, found in the files that use it.
+- [ ] Vim9 block scope: a `var` inside a block belongs to that block, so two
+      blocks of one function can declare the same name.
+- [ ] Completion of the exported names after an import alias, of autoload
+      functions after `foo#`, and of members after `.`.
+- [ ] `completionItem/resolve`: the help entry of a builtin, fetched for the
+      item that is looked at rather than sent with every item.
+- [ ] Diagnostics for what compiling a `:def` reports, the type errors above
+      all: on `textDocument/didSave`, a throwaway Vim sources the buffer
+      under the file's own name, so that relative imports resolve, and
+      compiles each function on its own.  Legacy `function` bodies are out
+      of reach, since Vim only reads them when they are called.
+- [ ] `textDocument/codeAction` with a quick fix for what a diagnostic
+      reports: `:let` to `var` under Vim9 rules, the `endif` a block lacks.
+- [ ] Signature help with the types of a builtin's arguments; the help entry
+      names them but does not type them.  Needs Vim to hand those out, which
+      is Vim's side of the work.
+- [ ] `textDocument/inlayHint`: the parameter names at a call, from what
+      signature help knows, and the type of a `var` that leaves it to the
+      initializer, from the "Return type:" line of the builtin's help entry.
+- [ ] `workspace/symbol` over the autoload and plugin files on `'runtimepath'`.
+- [ ] `textDocument/documentHighlight` and `textDocument/foldingRange`, from
+      what references and the parser already know.
+- [ ] `textDocument/typeDefinition`, `textDocument/implementation` and the
+      type hierarchy for Vim9 classes and interfaces.
+- [ ] `textDocument/formatting` and `rangeFormatting` with Vim's own indent
+      script, run in the server; for editors other than Vim.
+- [ ] Tests on MS-Windows in CI: `bin/vim9ls.cmd`, and vim.exe standing in
+      for gvim.exe.
+- [ ] Hover in Markdown, for the editors that render it.
+
 ## Contributing
 
 How a report or a patch is best put, and how the tests are run, is in
