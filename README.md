@@ -61,12 +61,10 @@ See `:help vim9ls` for the details.
 - Diagnostics: blocks that do not add up, `:let` under Vim9 rules, and, in
   legacy script, words that are not commands.
 
-## Tests
+## Contributing
 
-    cd test && ./run
-
-The Vim the tests run in is also the server they start; name one with
-`VIMPROG=/path/to/vim ./run`.
+How a report or a patch is best put, and how the tests are run, is in
+[CONTRIBUTING](.github/CONTRIBUTING.md).
 
 ## AI
 
