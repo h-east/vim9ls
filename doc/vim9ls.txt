@@ -16,16 +16,10 @@ CONTENTS					*vim9ls-contents*
 ==============================================================================
 1. Introduction					*vim9ls-introduction*
 
-vim9ls is a language server for Vim script, both |Vim9| script and legacy.
-It is written in Vim9 script and runs in a Vim of its own: the client starts
-it as >
-	vim --clean --stdio-channel -S /path/to/autoload/vim9ls.vim
-and talks to it on stdin and stdout, see |--stdio-channel|.
-
-Running in Vim is the point.  The server answers from what Vim knows: the help
-files for documentation, |getcompletion()| for the builtin functions, options
-and commands, and the same 'runtimepath' the user has.  Nothing is copied out
-of Vim and nothing else needs to be installed.
+vim9ls is a language server for |Vim9| script and legacy Vim script.  It is
+written in Vim9 script and runs in a Vim of its own, so it answers from what
+that Vim knows: its help files, its builtin functions, options and commands,
+and the plugins you already have.  Nothing else needs to be installed.
 
 ==============================================================================
 2. Requirements					*vim9ls-requirements*
@@ -51,10 +45,13 @@ called in.  On MS-Windows it names vim.exe when called from gvim.exe, so that
 no window opens.  It throws when that Vim lacks |+channel| or |+job|, or is
 older than 9.2.1049.
 
-With another editor ~
-Point the editor's LSP client at bin/vim9ls (bin/vim9ls.cmd on MS-Windows), a
-script that starts the server with "vim" from $PATH.  $VIM9LS_VIM names
-another Vim.  The server talks stdio, which every client supports.
+With another LSP client ~
+Point the client at bin/vim9ls (bin/vim9ls.cmd on MS-Windows), a script that
+starts the server with "vim" from $PATH.  $VIM9LS_VIM names another Vim.  What
+it runs is >
+	vim --clean --stdio-channel -S /path/to/autoload/vim9ls.vim
+and the server talks to the client on stdin and stdout, which every client
+supports.  See |--stdio-channel|.
 
 ==============================================================================
 4. What it does					*vim9ls-features*

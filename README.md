@@ -4,17 +4,12 @@
 [![Update doc/tags](https://github.com/h-east/vim9ls/actions/workflows/update-doc-tags.yml/badge.svg)](https://github.com/h-east/vim9ls/actions/workflows/update-doc-tags.yml)
 [![Vim 9.2.1049+](https://img.shields.io/badge/Vim-9.2.1049%2B-015b01?logo=vim&logoColor=white)](#requirements)
 
-A language server for Vim script, run by Vim itself.
+A language server for Vim9 script and legacy Vim script, run by Vim itself.
 
-vim9ls is written in Vim9 script and runs in a Vim of its own.  A client
-starts it as
-
-    vim --clean --stdio-channel -S /path/to/autoload/vim9ls.vim
-
-and talks LSP to it on stdin and stdout.  The server answers from what Vim
-knows: the help files for hover, `getcompletion()` for the builtin functions,
-options and commands, and the user's own `'runtimepath'`.
-Nothing else needs to be installed.
+vim9ls is written in Vim9 script and runs in a Vim of its own, so it answers
+from what that Vim knows: its help files, its builtin functions, options and
+commands, and the plugins you already have.  Nothing else needs to be
+installed.
 
 ## Requirements
 
@@ -28,7 +23,7 @@ add the server to `g:lsp_server_list`:
 
     {name: 'vim9ls', filetypes: ['vim'], cmd: function('vim9ls#Command')}
 
-With another editor: point its LSP client at `bin/vim9ls` (`bin/vim9ls.cmd` on
+With another LSP client: point it at `bin/vim9ls` (`bin/vim9ls.cmd` on
 MS-Windows).
 
 See `:help vim9ls` for the details.
