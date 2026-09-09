@@ -26,9 +26,10 @@ export def Command(): list<string>
   if !has('channel') || !has('job')
     throw 'vim9ls: this Vim needs +channel and +job to run the server'
   endif
-  # --stdio-channel came with this patch.
-  if !has('patch-9.2.1049')
-    throw 'vim9ls: this Vim needs 9.2.1049 or later to run the server'
+  # --stdio-channel came with 9.2.1049, and 9.2.1055 compiles a function
+  # with a lambda after another function failed to compile.
+  if !has('patch-9.2.1055')
+    throw 'vim9ls: this Vim needs 9.2.1055 or later to run the server'
   endif
   var vim = v:progpath
   # gvim.exe would open a window; vim.exe next to it does not.

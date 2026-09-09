@@ -20,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # The server needs --stdio-channel, which came with patch 9.2.1049.
+      # The server needs 9.2.1055 or later.
       - name: Build Vim
         run: |
           sudo apt-get update

@@ -2,7 +2,7 @@
 
 [![Test](https://github.com/h-east/vim9ls/actions/workflows/test.yml/badge.svg)](https://github.com/h-east/vim9ls/actions/workflows/test.yml)
 [![Update doc/tags](https://github.com/h-east/vim9ls/actions/workflows/update-doc-tags.yml/badge.svg)](https://github.com/h-east/vim9ls/actions/workflows/update-doc-tags.yml)
-[![Vim 9.2.1049+](https://img.shields.io/badge/Vim-9.2.1049%2B-015b01?logo=vim&logoColor=white)](#requirements)
+[![Vim 9.2.1055+](https://img.shields.io/badge/Vim-9.2.1055%2B-015b01?logo=vim&logoColor=white)](#requirements)
 
 A language server for Vim9 script and legacy Vim script, run by Vim itself.
 
@@ -14,8 +14,9 @@ else needs to be installed.
 
 ## Requirements
 
-Vim 9.2.1049 or later with `+channel` and `+job`. The `--stdio-channel`
-argument came with that patch.
+Vim 9.2.1055 or later with `+channel` and `+job`. The `--stdio-channel`
+argument came with 9.2.1049, and 9.2.1055 has Vim compile a function with a
+lambda after another function failed to compile, which the checker relies on.
 
 ## Installation
 

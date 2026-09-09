@@ -125,11 +125,6 @@ function Errors(messages, path)
       call add(errors, error)
     endif
   endfor
-  " A Vim without the fix reports E1028 for the functions after one that
-  " failed to compile; an E1028 that comes with another error is left out.
-  if !empty(filter(copy(errors), 'v:val.message !~ "^E1028:"'))
-    call filter(errors, 'v:val.message !~ "^E1028:"')
-  endif
   return sort(errors, {a, b -> a.line - b.line})
 endfunction
 

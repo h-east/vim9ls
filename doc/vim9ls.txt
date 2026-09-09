@@ -27,10 +27,12 @@ installed.
 ==============================================================================
 2. Requirements					*vim9ls-requirements*
 
-Vim 9.2.1049 or later with the |+channel| and |+job| features.  The
-|--stdio-channel| argument came with that patch.  The Vim that runs the
-server does not have to be the one that is editing, but with lsp.vim it is:
-|vim9ls#Command()| names |v:progpath|.
+Vim 9.2.1055 or later with the |+channel| and |+job| features.  The
+|--stdio-channel| argument came with 9.2.1049, and 9.2.1055 has Vim compile
+a function with a lambda after another function failed to compile, which the
+checker relies on.  The Vim that runs the server does not have to be the one
+that is editing, but with lsp.vim it is: |vim9ls#Command()| names
+|v:progpath|.
 
 ==============================================================================
 3. Installation					*vim9ls-installation*
@@ -63,7 +65,7 @@ be in 'runtimepath' yet when the vimrc is read.
 vim9ls#Command() returns the command that starts the server with the Vim it is
 called in.  On MS-Windows it names vim.exe when called from gvim.exe, so that
 no window opens.  It throws when that Vim lacks |+channel| or |+job|, or is
-older than 9.2.1049.
+older than 9.2.1055.
 
 With another LSP client ~
 Point the client at bin/vim9ls (bin/vim9ls.cmd on MS-Windows), a script that
