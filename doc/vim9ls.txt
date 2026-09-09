@@ -19,7 +19,9 @@ CONTENTS					*vim9ls-contents*
 vim9ls is a language server for |Vim9| script and legacy Vim script.  It is
 written in Vim9 script and runs in a Vim of its own, so it answers from what
 that Vim knows: its help files, its builtin functions, options and commands,
-and the plugins you already have.  Nothing else needs to be installed.
+and the plugins you already have.  A new function or option is there as soon
+as Vim has it, since nothing is copied out of Vim.  Nothing else needs to be
+installed.
 
 ==============================================================================
 2. Requirements					*vim9ls-requirements*
