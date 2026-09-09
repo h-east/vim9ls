@@ -59,12 +59,14 @@ See `:help vim9ls` for the details.
   also follows imports and legacy autoload functions into other files.
 - Signature help for builtin functions and the script's own.
 - Diagnostics: blocks that do not add up, `:let` under Vim9 rules, and, in
-  legacy script, words that are not commands.
+  legacy script, words that are not commands.  On a save, what Vim itself
+  reports when it reads the script and compiles its `:def` functions: a type
+  mismatch, a name that is not found, an argument too many.
 
 ## Protocol coverage
 
 What this server does with each of the 95 requests and notifications in the
-LSP 3.18 meta model: 16 are answered, 14 are planned and listed in the TODO
+LSP 3.18 meta model: 17 are answered, 13 are planned and listed in the TODO
 below, and 65 are left out for the reason given.
 
 <details>
@@ -91,7 +93,7 @@ below, and 65 are left out for the reason given.
 | --- | --- | --- |
 | `textDocument/didOpen` | yes |  |
 | `textDocument/didChange` | yes | incremental |
-| `textDocument/didSave` | planned | when to compile the script for diagnostics |
+| `textDocument/didSave` | yes | when Vim reads the script for diagnostics |
 | `textDocument/didClose` | yes |  |
 | `textDocument/willSave` | no | nothing to do before a write |
 | `textDocument/willSaveWaitUntil` | no |  |
@@ -206,11 +208,9 @@ In the order they are meant to be taken up.
       functions after `foo#`, and of members after `.`.
 - [ ] `completionItem/resolve`: the help entry of a builtin, fetched for the
       item that is looked at rather than sent with every item.
-- [ ] Diagnostics for what compiling a `:def` reports, the type errors above
-      all: on `textDocument/didSave`, a throwaway Vim sources the buffer
-      under the file's own name, so that relative imports resolve, and
-      compiles each function on its own.  Legacy `function` bodies are out
-      of reach, since Vim only reads them when they are called.
+- [x] Diagnostics for what compiling a `:def` reports, on
+      `textDocument/didSave`, from the checker: a Vim of its own that is
+      started once and kept.
 - [ ] `textDocument/codeAction` with a quick fix for what a diagnostic
       reports: `:let` to `var` under Vim9 rules, the `endif` a block lacks.
 - [ ] Signature help with the types of a builtin's arguments; the help entry

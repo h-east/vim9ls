@@ -16,6 +16,7 @@ import autoload './vim9ls/symbol.vim'
 import autoload './vim9ls/diag.vim'
 import autoload './vim9ls/refs.vim'
 import autoload './vim9ls/sig.vim'
+import autoload './vim9ls/compile.vim'
 
 export const VERSION = '0.1.001'
 
@@ -66,7 +67,7 @@ def Initialize(params: dict<any>): dict<any>
   return {
     capabilities: {
       positionEncoding: encoding,
-      textDocumentSync: 2,
+      textDocumentSync: {openClose: true, change: 2, save: true},
       hoverProvider: true,
       completionProvider: {triggerCharacters: ['&', ':']},
       documentSymbolProvider: true,
@@ -93,17 +94,42 @@ def Parsed(d: dict<any>, fresh = true): dict<any>
   return d.parsed
 enddef
 
+# What the parser found, and what Vim reported at the last save.  The two
+# may name the same error; it is sent once.
 def PublishDiagnostics(uri: string)
   var d = docs->get(uri, null_dict)
   if d == null_dict
     return
   endif
   d.timer = -1
+  var items = diag.Diagnostics(Parsed(d).diags, d.lines, encoding)
+  for item in compile.Diagnostics(d.compiled, d.lines, encoding)
+    if items->indexof((_, i) => i.message == item.message
+        && i.range.start.line == item.range.start.line) < 0
+      add(items, item)
+    endif
+  endfor
   Notify('textDocument/publishDiagnostics', {
     uri: uri,
     version: d.version,
-    diagnostics: diag.Diagnostics(Parsed(d).diags, d.lines, encoding),
+    diagnostics: items,
   })
+enddef
+
+# Has Vim read the document, on a save, and keeps what it reported until
+# the next one.
+def CheckDoc(uri: string)
+  var d = docs->get(uri, null_dict)
+  var path = util.UriToPath(uri)
+  if d == null_dict || path == ''
+    return
+  endif
+  var errors = compile.Check(path, d.lines)
+  if errors == null
+    return
+  endif
+  d.compiled = errors
+  PublishDiagnostics(uri)
 enddef
 
 # Typing brings a change with every keystroke; the diagnostics wait until
@@ -118,7 +144,7 @@ enddef
 
 def SetDoc(uri: string, text: string, version: any)
   docs[uri] = {lines: SplitText(text), version: version, parsed: null_dict,
-    stale: true, timer: -1}
+    stale: true, timer: -1, compiled: []}
   ScheduleDiagnostics(uri)
 enddef
 
@@ -500,6 +526,7 @@ def Request(method: string, params: dict<any>): any
   if method == 'initialize'
     return Initialize(params)
   elseif method == 'shutdown'
+    compile.Stop()
     return v:null
   elseif method == 'textDocument/hover'
     return Hover(params)
@@ -530,6 +557,8 @@ def Notification(method: string, params: dict<any>)
   elseif method == 'textDocument/didChange'
     ChangeDoc(params.textDocument.uri, params.contentChanges,
       params.textDocument->get('version', v:null))
+  elseif method == 'textDocument/didSave'
+    CheckDoc(params.textDocument.uri)
   elseif method == 'textDocument/didClose'
     if docs->has_key(params.textDocument.uri)
       remove(docs, params.textDocument.uri)

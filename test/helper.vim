@@ -104,6 +104,10 @@ export def ChangeRange(range: list<number>, text: string, version: number,
   })
 enddef
 
+export def SaveDoc(uri = URI)
+  Notify('textDocument/didSave', {textDocument: {uri: uri}})
+enddef
+
 export def Params(line: number, character: number, uri = URI): dict<any>
   return {textDocument: {uri: uri},
     position: {line: line, character: character}}

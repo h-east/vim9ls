@@ -135,6 +135,19 @@ Reported when a document is opened and after its changes pause:
   there.
 The reading is line by line and does not run the script.
 
+When the document is saved, Vim itself reads it.  The checker, a Vim of its
+own that the server starts once and keeps, sources the text under the file's
+own name, so that a relative import is found, and compiles every ":def" in
+it.  What Vim reports is added, each on the line it is about: a type
+mismatch, a name that is not found, an argument too many.  It stays until the
+next save.
+The script level runs in the checker as it would when sourced, so what it
+does there is done there: a shell command runs, a file is written.  A script
+that finishes early when read again is read that far.  What a legacy
+"function" does is not read until it is called, and neither is a mapping or
+an autocommand.  A script that ends Vim or does not return leaves the save
+unanswered; the next save starts a new checker.
+
 ==============================================================================
 6. Environment					*vim9ls-environment*
 

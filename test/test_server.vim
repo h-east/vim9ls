@@ -18,7 +18,7 @@ def g:Test_initialize()
   var resp = helper.Initialize(['utf-8', 'utf-16'])
   var caps = resp.result.capabilities
   assert_equal('utf-8', caps.positionEncoding)
-  assert_equal(2, caps.textDocumentSync)
+  assert_equal({openClose: true, change: 2, save: true}, caps.textDocumentSync)
   assert_true(caps.hoverProvider)
   assert_true(caps.documentSymbolProvider)
   assert_equal(['&', ':'], caps.completionProvider.triggerCharacters)
@@ -197,6 +197,77 @@ def g:Test_diagnostics()
   note = helper.WaitNotification('textDocument/publishDiagnostics')
   assert_equal(2, note.params.version)
   assert_equal([], note.params.diagnostics)
+enddef
+
+# What the saved document gets from Vim itself: [line, message] of each.
+def Compiled(): list<list<any>>
+  helper.SaveDoc()
+  var note = helper.WaitNotification('textDocument/publishDiagnostics')
+  return note.params.diagnostics
+    ->mapnew((_, d) => [d.range.start.line, d.message])
+enddef
+
+def g:Test_compile_diagnostics()
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc([
+    'vim9script',
+    'def Broken(): number',
+    '  return "x"',
+    'enddef',
+    'def WithLambda(): number',
+    '  var F = (n: number): number => {',
+    '    return "s"',
+    '  }',
+    '  return F(1)',
+    'enddef',
+  ])
+  helper.WaitNotification('textDocument/publishDiagnostics')
+  var expected = [
+    [2, 'E1012: Type mismatch; expected number but got string'],
+    [6, 'E1012: Type mismatch; expected number but got string'],
+  ]
+  assert_equal(expected, Compiled())
+  # The same script read once more reports the same.
+  assert_equal(expected, Compiled())
+  helper.SaveDoc()
+  var note = helper.WaitNotification('textDocument/publishDiagnostics')
+  var d = note.params.diagnostics[0]
+  assert_equal(1, d.severity)
+  assert_equal('vim9ls', d.source)
+  assert_equal({start: {line: 2, character: 0}, end: {line: 2, character: 12}},
+    d.range)
+
+  # Fixed: nothing is left, and what the parser reports is not doubled.
+  helper.ChangeDoc(['vim9script', 'let x = 1', 'def Fine(): number',
+    '  return 1', 'enddef'])
+  helper.WaitNotification('textDocument/publishDiagnostics')
+  assert_equal([[1, 'E1126: Cannot use :let in Vim9 script']], Compiled())
+
+  # A script-level error, and a legacy script whose functions are not read
+  # until called; a function without "!" is fine to read again.
+  helper.ChangeDoc(['vim9script', 'var n: number = "s"'], helper.URI, 3)
+  helper.WaitNotification('textDocument/publishDiagnostics')
+  assert_equal([[1, 'E1012: Type mismatch; expected number but got string']],
+    Compiled())
+  helper.ChangeDoc(['function Legacy()', '  return undefined_a', 'endfunction',
+    'echo undefined_b'], helper.URI, 4)
+  helper.WaitNotification('textDocument/publishDiagnostics')
+  assert_equal([[3, 'E121: Undefined variable: undefined_b']], Compiled())
+  assert_equal([[3, 'E121: Undefined variable: undefined_b']], Compiled())
+
+  # The script level runs, a shell command in it too; a script that ends the
+  # checker gets no answer, and the next save is answered by a new one.
+  helper.ChangeDoc(['vim9script', 'echo system("echo x")'], helper.URI, 5)
+  helper.WaitNotification('textDocument/publishDiagnostics')
+  assert_equal([], Compiled())
+  helper.ChangeDoc(['vim9script', 'qall!'], helper.URI, 6)
+  helper.WaitNotification('textDocument/publishDiagnostics')
+  helper.SaveDoc()
+  helper.ChangeDoc(['vim9script', 'var n: number = "s"'], helper.URI, 7)
+  helper.WaitNotification('textDocument/publishDiagnostics')
+  assert_equal([[1, 'E1012: Type mismatch; expected number but got string']],
+    Compiled())
 enddef
 
 def g:Test_definition()
