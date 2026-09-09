@@ -17,10 +17,28 @@ else needs to be installed.
 Vim 9.2.1049 or later with `+channel` and `+job`. The `--stdio-channel`
 argument came with that patch.
 
+## Installation
+
+With a plugin manager, vim-plug for instance:
+
+```vim
+Plug 'h-east/vim9ls'
+```
+
+Or as an optional package, put it under `pack/*/opt/vim9ls` and load it from
+your vimrc:
+
+```vim
+packadd! vim9ls
+```
+
 ## Setup
 
-With [lsp.vim](https://github.com/h-east/lsp.vim): install both plugins and
-add the server to `g:lsp_server_list`:
+Any LSP client that talks stdio can use the server.
+[lsp.vim](https://github.com/h-east/lsp.vim) is the recommended one.
+
+With lsp.vim: install it the same way and add the server to
+`g:lsp_server_list`:
 
     {name: 'vim9ls', filetypes: ['vim'], cmd: function('vim9ls#Command')}
 

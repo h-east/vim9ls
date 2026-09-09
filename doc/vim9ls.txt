@@ -8,10 +8,11 @@ CONTENTS					*vim9ls-contents*
 
 1. Introduction				|vim9ls-introduction|
 2. Requirements				|vim9ls-requirements|
-3. Setup				|vim9ls-setup|
-4. What it does				|vim9ls-features|
-5. Environment				|vim9ls-environment|
-6. Development				|vim9ls-development|
+3. Installation				|vim9ls-installation|
+4. Setup				|vim9ls-setup|
+5. What it does				|vim9ls-features|
+6. Environment				|vim9ls-environment|
+7. Development				|vim9ls-development|
 
 ==============================================================================
 1. Introduction					*vim9ls-introduction*
@@ -32,11 +33,28 @@ server does not have to be the one that is editing, but with lsp.vim it is:
 |vim9ls#Command()| names |v:progpath|.
 
 ==============================================================================
-3. Setup					*vim9ls-setup*
+3. Installation					*vim9ls-installation*
+
+With a plugin manager, with vim-plug for instance: >vim9
+
+	Plug 'h-east/vim9ls'
+<
+Or put it under a |packages| directory as "pack/*/opt/vim9ls", which does not
+load on its own, and add this to your |vimrc|: >vim9
+
+	packadd! vim9ls
+<
+
+==============================================================================
+4. Setup					*vim9ls-setup*
+
+Any LSP client that talks stdio can use the server.  lsp.vim is the
+recommended one:
+	https://github.com/h-east/lsp.vim
 
 With lsp.vim ~
-Install both plugins the same way (a plugin manager, or "packadd") and add an
-entry for "vim" files to |g:lsp_server_list|: >
+Install it the same way and add an entry for "vim" files to
+|g:lsp_server_list|: >
 	{name: 'vim9ls', filetypes: ['vim'], cmd: function('vim9ls#Command')}
 lsp.vim calls the Funcref when the server starts, so vim9ls does not have to
 be in 'runtimepath' yet when the vimrc is read.
@@ -56,7 +74,7 @@ and the server talks to the client on stdin and stdout, which every client
 supports.  See |--stdio-channel|.
 
 ==============================================================================
-4. What it does					*vim9ls-features*
+5. What it does					*vim9ls-features*
 
 Positions are counted the way the client asks for at initialize: "utf-8"
 when it offers that, which needs no conversion, "utf-16" otherwise.
@@ -118,7 +136,7 @@ Reported when a document is opened and after its changes pause:
 The reading is line by line and does not run the script.
 
 ==============================================================================
-5. Environment					*vim9ls-environment*
+6. Environment					*vim9ls-environment*
 
 $VIM9LS_LOG	When set, the server appends its channel log to this file.
 		See |ch_logfile()|.  Requests, responses and the errors the
@@ -127,7 +145,7 @@ $VIM9LS_LOG	When set, the server appends its channel log to this file.
 $VIM9LS_VIM	The Vim that bin/vim9ls starts.  Default: "vim" from $PATH.
 
 ==============================================================================
-6. Development					*vim9ls-development*
+7. Development					*vim9ls-development*
 
 The tests are in test/ and run with: >
 	cd test && ./run
