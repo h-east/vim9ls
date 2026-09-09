@@ -205,6 +205,7 @@ def Compiled(): list<list<any>>
   var note = helper.WaitNotification('textDocument/publishDiagnostics')
   return note.params.diagnostics
     ->mapnew((_, d) => [d.range.start.line, d.message])
+    ->sort((a, b) => a[0] - b[0])
 enddef
 
 def g:Test_compile_diagnostics()
@@ -244,12 +245,14 @@ def g:Test_compile_diagnostics()
   helper.WaitNotification('textDocument/publishDiagnostics')
   assert_equal([[1, 'E1126: Cannot use :let in Vim9 script']], Compiled())
 
-  # A script-level error, and a legacy script whose functions are not read
-  # until called; a function without "!" is fine to read again.
-  helper.ChangeDoc(['vim9script', 'var n: number = "s"'], helper.URI, 3)
+  # A script-level error stops the script; the functions defined up to there
+  # are compiled still.  A legacy script's functions are not read until
+  # called, and a function without "!" is fine to read again.
+  helper.ChangeDoc(['vim9script', 'def Early(): number', '  return "x"',
+    'enddef', 'var n: number = "s"'], helper.URI, 3)
   helper.WaitNotification('textDocument/publishDiagnostics')
-  assert_equal([[1, 'E1012: Type mismatch; expected number but got string']],
-    Compiled())
+  assert_equal([[2, 'E1012: Type mismatch; expected number but got string'],
+    [4, 'E1012: Type mismatch; expected number but got string']], Compiled())
   helper.ChangeDoc(['function Legacy()', '  return undefined_a', 'endfunction',
     'echo undefined_b'], helper.URI, 4)
   helper.WaitNotification('textDocument/publishDiagnostics')

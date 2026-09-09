@@ -142,11 +142,13 @@ it.  What Vim reports is added, each on the line it is about: a type
 mismatch, a name that is not found, an argument too many.  It stays until the
 next save.
 The script level runs in the checker as it would when sourced, so what it
-does there is done there: a shell command runs, a file is written.  A script
-that finishes early when read again is read that far.  What a legacy
-"function" does is not read until it is called, and neither is a mapping or
-an autocommand.  A script that ends Vim or does not return leaves the save
-unanswered; the next save starts a new checker.
+does there is done there: a shell command runs, a file is written.  When an
+error stops it, the functions defined up to there are still compiled; the
+methods of a class are not.  A script that finishes early when read again is
+read that far.  What a legacy "function" does is not read until it is
+called, and neither is a mapping or an autocommand.  A script that ends Vim
+or does not return leaves the save unanswered; the next save starts a new
+checker.
 
 ==============================================================================
 6. Environment					*vim9ls-environment*

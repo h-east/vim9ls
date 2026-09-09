@@ -24,15 +24,36 @@ function Load(path, lines)
   call setline(1, a:lines)
 endfunction
 
-# Reads the buffer as a script and returns what Vim reported.  Vim names the
-# source of an error only when it differs from the last one; an error of our
-# own, thrown away, makes sure the first one is named.
-function Source()
+# Vim names the source of an error only when it differs from the last one;
+# an error of our own, thrown away, makes sure the next one is named.
+function Reset()
   redir => discard
   eval NoSuchFunctionVim9ls()
   redir END
+endfunction
+
+# Reads the buffer as a script and returns what Vim reported.
+function Source()
+  call s:Reset()
   redir => messages
   %source
+  redir END
+  return messages
+endfunction
+
+# Compiles the functions the script at "path" defines and returns what Vim
+# reported: for when the script level stopped at an error before the
+# :defcompile at its end.  A class cannot be reached from here.
+function Compile(path)
+  let scripts = filter(getscriptinfo(), 'v:val.name ==# a:path')
+  if empty(scripts)
+    return ''
+  endif
+  call s:Reset()
+  redir => messages
+  for name in get(getscriptinfo({'sid': scripts[0].sid})[0], 'functions', [])
+    execute 'defcompile' name
+  endfor
   redir END
   return messages
 endfunction
@@ -109,14 +130,14 @@ function Errors(messages, path)
   if !empty(filter(copy(errors), 'v:val.message !~ "^E1028:"'))
     call filter(errors, 'v:val.message !~ "^E1028:"')
   endif
-  return errors
+  return sort(errors, {a, b -> a.line - b.line})
 endfunction
 
 # What Vim reports for "lines" as the script at "path".  The :defcompile at
 # the end compiles every function the script defines.
 function Check(path, lines)
   call s:Load(a:path, a:lines + ['defcompile'])
-  return s:Errors(s:Source(), a:path)
+  return s:Errors(s:Source() .. s:Compile(a:path), a:path)
 endfunction
 
 function OnMessage(ch, msg)
