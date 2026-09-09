@@ -1,15 +1,21 @@
 vim9script
 
-# vim9ls - the checker: a Vim of its own that reads a script the way :source
-# does and compiles its functions
+# vim9ls - the checker: a Vim of its own that reads a script with
+# ":source ++dryrun" and reports what does not compile
 # Maintainer: Hirohito Higashi <h.east.727@gmail.com>
 #
 # compile.vim starts this with --stdio-channel and sends it the text of a
-# script.  What Vim reports comes back with the line it is about.  The work
-# is done in legacy functions: an error must not stop it, and in a :def or
-# under :try it would.
+# script.  Nothing in the script runs: the dry run defines what the script
+# defines and compiles its functions.  What Vim reports comes back with the
+# line it is about.  The work is done in legacy functions: an error must not
+# stop it, and in a :def or under :try it would.
 
 var conn: channel
+
+# Whether this Vim has ":source ++dryrun".
+var dryrun = false
+
+const SELF = expand('<sfile>:p')
 
 # The buffer for "path" with "lines" as its text.  The same buffer serves
 # the same path again, so that Vim sees one script sourced once more and
@@ -32,34 +38,18 @@ function Reset()
   redir END
 endfunction
 
-# Reads the buffer as a script and returns what Vim reported.
-function Source()
+# Reads the buffer with "cmd" and returns what Vim reported.
+function Source(cmd)
   call s:Reset()
   redir => messages
-  %source
-  redir END
-  return messages
-endfunction
-
-# Compiles the functions the script at "path" defines and returns what Vim
-# reported: for when the script level stopped at an error before the
-# :defcompile at its end.  A class cannot be reached from here.
-function Compile(path)
-  let scripts = filter(getscriptinfo(), 'v:val.name ==# a:path')
-  if empty(scripts)
-    return ''
-  endif
-  call s:Reset()
-  redir => messages
-  for name in get(getscriptinfo({'sid': scripts[0].sid})[0], 'functions', [])
-    execute 'defcompile' name
-  endfor
+  execute a:cmd
   redir END
   return messages
 endfunction
 
 # The line a function starts on in "path", 1-based, or 0 when it is not in
 # that file or not found.  A lambda is gone once its compilation failed.
+# Vim names the file with "~" for the home directory.
 function StartLine(name, path)
   try
     let m = matchlist(execute('verbose function ' .. a:name),
@@ -67,7 +57,7 @@ function StartLine(name, path)
   catch
     return 0
   endtry
-  return empty(m) || m[1] != a:path ? 0 : str2nr(m[2])
+  return empty(m) || fnamemodify(m[1], ':p') !=# a:path ? 0 : str2nr(m[2])
 endfunction
 
 # The 0-based line of an error, from the context Vim named for it and the
@@ -85,7 +75,7 @@ function Where(context, lnum, path)
       return -1
     endif
     let [name, at] = [m[1], str2nr(m[2])]
-    if name == a:path
+    if fnamemodify(name, ':p') ==# a:path
       return at + offset - 1
     endif
     if name !~ '^<lambda>'
@@ -99,7 +89,8 @@ function Where(context, lnum, path)
   return -1
 endfunction
 
-# The errors in what Vim reported, as {line, message}.
+# The errors in what Vim reported, as {line, message}, in the order of the
+# lines.
 function Errors(messages, path)
   let errors = []
   let context = ''
@@ -128,18 +119,47 @@ function Errors(messages, path)
   return sort(errors, {a, b -> a.line - b.line})
 endfunction
 
-# What Vim reports for "lines" as the script at "path".  The :defcompile at
-# the end compiles every function the script defines.
-function Check(path, lines)
-  call s:Load(a:path, a:lines + ['defcompile'])
-  return s:Errors(s:Source() .. s:Compile(a:path), a:path)
+# What Vim reports for "lines" as the script at "path".  "wrapped" is the
+# script level of a Vim9 script as a function, see wrap.vim; it is read
+# after the script, in the same script context, so that it can use what the
+# script defines.
+function Check(path, lines, wrapped)
+  let path = fnamemodify(a:path, ':p')
+  " This script is running here, its functions cannot be defined again.
+  if path ==# s:SELF
+    let path ..= '.dryrun'
+  endif
+  call s:Load(path, a:lines)
+  let messages = s:Source('%source ++dryrun')
+  if type(a:wrapped) == v:t_list
+    call s:Load(path, a:wrapped)
+    let messages ..= s:Source('vim9cmd :%source ++dryrun')
+  endif
+  return s:Errors(messages, path)
 endfunction
 
 function OnMessage(ch, msg)
   if get(a:msg, 'method', '') == 'check'
-    call ch_sendexpr(a:ch, {'id': a:msg.id,
-      \ 'result': s:Check(a:msg.params.path, a:msg.params.lines)})
+    call ch_sendexpr(a:ch, {'id': a:msg.id, 'result': {
+      \ 'dryrun': s:dryrun,
+      \ 'errors': s:dryrun
+      \   ? s:Check(a:msg.params.path, a:msg.params.lines, a:msg.params.wrapped)
+      \   : [],
+      \ }})
   endif
+endfunction
+
+# Whether ":source ++dryrun" is understood: a Vim without it takes the
+# argument for a file name, which the range does not allow.
+function HasDryrun()
+  new
+  on
+  call setline(1, 'vim9script')
+  redir => messages
+  silent! %source ++dryrun
+  redir END
+  bwipe!
+  return messages !~ 'E481:'
 endfunction
 
 def OnClose(ch: channel)
@@ -151,6 +171,7 @@ export def Start()
   # kept.
   set eventignore=all undolevels=-1 nomodeline
   silent! language messages C
+  dryrun = HasDryrun() != 0
   conn = ch_open('stdio', {mode: 'lsp', callback: OnMessage,
     close_cb: OnClose})
   if ch_status(conn) != 'open'

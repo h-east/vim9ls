@@ -17,6 +17,7 @@ import autoload './vim9ls/diag.vim'
 import autoload './vim9ls/refs.vim'
 import autoload './vim9ls/sig.vim'
 import autoload './vim9ls/compile.vim'
+import autoload './vim9ls/wrap.vim'
 
 export const VERSION = '0.1.001'
 
@@ -95,15 +96,25 @@ def Parsed(d: dict<any>, fresh = true): dict<any>
   return d.parsed
 enddef
 
-# What the parser found, and what Vim reported at the last save.  The two
-# may name the same error; it is sent once.
+# What the parser found, and what Vim reports when the checker reads the
+# document.  The two may name the same error; it is sent once.  When the
+# checker gives no answer, what it reported last time stays.
 def PublishDiagnostics(uri: string)
   var d = docs->get(uri, null_dict)
   if d == null_dict
     return
   endif
   d.timer = -1
-  var items = diag.Diagnostics(Parsed(d).diags, d.lines, encoding)
+  var parsed = Parsed(d)
+  var path = util.UriToPath(uri)
+  if path != ''
+    var errors = compile.Check(path, d.lines,
+      parsed.vim9 ? wrap.Lines(parsed, d.lines) : null)
+    if errors != null
+      d.compiled = errors
+    endif
+  endif
+  var items = diag.Diagnostics(parsed.diags, d.lines, encoding)
   for item in compile.Diagnostics(d.compiled, d.lines, encoding)
     if items->indexof((_, i) => i.message == item.message
         && i.range.start.line == item.range.start.line) < 0
@@ -115,22 +126,6 @@ def PublishDiagnostics(uri: string)
     version: d.version,
     diagnostics: items,
   })
-enddef
-
-# Has Vim read the document, on a save, and keeps what it reported until
-# the next one.
-def CheckDoc(uri: string)
-  var d = docs->get(uri, null_dict)
-  var path = util.UriToPath(uri)
-  if d == null_dict || path == ''
-    return
-  endif
-  var errors = compile.Check(path, d.lines)
-  if errors == null
-    return
-  endif
-  d.compiled = errors
-  PublishDiagnostics(uri)
 enddef
 
 # Typing brings a change with every keystroke; the diagnostics wait until
@@ -559,7 +554,7 @@ def Notification(method: string, params: dict<any>)
     ChangeDoc(params.textDocument.uri, params.contentChanges,
       params.textDocument->get('version', v:null))
   elseif method == 'textDocument/didSave'
-    CheckDoc(params.textDocument.uri)
+    PublishDiagnostics(params.textDocument.uri)
   elseif method == 'textDocument/didClose'
     if docs->has_key(params.textDocument.uri)
       remove(docs, params.textDocument.uri)

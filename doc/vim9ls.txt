@@ -30,9 +30,9 @@ installed.
 Vim 9.2.1055 or later with the |+channel| and |+job| features.  The
 |--stdio-channel| argument came with 9.2.1049, and 9.2.1055 has Vim compile
 a function with a lambda after another function failed to compile, which the
-checker relies on.  The Vim that runs the server does not have to be the one
-that is editing, but with lsp.vim it is: |vim9ls#Command()| names
-|v:progpath|.
+checker relies on.  The diagnostics from Vim itself need |:source-dryrun| as
+well.  The Vim that runs the server does not have to be the one that is
+editing, but with lsp.vim it is: |vim9ls#Command()| names |v:progpath|.
 
 ==============================================================================
 3. Installation					*vim9ls-installation*
@@ -137,20 +137,18 @@ Reported when a document is opened and after its changes pause:
   there.
 The reading is line by line and does not run the script.
 
-When the document is saved, Vim itself reads it.  The checker, a Vim of its
+At the same time Vim itself reads the document.  The checker, a Vim of its
 own that the server starts once and keeps, sources the text under the file's
-own name, so that a relative import is found, and compiles every ":def" in
-it.  What Vim reports is added, each on the line it is about: a type
-mismatch, a name that is not found, an argument too many.  It stays until the
-next save.
-The script level runs in the checker as it would when sourced, so what it
-does there is done there: a shell command runs, a file is written.  When an
-error stops it, the functions defined up to there are still compiled; the
-methods of a class are not.  A script that finishes early when read again is
-read that far.  What a legacy "function" does is not read until it is
-called, and neither is a mapping or an autocommand.  A script that ends Vim
-or does not return leaves the save unanswered; the next save starts a new
-checker.
+own name, so that a relative import is found, with |:source-dryrun|: what
+the script defines is defined, nothing in it runs, and every ":def" is
+compiled.  In a |vim9script| file the script level is then read once more as
+the body of a function, so that it is compiled as well; a declaration is
+checked against its type.  What Vim reports is added, each on the line it is
+about: a type mismatch, a name that is not found, an argument too many.
+Vim stops compiling a function at its first error, and the script level
+counts as one function.  What a legacy "function" does is not read until it
+is called, and neither is a mapping or an autocommand.  A Vim without
+|:source-dryrun| leaves this out.
 
 ==============================================================================
 6. Environment					*vim9ls-environment*

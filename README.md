@@ -17,6 +17,8 @@ else needs to be installed.
 Vim 9.2.1055 or later with `+channel` and `+job`. The `--stdio-channel`
 argument came with 9.2.1049, and 9.2.1055 has Vim compile a function with a
 lambda after another function failed to compile, which the checker relies on.
+The diagnostics from Vim itself need `:source ++dryrun` as well; without it
+the diagnostics are what the parser finds.
 
 ## Installation
 
@@ -60,9 +62,10 @@ See `:help vim9ls` for the details.
   also follows imports and legacy autoload functions into other files.
 - Signature help for builtin functions and the script's own.
 - Diagnostics: blocks that do not add up, `:let` under Vim9 rules, and, in
-  legacy script, words that are not commands.  On a save, what Vim itself
-  reports when it reads the script and compiles its `:def` functions: a type
-  mismatch, a name that is not found, an argument too many.
+  legacy script, words that are not commands.  And what Vim itself reports
+  when it reads the script with `:source ++dryrun`, which runs nothing in
+  it, and compiles its `:def` functions and, in a Vim9 script, the script
+  level: a type mismatch, a name that is not found, an argument too many.
 
 ## Protocol coverage
 
@@ -94,7 +97,7 @@ below, and 65 are left out for the reason given.
 | --- | --- | --- |
 | `textDocument/didOpen` | yes |  |
 | `textDocument/didChange` | yes | incremental |
-| `textDocument/didSave` | yes | when Vim reads the script for diagnostics |
+| `textDocument/didSave` | yes | the diagnostics once more, on the saved text |
 | `textDocument/didClose` | yes |  |
 | `textDocument/willSave` | no | nothing to do before a write |
 | `textDocument/willSaveWaitUntil` | no |  |
@@ -209,9 +212,9 @@ In the order they are meant to be taken up.
       functions after `foo#`, and of members after `.`.
 - [ ] `completionItem/resolve`: the help entry of a builtin, fetched for the
       item that is looked at rather than sent with every item.
-- [x] Diagnostics for what compiling a `:def` reports, on
-      `textDocument/didSave`, from the checker: a Vim of its own that is
-      started once and kept.
+- [x] Diagnostics for what compiling a `:def` reports, from the checker: a
+      Vim of its own that is started once and kept, and reads the script
+      with `:source ++dryrun`.
 - [ ] `textDocument/codeAction` with a quick fix for what a diagnostic
       reports: `:let` to `var` under Vim9 rules, the `endif` a block lacks.
 - [ ] Signature help with the types of a builtin's arguments; the help entry

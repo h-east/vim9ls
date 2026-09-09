@@ -4,8 +4,8 @@ vim9script
 # Maintainer: Hirohito Higashi <h.east.727@gmail.com>
 #
 # The script is read by the checker, a Vim of its own (checker.vim), started
-# once and kept.  A script that hangs it or ends it goes unanswered, and the
-# next check starts a new one.
+# once and kept.  A script that hangs it goes unanswered, and the next check
+# starts a new one.
 
 import autoload './util.vim'
 import autoload './parse.vim'
@@ -13,6 +13,8 @@ import autoload './parse.vim'
 const CHECKER = expand('<sfile>:p:h') .. '/checker.vim'
 
 var job: job
+# False once the checker turned out to be a Vim without ":source ++dryrun".
+var available = true
 
 def Running(): bool
   return job != null_job && job_status(job) == 'run'
@@ -36,9 +38,13 @@ export def Stop()
   endif
 enddef
 
-# What Vim reports for "lines" as the script at "path": {line, message}
-# items, or null when the checker gave no answer.
-export def Check(path: string, lines: list<string>): any
+# What Vim reports for "lines" as the script at "path", with "wrapped" the
+# script level as a function (see wrap.vim) or null: {line, message} items,
+# or null when the checker gave no answer.
+export def Check(path: string, lines: list<string>, wrapped: any): any
+  if !available
+    return null
+  endif
   if !Running()
     Start()
     if !Running()
@@ -46,14 +52,20 @@ export def Check(path: string, lines: list<string>): any
     endif
   endif
   var resp = ch_evalexpr(job, {method: 'check',
-    params: {path: path, lines: lines}}, {timeout: 5000})
+    params: {path: path, lines: lines, wrapped: wrapped}}, {timeout: 5000})
   if type(resp) != v:t_dict || !resp->has_key('result')
     util.Log('the checker did not answer for ' .. path)
     job_stop(job, 'kill')
     job = null_job
     return null
   endif
-  return resp.result
+  if !resp.result.dryrun
+    util.Log('the checker needs a Vim with ":source ++dryrun"')
+    available = false
+    Stop()
+    return null
+  endif
+  return resp.result.errors
 enddef
 
 # The errors as LSP Diagnostic items, each over the whole of its line.

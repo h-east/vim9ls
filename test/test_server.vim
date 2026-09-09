@@ -199,9 +199,10 @@ def g:Test_diagnostics()
   assert_equal([], note.params.diagnostics)
 enddef
 
-# What the saved document gets from Vim itself: [line, message] of each.
-def Compiled(): list<list<any>>
-  helper.SaveDoc()
+# The diagnostics after "lines" replaced the document: [line, message] of
+# each, in the order of the lines.
+def After(lines: list<string>, version: number): list<list<any>>
+  helper.ChangeDoc(lines, helper.URI, version)
   var note = helper.WaitNotification('textDocument/publishDiagnostics')
   return note.params.diagnostics
     ->mapnew((_, d) => [d.range.start.line, d.message])
@@ -222,55 +223,61 @@ def g:Test_compile_diagnostics()
     '  }',
     '  return F(1)',
     'enddef',
+    'echo undefined_name',
   ])
-  helper.WaitNotification('textDocument/publishDiagnostics')
-  var expected = [
+  # What Vim reports comes with the first diagnostics, no save needed.
+  var note = helper.WaitNotification('textDocument/publishDiagnostics')
+  var diags = note.params.diagnostics
+  assert_equal([
     [2, 'E1012: Type mismatch; expected number but got string'],
     [6, 'E1012: Type mismatch; expected number but got string'],
-  ]
-  assert_equal(expected, Compiled())
-  # The same script read once more reports the same.
-  assert_equal(expected, Compiled())
-  helper.SaveDoc()
-  var note = helper.WaitNotification('textDocument/publishDiagnostics')
-  var d = note.params.diagnostics[0]
-  assert_equal(1, d.severity)
-  assert_equal('vim9ls', d.source)
+    [10, 'E1001: Variable not found: undefined_name'],
+  ], diags->mapnew((_, d) => [d.range.start.line, d.message]))
+  assert_equal(1, diags[0].severity)
+  assert_equal('vim9ls', diags[0].source)
   assert_equal({start: {line: 2, character: 0}, end: {line: 2, character: 12}},
-    d.range)
+    diags[0].range)
 
   # Fixed: nothing is left, and what the parser reports is not doubled.
-  helper.ChangeDoc(['vim9script', 'let x = 1', 'def Fine(): number',
-    '  return 1', 'enddef'])
-  helper.WaitNotification('textDocument/publishDiagnostics')
-  assert_equal([[1, 'E1126: Cannot use :let in Vim9 script']], Compiled())
+  assert_equal([[1, 'E1126: Cannot use :let in Vim9 script']],
+    After(['vim9script', 'let x = 1', 'def Fine(): number', '  return 1',
+      'enddef'], 2))
 
-  # A script-level error stops the script; the functions defined up to there
-  # are compiled still.  A legacy script's functions are not read until
-  # called, and a function without "!" is fine to read again.
-  helper.ChangeDoc(['vim9script', 'def Early(): number', '  return "x"',
-    'enddef', 'var n: number = "s"'], helper.URI, 3)
-  helper.WaitNotification('textDocument/publishDiagnostics')
-  assert_equal([[2, 'E1012: Type mismatch; expected number but got string'],
-    [4, 'E1012: Type mismatch; expected number but got string']], Compiled())
-  helper.ChangeDoc(['function Legacy()', '  return undefined_a', 'endfunction',
-    'echo undefined_b'], helper.URI, 4)
-  helper.WaitNotification('textDocument/publishDiagnostics')
-  assert_equal([[3, 'E121: Undefined variable: undefined_b']], Compiled())
-  assert_equal([[3, 'E121: Undefined variable: undefined_b']], Compiled())
+  # A "const" is left alone, and what comes after "finish" is read as well;
+  # the script level is one function to Vim, it reports one error for it.
+  assert_equal([[4, 'E1012: Type mismatch; expected number but got string']],
+    After(['vim9script', 'var n: number = 1', 'const LIMIT = 10', 'finish',
+      'var m: number = "s"'], 3))
 
-  # The script level runs, a shell command in it too; a script that ends the
-  # checker gets no answer, and the next save is answered by a new one.
-  helper.ChangeDoc(['vim9script', 'echo system("echo x")'], helper.URI, 5)
-  helper.WaitNotification('textDocument/publishDiagnostics')
-  assert_equal([], Compiled())
-  helper.ChangeDoc(['vim9script', 'qall!'], helper.URI, 6)
-  helper.WaitNotification('textDocument/publishDiagnostics')
-  helper.SaveDoc()
-  helper.ChangeDoc(['vim9script', 'var n: number = "s"'], helper.URI, 7)
-  helper.WaitNotification('textDocument/publishDiagnostics')
+  # A legacy script defines its functions and nothing is compiled.
+  assert_equal([], After(['function Legacy()', '  return undefined_a',
+    'endfunction', 'echo undefined_b'], 4))
+
+  # Nothing runs: not a shell command, and not a command that would end
+  # the checker, which is still there for the next change.
+  assert_equal([], After(['vim9script', 'echo system("echo x")', 'qall!'],
+    5))
   assert_equal([[1, 'E1012: Type mismatch; expected number but got string']],
-    Compiled())
+    After(['vim9script', 'var n: number = "s"'], 6))
+
+  # Vim names a file under the home directory with "~"; the lines are
+  # still the file's.
+  var home = 'file://' .. $HOME .. '/Xvim9ls_home_test.vim'
+  helper.OpenDoc(['vim9script', 'def Broken(): number', '  return "x"',
+    'enddef', 'echo undefined_name'], home)
+  note = helper.WaitNotification('textDocument/publishDiagnostics')
+  assert_equal(home, note.params.uri)
+  assert_equal([
+    [2, 'E1012: Type mismatch; expected number but got string'],
+    [4, 'E1001: Variable not found: undefined_name'],
+  ], note.params.diagnostics->mapnew((_, d) => [d.range.start.line, d.message]))
+
+  # The checker's own script is running in the checker; reading it must
+  # not try to define its functions again.
+  var checker = fnamemodify(helper.SERVER, ':h') .. '/vim9ls/checker.vim'
+  helper.OpenDoc(readfile(checker), util.PathToUri(checker))
+  note = helper.WaitNotification('textDocument/publishDiagnostics')
+  assert_equal([], note.params.diagnostics)
 enddef
 
 def g:Test_definition()
@@ -494,8 +501,10 @@ def g:Test_incremental_sync()
   # The diagnostics follow, once, after the changes.
   var note = helper.WaitNotification('textDocument/publishDiagnostics')
   assert_equal(3, note.params.version)
+  # The parser's error; the checker adds what Vim makes of the rest.
   assert_equal(['E171: Missing :endif'],
-    note.params.diagnostics->mapnew((_, d) => d.message))
+    note.params.diagnostics->mapnew((_, d) => d.message)
+      ->filter((_, m) => m =~ '^E171:'))
   # Delete a whole line, and the text of the whole document.
   helper.ChangeRange([4, 0, 5, 2], '', 4)
   resp = helper.Request('textDocument/documentSymbol',
