@@ -168,7 +168,23 @@ def InKind(st: dict<any>, kind: string): bool
 enddef
 
 def Open(st: dict<any>, kind: string, symbol: dict<any>, lnum: number)
-  add(st.stack, {kind: kind, symbol: symbol, line: lnum})
+  add(st.stack, {kind: kind, symbol: symbol, line: lnum, vars: []})
+enddef
+
+# A variable declared under Vim9 rules inside a block or a function is seen
+# from its line to the end of that block.
+def Declared(st: dict<any>, symbol: dict<any>, lnum: number)
+  if !st.stack->empty() && InVim9(st)
+    symbol.scope_start = lnum
+    add(st.stack[-1].vars, symbol)
+  endif
+enddef
+
+def EndScope(entry: dict<any>, lnum: number)
+  for v in entry.vars
+    v.scope_end = lnum
+  endfor
+  entry.vars = []
 enddef
 
 def Close(st: dict<any>, closer: string, lnum: number, col: number,
@@ -182,6 +198,7 @@ def Close(st: dict<any>, closer: string, lnum: number, col: number,
   if entry.symbol != null_dict
     entry.symbol.end_line = lnum
   endif
+  EndScope(entry, lnum)
 enddef
 
 # The parameters in "text", at "col" of line "lnum", as variables of the
@@ -345,8 +362,12 @@ def Statement(st: dict<any>, lnum: number, text: string, col: number,
           continue
         endif
       endif
-      add(container, NewSymbol(name, kind, lnum, col,
-        name_col + stridx(arg_text, name), detail))
+      var symbol = NewSymbol(name, kind, lnum, col,
+        name_col + stridx(arg_text, name), detail)
+      add(container, symbol)
+      if !in_class
+        Declared(st, symbol, lnum)
+      endif
     endfor
   elseif cmd == 'def' || cmd == 'function'
     var name = FunctionName(arg_text)
@@ -380,17 +401,23 @@ def Statement(st: dict<any>, lnum: number, text: string, col: number,
     if !InKind(st, CONTINUES[cmd])
       add(st.diags, Diag(lnum, offset, offset + strlen(word),
         END_WITHOUT_START[cmd]))
+    else
+      # The other branch is a block of its own.
+      EndScope(st.stack[-1], lnum)
     endif
   elseif OPENS->has_key(cmd)
+    Open(st, cmd, null_dict, lnum)
     if cmd == 'for'
-      # The loop variables, as variables of the block around them.
+      # The loop variables, as variables of the block around them, seen in
+      # the loop.
       var container = Container(st)
       for name in VariableNames(arg_text)
-        add(container, NewSymbol(name, KIND_VARIABLE, lnum, col,
-          name_col + stridx(arg_text, name)))
+        var symbol = NewSymbol(name, KIND_VARIABLE, lnum, col,
+          name_col + stridx(arg_text, name))
+        add(container, symbol)
+        Declared(st, symbol, lnum)
       endfor
     endif
-    Open(st, cmd, null_dict, lnum)
   elseif TYPES->has_key(cmd)
     var name = matchstr(arg_text, '^\h\w*')
     if name == ''
@@ -530,6 +557,7 @@ export def Parse(lines: list<string>): dict<any>
     if entry.symbol != null_dict
       entry.symbol.end_line = len(lines) - 1
     endif
+    EndScope(entry, len(lines) - 1)
   endfor
 
   return {vim9: st.vim9, symbols: st.top, diags: st.diags,

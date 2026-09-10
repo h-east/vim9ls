@@ -124,9 +124,10 @@ Rename changes the name proper and leaves a "s:" or "<SID>", or the "foo#bar#"
 of an autoload name, in place.  A name that is not defined in the document
 and not shared by the script that defines it, a builtin for one, cannot be
 renamed.
-A Vim9 "var" inside a block is treated as if it belonged to the whole
-function; two blocks of one function declaring the same name are told apart by
-neither definition nor rename.
+Under Vim9 rules a variable declared inside a block, an "if", "while", "for"
+or "try" with each of its branches, is seen from its declaration to the end
+of that block, so two blocks may declare the same name and are told apart.
+A block of its own, "{" to "}", is not told apart from what holds it.
 
 Signature help ~
 Inside a call, the signature of the function with the argument the cursor is

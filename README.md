@@ -209,7 +209,7 @@ In the order they are meant to be taken up.
       a builtin, and for a `v:` variable Vim does not have.
 - [x] Definition, references and rename across files: a name defined in an
       imported script or an autoload file, found in the files that use it.
-- [ ] Vim9 block scope: a `var` inside a block belongs to that block, so two
+- [x] Vim9 block scope: a `var` inside a block belongs to that block, so two
       blocks of one function can declare the same name.
 - [ ] Completion of the exported names after an import alias, of autoload
       functions after `foo#`, and of members after `.`.

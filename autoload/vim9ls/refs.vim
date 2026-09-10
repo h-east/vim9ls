@@ -126,13 +126,15 @@ def Matches(token: dict<any>, symbol: dict<any>, vim9: bool): bool
 enddef
 
 # Every symbol with the lines its name is visible in: a member and a
-# top-level name everywhere, anything else inside the function that holds it.
+# top-level name everywhere, a Vim9 variable from its declaration to the end
+# of its block, anything else inside the function that holds it.
 def Scoped(symbols: list<dict<any>>, first: number, last: number,
     out: list<dict<any>>)
   for s in symbols
     var in_function = s.kind == parse.KIND_FUNCTION
       || s.kind == parse.KIND_METHOD
-    add(out, {symbol: s, first: first, last: last})
+    add(out, {symbol: s, first: s->get('scope_start', first),
+      last: s->get('scope_end', last)})
     var child_first = in_function ? s.line : first
     var child_last = in_function ? s.end_line : last
     Scoped(s.children, child_first, child_last, out)

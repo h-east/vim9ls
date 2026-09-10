@@ -66,6 +66,49 @@ def Spans(refs_list: list<dict<number>>): list<list<number>>
   return refs_list->mapnew((_, r) => [r.line, r.col, r.end])
 enddef
 
+# Under Vim9 rules a variable is seen from its declaration to the end of the
+# block it is in; the other branch of an "if" or a "try" is another block.
+def g:Test_block_scopes()
+  var lines =<< trim END
+    vim9script
+    def Run()
+      echo item
+      if true
+        var item = 1
+        echo item
+      else
+        var item = 2
+        echo item
+      endif
+      for item in [3]
+        echo item
+      endfor
+      try
+        var item = 4
+      catch
+        echo item
+      endtry
+      echo item
+    enddef
+    if true
+      var item = 5
+    endif
+    echo item
+  END
+  var parsed = parse.Parse(lines)
+  var token = {text: 'item', col: 9, end: 13, prev: ' ', in_string: false}
+  assert_equal(null_dict, refs.Resolve(parsed, token, 2))
+  assert_equal(4, refs.Resolve(parsed, token, 5).line)
+  assert_equal(7, refs.Resolve(parsed, token, 8).line)
+  assert_equal(10, refs.Resolve(parsed, token, 11).line)
+  assert_equal(null_dict, refs.Resolve(parsed, token, 16))
+  assert_equal(null_dict, refs.Resolve(parsed, token, 18))
+  assert_equal(null_dict, refs.Resolve(parsed, token, 23))
+  var first = refs.Resolve(parsed, token, 5)
+  assert_equal([[4, 8, 12], [5, 9, 13]],
+    Spans(refs.References(parsed, lines, first, true)))
+enddef
+
 def g:Test_references_vim9()
   var lines =<< trim END
     vim9script
