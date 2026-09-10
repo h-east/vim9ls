@@ -59,7 +59,9 @@ See `:help vim9ls` for the details.
 - Document symbols: functions, variables, classes and their members, enums,
   interfaces, augroups, imports and user commands.
 - Definition, references and rename for what the script defines; definition
-  also follows imports and legacy autoload functions into other files.
+  follows imports and legacy autoload functions into other files, and
+  references and rename follow an exported name or an autoload function into
+  the other files of the plugin and the open documents.
 - Signature help for builtin functions and the script's own.
 - Diagnostics: blocks that do not add up, `:let` under Vim9 rules, in legacy
   script words that are not commands, calls of functions that are not
@@ -205,7 +207,7 @@ In the order they are meant to be taken up.
 
 - [x] Diagnostics for a function that is neither defined by the script nor
       a builtin, and for a `v:` variable Vim does not have.
-- [ ] Definition, references and rename across files: a name defined in an
+- [x] Definition, references and rename across files: a name defined in an
       imported script or an autoload file, found in the files that use it.
 - [ ] Vim9 block scope: a `var` inside a block belongs to that block, so two
       blocks of one function can declare the same name.

@@ -30,6 +30,7 @@ endif
 import './helper.vim'
 
 var failed: list<string> = []
+var skipped = 0
 var ran = 0
 var report: list<string> = []
 
@@ -43,6 +44,13 @@ def RunOne(name: string)
   v:errmsg = ''
   try
     execute 'call g:' .. name .. '()'
+  catch /^Skipped: /
+    # A test that this Vim cannot run says so and is not counted as failed.
+    skipped += 1
+    Report('skip   ' .. name .. ': ' .. v:exception[9 :])
+    helper.StopServer()
+    silent! :%bwipe!
+    return
   catch
     add(v:errors, v:throwpoint .. ': ' .. v:exception)
   endtry
@@ -83,7 +91,8 @@ def Main()
     endfor
   endfor
 
-  Report(printf('%d run, %d failed', ran, len(failed)))
+  Report(printf('%d run, %d failed', ran, len(failed))
+    .. (skipped > 0 ? printf(', %d skipped', skipped) : ''))
   writefile(report, HERE .. '/messages')
   for line in report
     echomsg line

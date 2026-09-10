@@ -222,6 +222,9 @@ def After(lines: list<string>, version: number): list<list<any>>
 enddef
 
 def g:Test_compile_diagnostics()
+  if !helper.HasDryrun()
+    throw 'Skipped: this Vim has no :source ++dryrun'
+  endif
   helper.StartServer()
   helper.Initialize()
   helper.OpenDoc([
@@ -381,6 +384,64 @@ def g:Test_definition_other_files()
       resp.result[0].uri)
     assert_equal({start: {line: 0, character: 9},
       end: {line: 0, character: 18}}, resp.result[0].range)
+  finally
+    delete(root, 'rf')
+  endtry
+enddef
+
+def g:Test_references_other_files()
+  var root = helper.HERE .. '/Xproj'
+  mkdir(root .. '/autoload', 'p')
+  mkdir(root .. '/plugin', 'p')
+  var lib = root .. '/autoload/xlib.vim'
+  writefile(['vim9script', 'export def Greet(): string', "  return 'hi'",
+    'enddef', 'echo Greet()'], lib)
+  var old = root .. '/autoload/xold.vim'
+  writefile(['function xold#Func()', 'endfunction'], old)
+  var other = root .. '/plugin/xother.vim'
+  writefile(['vim9script', "import autoload 'xlib.vim'", 'echo xlib.Greet()',
+    "call('xold#Func', [])", 'echo xlib#Greet()'], other)
+  var main = root .. '/plugin/xmain.vim'
+  var uri = util.PathToUri(main)
+  var Spans = (locations: list<dict<any>>) => locations->mapnew((_, l) =>
+    [fnamemodify(util.UriToPath(l.uri), ':t'), l.range.start.line,
+      l.range.start.character, l.range.end.character])
+  try
+    helper.StartServer()
+    helper.Initialize()
+    helper.OpenDoc(['vim9script', "import autoload 'xlib.vim' as lib",
+      'echo lib.Greet()', 'xold#Func()'], uri)
+    # An exported name: its own script, the other scripts of the plugin and
+    # the open documents, after an alias of the import and as an autoload
+    # name.
+    var resp = helper.Request('textDocument/references', extend(
+      helper.Params(2, 10, uri), {context: {includeDeclaration: true}}))
+    var greet = [['xlib.vim', 1, 11, 16], ['xlib.vim', 4, 5, 10],
+      ['xmain.vim', 2, 9, 14], ['xother.vim', 2, 10, 15],
+      ['xother.vim', 4, 10, 15]]
+    assert_equal(greet, Spans(resp.result))
+    # The same from the definition, in a document that is open.
+    helper.OpenDoc(readfile(lib), util.PathToUri(lib))
+    resp = helper.Request('textDocument/references', extend(
+      helper.Params(1, 12, util.PathToUri(lib)),
+      {context: {includeDeclaration: true}}))
+    assert_equal(greet, Spans(resp.result))
+    # A legacy autoload function is renamed after its last "#", also inside
+    # a string.
+    var at = helper.Params(3, 2, uri)
+    resp = helper.Request('textDocument/prepareRename', at)
+    assert_equal({range: {start: {line: 3, character: 5},
+      end: {line: 3, character: 9}}, placeholder: 'Func'}, resp.result)
+    resp = helper.Request('textDocument/rename', extend(at, {newName: 'Run'}))
+    var changes = resp.result.changes
+    var Edits = (path: string) => Spans(changes[util.PathToUri(path)]
+      ->mapnew((_, e) => ({uri: util.PathToUri(path), range: e.range})))
+    assert_equal([util.PathToUri(old), uri, util.PathToUri(other)],
+      keys(changes)->sort())
+    assert_equal([['xold.vim', 0, 14, 18]], Edits(old))
+    assert_equal([['xmain.vim', 3, 5, 9]], Edits(main))
+    assert_equal([['xother.vim', 3, 11, 15]], Edits(other))
+    assert_equal(['Run'], changes[uri]->mapnew((_, e) => e.newText))
   finally
     delete(root, 'rf')
   endtry

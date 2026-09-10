@@ -20,12 +20,14 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # The server needs 9.2.1055 or later.
+      # The server needs 9.2.1055 or later, and the checker ":source
+      # ++dryrun", which is in this branch until vim/vim takes it in.
       - name: Build Vim
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libncurses-dev
-          git clone --depth 1 https://github.com/vim/vim.git "$RUNNER_TEMP/vim"
+          git clone --depth 1 --branch source-dryrun \
+              https://github.com/h-east/vim.git "$RUNNER_TEMP/vim"
           cd "$RUNNER_TEMP/vim"
           ./configure --prefix="$HOME/vim" \
               --enable-gui=no --without-x --disable-nls

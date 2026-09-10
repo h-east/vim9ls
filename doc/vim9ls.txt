@@ -113,8 +113,17 @@ the imported script, and the alias itself to that file.  A relative import is
 found next to the script, an autoload import in the autoload directories above
 it and in $VIMRUNTIME.  A legacy "foo#bar#Func()" goes to autoload/foo/bar.vim
 the same way.
-Rename changes the name proper and leaves a "s:" or "<SID>" in place.  A name
-that is not defined in the document, a builtin for one, cannot be renamed.
+References and rename follow an exported name and a legacy autoload function
+into the other scripts: those of the plugin the defining script belongs to,
+which is the directory above its autoload, plugin, ftplugin, import, syntax
+or indent directory, and the open documents.  A use is the name after the
+alias of an import of that script, or the autoload name "foo#bar#Func" spelled
+out, also in a string.  Scripts elsewhere on 'runtimepath', and a name put
+together at runtime, are not found.
+Rename changes the name proper and leaves a "s:" or "<SID>", or the "foo#bar#"
+of an autoload name, in place.  A name that is not defined in the document
+and not shared by the script that defines it, a builtin for one, cannot be
+renamed.
 A Vim9 "var" inside a block is treated as if it belonged to the whole
 function; two blocks of one function declaring the same name are told apart by
 neither definition nor rename.
@@ -171,7 +180,8 @@ The tests are in test/ and run with: >
 	VIMPROG=/path/to/vim ./run
 	TEST_FILTER=hover ./run
 The Vim they run in is also the server they start, so it needs
-|--stdio-channel|.  Unit tests read the parser and the conversions directly;
-the server tests start the server and talk LSP to it.
+|--stdio-channel|; without |:source-dryrun| the test of the checker is
+skipped.  Unit tests read the parser and the conversions directly; the server
+tests start the server and talk LSP to it.
 
  vim:tw=78:ts=8:noet:ft=help:norl:

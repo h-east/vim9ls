@@ -230,6 +230,40 @@ export def References(parsed: dict<any>, lines: list<string>,
   return out
 enddef
 
+# Where a name of another script, "target" as {path, symbol, autoload}, is
+# used in "lines", the script at "path": after the alias of an import of that
+# file, or as the autoload name spelled out.  The spans are of the name
+# proper: after the alias or the last "#".
+export def UsesOf(parsed: dict<any>, lines: list<string>, path: string,
+    target: dict<any>): list<dict<number>>
+  var name = matchstr(target.symbol.name, '[^#]*$')
+  var aliases: list<string> = []
+  for s in parse.AllSymbols(parsed.symbols)
+    if s.kind == parse.KIND_MODULE && ImportFile(path, s.detail,
+        s->get('autoload', false)) ==# target.path
+      add(aliases, s.name)
+    endif
+  endfor
+  var out: list<dict<number>> = []
+  var vim9_at = parse.Vim9Lines(parsed, len(lines))
+  for lnum in range(len(lines))
+    var line = lines[lnum]
+    if stridx(line, name) < 0
+      continue
+    endif
+    for token in Tokens(line, vim9_at[lnum])
+      if target.autoload != '' && token.text ==# target.autoload
+        out->add({line: lnum, col: token.end - strlen(name), end: token.end})
+      elseif token.prev == '.' && token.text ==# name && token.col >= 2
+          && index(aliases,
+            matchstr(line[: token.col - 2], NAME .. '\+$')) >= 0
+        out->add({line: lnum, col: token.col, end: token.end})
+      endif
+    endfor
+  endfor
+  return out
+enddef
+
 # The file an import statement names, when it can be found from "path", the
 # script that holds the import.  An autoload import is looked for in the
 # autoload directories above the script and in $VIMRUNTIME.

@@ -372,7 +372,7 @@ def TokenWhere(params: dict<any>): dict<any>
 enddef
 
 # What defines the token at "w": the symbol and the script it is in, as
-# {uri, lines, symbol}.  null_dict when nothing does.
+# {path, uri, lines, parsed, symbol}.  null_dict when nothing does.
 def Lookup(w: dict<any>, token: dict<any>): dict<any>
   var parsed = w.parsed
 
@@ -387,13 +387,14 @@ def Lookup(w: dict<any>, token: dict<any>): dict<any>
       var target = script == null_dict ? null_dict
         : TopLevel(script.parsed, token.text)
       return target == null_dict ? null_dict
-        : {uri: script.uri, lines: script.lines, symbol: target}
+        : extend({path: file, symbol: target}, script)
     endif
   endif
 
   var found = refs.Resolve(parsed, token, w.lnum)
   if found != null_dict
-    return {uri: w.uri, lines: w.doc.lines, symbol: found}
+    return {path: w.path, uri: w.uri, lines: w.doc.lines, parsed: parsed,
+      symbol: found}
   endif
 
   # "foo#bar#Func": a legacy autoload function in autoload/foo/bar.vim.
@@ -408,10 +409,80 @@ def Lookup(w: dict<any>, token: dict<any>): dict<any>
       target = TopLevel(script.parsed, matchstr(token.text, '[^#]*$'))
     endif
     if target != null_dict
-      return {uri: script.uri, lines: script.lines, symbol: target}
+      return extend({path: file, symbol: target}, script)
     endif
   endif
   return null_dict
+enddef
+
+# What other scripts can use of the symbol "hit" defines: {path, symbol,
+# autoload} for an exported name or an autoload function, "autoload" being
+# the name a legacy call spells out; null_dict for anything else.
+def Shared(hit: dict<any>): dict<any>
+  var s = hit.symbol
+  if s.kind == parse.KIND_MODULE
+    return null_dict
+  endif
+  if s.name =~ '#'
+    return {path: hit.path, symbol: s, autoload: s.name}
+  endif
+  if hit.lines[s.line] !~ '^\s*export\s'
+    return null_dict
+  endif
+  var under = matchstr(hit.path, '.*[/\\]autoload[/\\]\zs.*\ze\.vim$')
+  return {path: hit.path, symbol: s, autoload: under == '' ? ''
+    : substitute(under, '[/\\]', '#', 'g') .. '#' .. s.name}
+enddef
+
+# The scripts that may use what the script at "path" defines: the others of
+# the plugin it belongs to, the directory above its autoload, plugin,
+# ftplugin, import, syntax or indent directory, and the open documents.
+def UsersOf(path: string): list<string>
+  var root = matchstr(path,
+    '.*\ze[/\\]\%(autoload\|plugin\|ftplugin\|import\|syntax\|indent\)[/\\]')
+  var paths = root == '' ? [] : glob(root .. '/**/*.vim', true, true)
+    ->map((_, f) => fnamemodify(f, ':p'))
+  for uri in keys(docs)
+    add(paths, util.UriToPath(uri))
+  endfor
+  return sort(paths)->uniq()->filter((_, p) => p !=# path)
+enddef
+
+# The script at "path" when "name" occurs in its text, null_dict otherwise;
+# a script without it needs no parsing.
+def Mentions(path: string, name: string): dict<any>
+  var uri = util.PathToUri(path)
+  var lines = docs->has_key(uri) ? docs[uri].lines
+    : filereadable(path) ? readfile(path) : []
+  return match(lines, '\V' .. name) < 0 ? null_dict : ScriptAt(path)
+enddef
+
+# Where "shared" is used: in its own script, and in the scripts that may use
+# it.  Each use as {uri, lines, line, col, end}, the span of the name after
+# the last "#".
+def SharedUses(hit: dict<any>, shared: dict<any>,
+    declaration: bool): list<dict<any>>
+  var out: list<dict<any>> = []
+  for r in refs.References(hit.parsed, hit.lines, hit.symbol, declaration)
+    var text = hit.lines[r.line][r.col : r.end - 1]
+    out->add({uri: hit.uri, lines: hit.lines, line: r.line,
+      col: r.col + strridx(text, '#') + 1, end: r.end})
+  endfor
+  if shared == null_dict
+    return out
+  endif
+  var name = matchstr(shared.symbol.name, '[^#]*$')
+  for path in UsersOf(shared.path)
+    var script = Mentions(path, name)
+    if script == null_dict
+      continue
+    endif
+    for r in refs.UsesOf(script.parsed, script.lines, path, shared)
+      out->add({uri: script.uri, lines: script.lines, line: r.line, col: r.col,
+        end: r.end})
+    endfor
+  endfor
+  return out
 enddef
 
 def Definition(params: dict<any>): any
@@ -483,32 +554,36 @@ def References(params: dict<any>): any
   if w == null_dict
     return v:null
   endif
-  var found = refs.Resolve(w.parsed, w.token, w.lnum)
-  if found == null_dict
+  var hit = Lookup(w, w.token)
+  if hit == null_dict
     return v:null
   endif
   var include = params->get('context', {})->get('includeDeclaration', true)
-  return refs.References(w.parsed, w.doc.lines, found, include)
-    ->mapnew((_, r) => ({uri: w.uri, range: util.Range(w.doc.lines, r.line,
-      r.col, r.line, r.end, encoding)}))
+  return SharedUses(hit, Shared(hit), include)
+    ->mapnew((_, u) => ({uri: u.uri, range: util.Range(u.lines, u.line, u.col,
+      u.line, u.end, encoding)}))
 enddef
 
 # The name proper of the token under the cursor and what defines it, for
-# renaming; null_dict when the name is not defined in this document.
+# renaming; null_dict when the name is neither defined in this document nor
+# shared by the script that defines it.
 def Renamable(params: dict<any>): dict<any>
   var w = TokenWhere(params)
   if w == null_dict
     return null_dict
   endif
-  var found = refs.Resolve(w.parsed, w.token, w.lnum)
-  if found == null_dict
+  var hit = Lookup(w, w.token)
+  if hit == null_dict
     return null_dict
   endif
-  var skip = strlen(w.token.text) - strlen(refs.Core(w.token.text))
-  w.symbol = found
-  w.range = util.Range(w.doc.lines, w.lnum, w.token.col + skip, w.lnum,
-    w.token.end, encoding)
-  w.name = refs.Core(w.token.text)
+  w.hit = hit
+  w.shared = Shared(hit)
+  if hit.uri != w.uri && w.shared == null_dict
+    return null_dict
+  endif
+  w.name = matchstr(refs.Core(w.token.text), '[^#]*$')
+  w.range = util.Range(w.doc.lines, w.lnum, w.token.end - strlen(w.name),
+    w.lnum, w.token.end, encoding)
   return w
 enddef
 
@@ -529,10 +604,15 @@ def Rename(params: dict<any>): any
   if w == null_dict
     throw 'InvalidParams: the name is not defined in this file'
   endif
-  var edits = refs.References(w.parsed, w.doc.lines, w.symbol, true)
-    ->mapnew((_, r) => ({range: util.Range(w.doc.lines, r.line, r.col, r.line,
-      r.end, encoding), newText: new_name}))
-  return {changes: {[w.uri]: edits}}
+  var changes: dict<list<dict<any>>> = {}
+  for u in SharedUses(w.hit, w.shared, true)
+    if !changes->has_key(u.uri)
+      changes[u.uri] = []
+    endif
+    changes[u.uri]->add({range: util.Range(u.lines, u.line, u.col, u.line,
+      u.end, encoding), newText: new_name})
+  endfor
+  return {changes: changes}
 enddef
 
 def Request(method: string, params: dict<any>): any
