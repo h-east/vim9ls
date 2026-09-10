@@ -82,7 +82,8 @@ export def Items(line: string, col: number,
   var items: list<dict<any>> = []
   var seen: dict<bool> = {}
 
-  def Add(label: string, kind: number, detail: string = '')
+  # "tag" is the help entry of a builtin, fetched by completionItem/resolve.
+  def Add(label: string, kind: number, detail: string = '', tag: string = '')
     if seen->has_key(label)
       return
     endif
@@ -91,24 +92,27 @@ export def Items(line: string, col: number,
     if detail != ''
       item.detail = detail
     endif
+    if tag != ''
+      item.data = {tag: tag}
+    endif
     add(items, item)
   enddef
 
   if ctx.option
     for name in getcompletion(prefix, 'option')
-      Add(name, KIND_PROPERTY)
+      Add(name, KIND_PROPERTY, '', "'" .. name .. "'")
     endfor
     return items
   endif
 
   if ctx.command
     for name in getcompletion(prefix, 'command')
-      Add(name, KIND_KEYWORD)
+      Add(name, KIND_KEYWORD, '', ':' .. name)
     endfor
   endif
   if prefix =~ '^v:'
     for name in getcompletion(prefix, 'var')
-      Add(name, KIND_VARIABLE)
+      Add(name, KIND_VARIABLE, '', name)
     endfor
   endif
   for symbol in parse.AllSymbols(symbols)
@@ -118,7 +122,8 @@ export def Items(line: string, col: number,
     endif
   endfor
   for name in getcompletion(prefix, 'function')
-    Add(substitute(name, '($', '', ''), KIND_FUNCTION)
+    var fn = substitute(name, '($', '', '')
+    Add(fn, KIND_FUNCTION, '', fn .. '()')
   endfor
   return items
 enddef

@@ -74,7 +74,7 @@ See `:help vim9ls` for the details.
 ## Protocol coverage
 
 What this server does with each of the 95 requests and notifications in the
-LSP 3.18 meta model: 17 are answered, 13 are planned and listed in the TODO
+LSP 3.18 meta model: 18 are answered, 12 are planned and listed in the TODO
 below, and 65 are left out for the reason given.
 
 <details>
@@ -115,7 +115,7 @@ below, and 65 are left out for the reason given.
 | Method | State | Note |
 | --- | --- | --- |
 | `textDocument/completion` | yes | triggered by `&` and `:` as well |
-| `completionItem/resolve` | planned | the help entry of a builtin, fetched for the item that is looked at |
+| `completionItem/resolve` | yes | the help entry of a builtin, fetched for the item that is looked at |
 | `textDocument/hover` | yes | the help entry; for editors other than Vim, which has `K` |
 | `textDocument/signatureHelp` | yes | triggered by `(` and `,` as well |
 | `textDocument/declaration` | no | Vim script declares nothing apart from the definition |
@@ -214,7 +214,7 @@ In the order they are meant to be taken up.
       blocks of one function can declare the same name.
 - [x] Completion of the exported names after an import alias, of autoload
       functions after `foo#`, and of members after `.`.
-- [ ] `completionItem/resolve`: the help entry of a builtin, fetched for the
+- [x] `completionItem/resolve`: the help entry of a builtin, fetched for the
       item that is looked at rather than sent with every item.
 - [x] Diagnostics for what compiling a `:def` reports, from the checker: a
       Vim of its own that is started once and kept, and reads the script

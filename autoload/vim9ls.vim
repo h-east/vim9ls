@@ -72,7 +72,8 @@ def Initialize(params: dict<any>): dict<any>
       positionEncoding: encoding,
       textDocumentSync: {openClose: true, change: 2, save: true},
       hoverProvider: true,
-      completionProvider: {triggerCharacters: ['&', ':']},
+      completionProvider: {triggerCharacters: ['&', ':'],
+        resolveProvider: true},
       documentSymbolProvider: true,
       definitionProvider: true,
       referencesProvider: true,
@@ -313,6 +314,25 @@ def Completion(params: dict<any>): any
     items = complete.Items(w.line, w.col, w.parsed.symbols)
   endif
   return {isIncomplete: false, items: items}
+enddef
+
+# The completion item with the help entry of the builtin it stands for: the
+# first line as the detail, the rest as the documentation.  An item of the
+# script has no entry and comes back as it is.
+def ResolveItem(item: dict<any>): dict<any>
+  var data = item->get('data', {})
+  var text = type(data) == v:t_dict ? doc.HelpText(data->get('tag', '')) : ''
+  if text == ''
+    return item
+  endif
+  var nl = stridx(text, "\n")
+  if !item->has_key('detail')
+    item.detail = nl < 0 ? text : text[: nl - 1]
+  endif
+  if nl >= 0
+    item.documentation = {kind: 'plaintext', value: text[nl + 1 :]->trim()}
+  endif
+  return item
 enddef
 
 # The symbols of "script" that other scripts can use: the exported ones.
@@ -718,6 +738,8 @@ def Request(method: string, params: dict<any>): any
     return Hover(params)
   elseif method == 'textDocument/completion'
     return Completion(params)
+  elseif method == 'completionItem/resolve'
+    return ResolveItem(params)
   elseif method == 'textDocument/documentSymbol'
     return DocumentSymbols(params)
   elseif method == 'textDocument/definition'

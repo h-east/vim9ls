@@ -98,6 +98,9 @@ it is the alias of an import, the members of a class or an enum when it is
 their name, of the class a variable is declared with or made with
 "Class.new()", and of the class around "this".  After "foo#bar#": the
 functions of autoload/foo/bar.vim and the files below it as "foo#bar#name#".
+The help entry of a builtin comes with "completionItem/resolve", for the item
+the client asks about: its first line as the detail, the rest as the
+documentation.
 
 Document symbols ~
 The functions, variables, constants, classes with their members, enums with

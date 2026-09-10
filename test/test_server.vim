@@ -155,6 +155,28 @@ def g:Test_completion()
   items = resp.result.items
   assert_true(index(Labels(items), 'echo') >= 0)
   assert_equal(14, items[Labels(items)->index('echo')].kind)
+
+  # The help entry of a builtin comes with completionItem/resolve; an item
+  # of the script comes back as it is.
+  resp = helper.Request('textDocument/completion', helper.Params(4, 9))
+  items = resp.result.items
+  var strlen_item = items[Labels(items)->index('strlen')]
+  assert_equal({tag: 'strlen()'}, strlen_item.data)
+  resp = helper.Request('completionItem/resolve', strlen_item)
+  assert_match('^strlen({string})', resp.result.detail)
+  assert_equal('plaintext', resp.result.documentation.kind)
+  assert_match('Return type: |Number|', resp.result.documentation.value)
+  resp = helper.Request('textDocument/completion', helper.Params(6, 4))
+  items = resp.result.items
+  var own = items[Labels(items)->index('MyFunc')]
+  assert_false(own->has_key('data'))
+  resp = helper.Request('completionItem/resolve', own)
+  assert_equal(own, resp.result)
+  resp = helper.Request('textDocument/completion', helper.Params(5, 8))
+  items = resp.result.items
+  resp = helper.Request('completionItem/resolve',
+    items[Labels(items)->index('textwidth')])
+  assert_match("^'textwidth' 'tw'", resp.result.detail)
 enddef
 
 # After "alias.", "foo#bar#", "this.", "var." and "Class.": what is there,
@@ -459,11 +481,13 @@ def g:Test_definition_other_files()
     assert_equal(util.PathToUri(root .. '/autoload/xlib.vim'),
       resp.result[0].uri)
     assert_equal(0, resp.result[0].range.start.line)
-    # A relative import, named by its file.
+    # A relative import, named by its file; the path is given without the
+    # "./" of the import.
     resp = helper.Request('textDocument/definition',
       helper.Params(4, 13, uri))
     assert_equal(util.PathToUri(root .. '/plugin/xconst.vim'),
       resp.result[0].uri)
+    assert_notmatch('/\./', resp.result[0].uri)
     assert_equal(1, resp.result[0].range.start.line)
     # A legacy autoload function.
     resp = helper.Request('textDocument/definition',
