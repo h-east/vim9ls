@@ -159,8 +159,10 @@ own name, so that a relative import is found, with |:source-dryrun|: what
 the script defines is defined, nothing in it runs, and every ":def" is
 compiled.  In a |vim9script| file the script level goes along once more as
 the body of a function, so that it is compiled as well; a declaration is
-checked against its type.  What Vim reports is added, each on the line it is
-about: a type mismatch, a name that is not found, an argument too many.
+checked against its type.  The server does not wait for the checker, it goes
+on answering the client and sends the diagnostics once the checker has
+answered.  What Vim reports is added, each on the line it is about: a type
+mismatch, a name that is not found, an argument too many.
 What a legacy "function" does is not read until it is called, and neither is
 a mapping or an autocommand.  A Vim without |:source-dryrun| leaves this out.
 

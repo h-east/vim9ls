@@ -4,8 +4,9 @@ vim9script
 # Maintainer: Hirohito Higashi <h.east.727@gmail.com>
 #
 # The script is read by the checker, a Vim of its own (checker.vim), started
-# once and kept.  A script that hangs it goes unanswered, and the next check
-# starts a new one.
+# once and kept.  The server never waits for it: the answer comes back
+# through a callback.  A script that hangs the checker goes unanswered, and
+# the next check starts a new one.
 
 import autoload './util.vim'
 import autoload './parse.vim'
@@ -15,6 +16,9 @@ const CHECKER = expand('<sfile>:p:h') .. '/checker.vim'
 var job: job
 # False once the checker turned out to be a Vim without ":source ++dryrun".
 var available = true
+# The checks that were asked and not answered yet, by request id:
+# {Done, timer, path}.
+var pending: dict<dict<any>> = {}
 
 def Running(): bool
   return job != null_job && job_status(job) == 'run'
@@ -31,41 +35,71 @@ def Start()
   })
 enddef
 
+# Ends the checker; what it was asked is answered with null.
 export def Stop()
   if job != null_job
-    job_stop(job)
+    job_stop(job, 'kill')
     job = null_job
   endif
+  var asked = pending
+  pending = {}
+  for p in values(asked)
+    timer_stop(p.timer)
+    p.Done(null)
+  endfor
 enddef
 
-# What Vim reports for "lines" as the script at "path", with "wrapped" the
-# script level as a function (see wrap.vim) or null: {line, message} items,
-# or null when the checker gave no answer.
-export def Check(path: string, lines: list<string>, wrapped: any): any
+# Asks the checker what Vim reports for "lines" as the script at "path",
+# with "wrapped" the script level as a function (see wrap.vim) or null.
+# "Done" gets the {line, message} items, or null when the checker gave no
+# answer.  Returns false when there is no checker to ask.
+export def Check(path: string, lines: list<string>, wrapped: any,
+    Done: func(any)): bool
   if !available
-    return null
+    return false
   endif
   if !Running()
     Start()
     if !Running()
-      return null
+      return false
     endif
   endif
-  var resp = ch_evalexpr(job, {method: 'check',
-    params: {path: path, lines: lines, wrapped: wrapped}}, {timeout: 5000})
-  if type(resp) != v:t_dict || !resp->has_key('result')
-    util.Log('the checker did not answer for ' .. path)
-    job_stop(job, 'kill')
-    job = null_job
-    return null
+  var sent = ch_sendexpr(job, {method: 'check',
+    params: {path: path, lines: lines, wrapped: wrapped}}, {callback: OnReply})
+  if type(sent) != v:t_dict || !sent->has_key('id')
+    return false
   endif
-  if !resp.result.dryrun
+  pending[string(sent.id)] = {Done: Done, path: path,
+    timer: timer_start(5000, (_) => Unanswered(sent.id))}
+  return true
+enddef
+
+def OnReply(ch: channel, resp: dict<any>)
+  var id = string(resp->get('id', -1))
+  if !pending->has_key(id)
+    return
+  endif
+  var p = remove(pending, id)
+  timer_stop(p.timer)
+  var result = resp->get('result', null_dict)
+  if result == null_dict
+    p.Done(null)
+  elseif !result.dryrun
     util.Log('the checker needs a Vim with ":source ++dryrun"')
     available = false
     Stop()
-    return null
+    p.Done(null)
+  else
+    p.Done(result.errors)
   endif
-  return resp.result.errors
+enddef
+
+def Unanswered(nr: number)
+  var id = string(nr)
+  if pending->has_key(id)
+    util.Log('the checker did not answer for ' .. pending[id].path)
+    Stop()
+  endif
 enddef
 
 # The errors as LSP Diagnostic items, each over the whole of its line.

@@ -98,8 +98,8 @@ def Parsed(d: dict<any>, fresh = true): dict<any>
 enddef
 
 # What the parser found, and what Vim reports when the checker reads the
-# document.  The two may name the same error; it is sent once.  When the
-# checker gives no answer, what it reported last time stays.
+# document.  The checker is asked and answers later; the diagnostics go out
+# when it has.
 def PublishDiagnostics(uri: string)
   var d = docs->get(uri, null_dict)
   if d == null_dict
@@ -108,26 +108,40 @@ def PublishDiagnostics(uri: string)
   d.timer = -1
   var parsed = Parsed(d)
   var path = util.UriToPath(uri)
-  if path != ''
-    var errors = compile.Check(path, d.lines,
-      parsed.vim9 ? wrap.Lines(parsed, d.lines) : null)
-    if errors != null
-      d.compiled = errors
-    endif
-  endif
   var undefined = names.Undefined(parsed, d.lines,
     (name: string): number => AutoloadDefined(path, name))
   var items = diag.Diagnostics(parsed.diags + undefined, d.lines, encoding)
+  var version = d.version
+  if path == '' || !compile.Check(path, d.lines,
+      parsed.vim9 ? wrap.Lines(parsed, d.lines) : null,
+      (errors: any) => Publish(uri, version, items, errors))
+    Publish(uri, version, items, null)
+  endif
+enddef
+
+# Sends "items" and what the checker reported, "errors", for the document at
+# "uri" while it is still at "version".  The two may name the same error; it
+# is sent once.  When the checker gave no answer, what it reported last time
+# stays.
+def Publish(uri: string, version: any, items: list<dict<any>>, errors: any)
+  var d = docs->get(uri, null_dict)
+  if d == null_dict || d.version != version
+    return
+  endif
+  if errors != null
+    d.compiled = errors
+  endif
+  var all = copy(items)
   for item in compile.Diagnostics(d.compiled, d.lines, encoding)
-    if items->indexof((_, i) => i.message == item.message
+    if all->indexof((_, i) => i.message == item.message
         && i.range.start.line == item.range.start.line) < 0
-      add(items, item)
+      add(all, item)
     endif
   endfor
   Notify('textDocument/publishDiagnostics', {
     uri: uri,
     version: d.version,
-    diagnostics: items,
+    diagnostics: all,
   })
 enddef
 
