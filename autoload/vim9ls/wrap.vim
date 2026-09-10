@@ -8,9 +8,11 @@ vim9script
 # compile those as well, they are made the body of a function that the
 # checker appends to the script: what the dry run has already read
 # (functions, classes, imports, type aliases, "vim9script" and what comes
-# before it) is blanked, and a declaration becomes an assignment to the
-# script variable the dry run declared.  The body has one line for each
-# line of the script.
+# before it) is blanked, and so is a user command, which nothing defines in
+# the checker's Vim.  A declaration becomes an assignment to the script
+# variable the dry run declared; one inside a block, which the dry run does
+# not keep, stays a declaration and is a local of the function.  The body
+# has one line for each line of the script.
 
 import autoload './parse.vim'
 
@@ -45,27 +47,48 @@ export def Lines(parsed: dict<any>, lines: list<string>): list<string>
     elseif s.kind == parse.KIND_MODULE
       out[s.line] = ''
     elseif (s.kind == parse.KIND_VARIABLE || s.kind == parse.KIND_CONSTANT)
-        && !done->has_key(s.line)
+        && !done->has_key(s.line) && !s->has_key('scope_start')
       done[s.line] = true
       out[s.line] = Assignment(out[s.line])
     endif
   endfor
+  var heredoc: dict<bool> = {}
+  for lnum in parsed.heredoc_lines
+    heredoc[lnum] = true
+  endfor
   var started = false
+  var command = false
   for lnum in range(len(out))
     var line = out[lnum]
     if !started
       # Up to "vim9script": comments in the legacy style at most.
       out[lnum] = ''
       started = line =~ '^\s*vim9script\>'
+    elseif command && line =~ '^\s*\\'
+      out[lnum] = ''
+      continue
     elseif line =~ '^\s*fini\%[sh]\>'
       out[lnum] = 'return'
     elseif line =~ '^\s*\%(export\s\+\)\=type\s\+\u'
         || line =~ '^\s*\%(defc\%[ompile]\|disa\%[ssemble]\)\>'
         || line =~ '^\s*\%(scripte\%[ncoding]\|scriptv\%[ersion]\)\>'
       out[lnum] = ''
+    elseif !heredoc->has_key(lnum) && UserCommand(line)
+      out[lnum] = ''
+      command = true
+      continue
     endif
+    command = false
   endfor
   return out
+enddef
+
+# Whether the statement in "line" is a user command: a capitalized word
+# that no operator, call or member follows.
+def UserCommand(line: string): bool
+  var rest = matchstr(line, '^\s*\u\w*!\=\zs.*')
+  return line =~ '^\s*\u\w*' && rest =~ '^\%(\s*$\|\s\)'
+    && rest !~ '^\s*\%(=\|[-+*/%.]=\|\.\.\|->\|[.[(]\)'
 enddef
 
 # test/run sets this to have every :def compiled as the script is read.

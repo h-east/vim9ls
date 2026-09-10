@@ -404,6 +404,11 @@ def g:Test_compile_diagnostics()
       'var m: number = "s"', 'def Two(): number', '  var s: string = 1',
       '  echo undefined_name', '  return 1', 'enddef'], 3))
 
+  # A user command the dry run cannot know and a variable declared inside a
+  # block are no errors.
+  assert_equal([], After(['vim9script', "Plug 'x/y'", 'command! Log echo 1',
+    'Log', "if has('iconv')", "  var enc = 'euc-jp'", "  enc = 'eucjp-ms'",
+    'endif'], 8))
   # A legacy script defines its functions and nothing is compiled.
   assert_equal([], After(['function Legacy()', '  return undefined_a',
     'endfunction', 'echo undefined_b'], 4))

@@ -77,6 +77,58 @@ def g:Test_wrap_script_level()
     Wrapped(lines))
 enddef
 
+# A user command is left out, its continuation lines with it: a plugin or a
+# ":command" the dry run skipped may define it.  A declaration inside a block
+# stays a declaration, the block ends its scope.
+def g:Test_wrap_commands_and_blocks()
+  var lines =<< trim END
+    vim9script
+    Plug 'vim-jp/vimdoc-ja'
+    Plug 'x/y', {
+      \ 'on': 'Y',
+      \ }
+    Log
+    Cmd! arg
+    Value = 1
+    Value += 1
+    Func()
+    Obj.method()
+    List[0] = 1
+    Name .. 's'
+    F->call()
+    if has('iconv')
+      var enc = 'euc-jp'
+      const LIMIT = 1
+      enc = 'eucjp-ms'
+    endif
+    var top = 1
+  END
+  var expected =<< trim END
+
+
+
+
+
+
+
+    Value = 1
+    Value += 1
+    Func()
+    Obj.method()
+    List[0] = 1
+    Name .. 's'
+    F->call()
+    if has('iconv')
+      var enc = 'euc-jp'
+      const LIMIT = 1
+      enc = 'eucjp-ms'
+    endif
+    top = 1
+  END
+  assert_equal(expected->mapnew((_, l) => l =~ '^\s*$' ? '' : l),
+    Wrapped(lines))
+enddef
+
 # A legacy function and a command keep their lines out of and in the body.
 def g:Test_wrap_legacy_function()
   var lines =<< trim END
