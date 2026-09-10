@@ -344,6 +344,13 @@ def g:Test_compile_diagnostics()
   assert_equal([[1, 'E1012: Type mismatch; expected number but got string']],
     After(['vim9script', 'var n: number = "s"'], 6))
 
+  # An error in a method is put on its line, and a static method is called
+  # by its bare name inside the class.
+  assert_equal([[8, 'E117: Unknown function: _Helper']],
+    After(['vim9script', 'class C', '  def _Helper()', '  enddef',
+      '  static def S(): number', '    return 1', '  enddef', '  def Run()',
+      '    _Helper()', '    var n = S()', '  enddef', 'endclass'], 7))
+
   # Vim names a file under the home directory with "~"; the lines are
   # still the file's.
   var home = 'file://' .. $HOME .. '/Xvim9ls_home_test.vim'
@@ -355,6 +362,24 @@ def g:Test_compile_diagnostics()
     [2, 'E1012: Type mismatch; expected number but got string'],
     [4, 'E1001: Variable not found: undefined_name'],
   ], note.params.diagnostics->mapnew((_, d) => [d.range.start.line, d.message]))
+
+  # A class in an autoload script is defined again at every check; Vim only
+  # refuses that outside a dry run.
+  var root = helper.HERE .. '/Xproj'
+  mkdir(root .. '/autoload', 'p')
+  var cls = util.PathToUri(root .. '/autoload/xshape.vim')
+  try
+    var text = ['vim9script', 'export class Shape', '  const width = 1',
+      '  def Area(): number', '    return this.width', '  enddef', 'endclass']
+    helper.OpenDoc(text, cls)
+    note = helper.WaitNotification('textDocument/publishDiagnostics')
+    assert_equal([], note.params.diagnostics)
+    helper.ChangeDoc(text + [''], cls, 2)
+    note = helper.WaitNotification('textDocument/publishDiagnostics')
+    assert_equal([], note.params.diagnostics)
+  finally
+    delete(root, 'rf')
+  endtry
 
   # The checker's own script is running in the checker; reading it must
   # not try to define its functions again.

@@ -55,8 +55,27 @@ endfunction
 
 # The line a function starts on in "path", 1-based, or 0 when it is not in
 # that file or not found.  A lambda is gone once its compilation failed.
-# Vim names the file with "~" for the home directory.
+# Vim names the file with "~" for the home directory.  A method, named
+# "<SNR>5_Class.Method", is not listed by ":function"; its "def" is looked
+# for in the buffer, inside its class.
 function StartLine(name, path)
+  let m = matchlist(a:name, '^<SNR>\d\+_\(\h\w*\)\.\(\h\w*\)$')
+  if !empty(m)
+    let inside = 0
+    let lnum = 0
+    for line in getline(1, '$')
+      let lnum += 1
+      if !inside
+        let inside = line =~ '^\s*\%(\%(export\|abstract\)\s\+\)*'
+          \ .. '\%(class\|interface\|enum\)\s\+' .. m[1] .. '\>'
+      elseif line =~ '^\s*end\%(class\|interface\|enum\)\>'
+        return 0
+      elseif line =~ '^\s*\%(static\s\+\)\=def\s\+' .. m[2] .. '\>'
+        return lnum
+      endif
+    endfor
+    return 0
+  endif
   try
     let m = matchlist(execute('verbose function ' .. a:name),
       \ 'Last set from \(.*\) line \(\d\+\)')

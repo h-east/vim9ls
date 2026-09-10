@@ -81,9 +81,15 @@ def g:Test_names_vim9()
     endfunction
     echo v:nosuch
     class C
+      static def S(): number
+        return 1
+      enddef
       def M()
         this.M()
         Defined()
+        S()
+        M()
+        Other()
       enddef
     endclass
     var G: func(number): number = (n) => n
@@ -97,6 +103,7 @@ def g:Test_names_vim9()
     [17, 'E117: Unknown function: Missing'],
     [24, 'E117: Unknown function: s:Missing'],
     [26, 'E1001: Variable not found: nosuch'],
+    [36, 'E117: Unknown function: Other'],
   ], Undefined(lines))
 enddef
 

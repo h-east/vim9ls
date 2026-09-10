@@ -100,6 +100,23 @@ export def Undefined(parsed: dict<any>, lines: list<string>,
   var builtin: dict<bool> = {}
   # The parameters of the block lambdas that are open.
   var blocks: list<list<string>> = []
+  # Inside a class its own methods are called by their bare name; Vim itself
+  # reports an object method called that way.
+  var classes = copy(parsed.symbols)
+    ->filter((_, s) => s.kind == parse.KIND_CLASS)
+    ->map((_, s) => ({first: s.line, last: s.end_line,
+      methods: s.children->copy()
+        ->filter((_, c) => c.kind == parse.KIND_METHOD)
+        ->map((_, c) => c.name)}))
+
+  def OwnMethod(lnum: number, name: string): bool
+    for c in classes
+      if c.first <= lnum && lnum <= c.last && index(c.methods, name) >= 0
+        return true
+      endif
+    endfor
+    return false
+  enddef
 
   def Report(lnum: number, token: dict<any>, message: string)
     add(out, {line: lnum, col: token.col, end_col: token.end,
@@ -157,6 +174,7 @@ export def Undefined(parsed: dict<any>, lines: list<string>,
         unknown = !builtin[name]
       elseif vim9
         unknown = refs.Find(index, token, lnum, same) == null_dict
+          && !OwnMethod(lnum, name)
       endif
       if unknown
         Report(lnum, token, 'E117: Unknown function: ' .. name)
