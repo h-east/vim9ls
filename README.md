@@ -64,6 +64,8 @@ See `:help vim9ls` for the details.
   references and rename follow an exported name or an autoload function into
   the other files of the plugin and the open documents.
 - Signature help for builtin functions and the script's own.
+- Code actions: a quick fix for what the parser reports, `:let` to `var`,
+  the `endif` a block lacks, an `endif` without an `if`.
 - Diagnostics: blocks that do not add up, `:let` under Vim9 rules, in legacy
   script words that are not commands, calls of functions that are not
   defined, and `v:` variables Vim does not have.  And what Vim itself reports
@@ -74,7 +76,7 @@ See `:help vim9ls` for the details.
 ## Protocol coverage
 
 What this server does with each of the 95 requests and notifications in the
-LSP 3.18 meta model: 18 are answered, 12 are planned and listed in the TODO
+LSP 3.18 meta model: 19 are answered, 11 are planned and listed in the TODO
 below, and 65 are left out for the reason given.
 
 <details>
@@ -125,7 +127,7 @@ below, and 65 are left out for the reason given.
 | `textDocument/references` | yes |  |
 | `textDocument/documentHighlight` | planned | the other uses of the name, from what references knows |
 | `textDocument/documentSymbol` | yes |  |
-| `textDocument/codeAction` | planned | a quick fix for what a diagnostic reports: `:let` to `var`, a missing `endif` |
+| `textDocument/codeAction` | yes | a quick fix for what a diagnostic reports: `:let` to `var`, a missing `endif` |
 | `codeAction/resolve` | no | an action comes with its edit |
 | `textDocument/codeLens` | no | nothing here has a line to put above the code |
 | `codeLens/resolve` | no |  |
@@ -219,7 +221,7 @@ In the order they are meant to be taken up.
 - [x] Diagnostics for what compiling a `:def` reports, from the checker: a
       Vim of its own that is started once and kept, and reads the script
       with `:source ++dryrun`.
-- [ ] `textDocument/codeAction` with a quick fix for what a diagnostic
+- [x] `textDocument/codeAction` with a quick fix for what a diagnostic
       reports: `:let` to `var` under Vim9 rules, the `endif` a block lacks.
 - [ ] Signature help with the types of a builtin's arguments; the help entry
       names them but does not type them.  Needs Vim to hand those out, which

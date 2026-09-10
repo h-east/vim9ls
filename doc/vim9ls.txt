@@ -144,6 +144,13 @@ the entry as documentation, for a function of the script or an imported one
 its "def" or "function" line.  After "->" the value in front counts as the
 first argument.  A call that started up to 30 lines above the cursor is found.
 
+Code actions ~
+A quick fix for what the parser reports, offered for the diagnostics in the
+range asked about: ":let" under Vim9 rules becomes "var" when it declares the
+variable and goes when the variable is there already or has a scope; the end
+a block lacks, "endif" for one, is put in where the indentation of the block
+stops; an end without a start is removed.
+
 Diagnostics ~
 Reported when a document is opened and after its changes pause:
 - a block that is not closed ("if" without "endif", "def" without "enddef",

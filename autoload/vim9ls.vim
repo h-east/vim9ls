@@ -19,6 +19,7 @@ import autoload './vim9ls/sig.vim'
 import autoload './vim9ls/compile.vim'
 import autoload './vim9ls/wrap.vim'
 import autoload './vim9ls/names.vim'
+import autoload './vim9ls/fix.vim'
 
 export const VERSION = '0.1.001'
 
@@ -79,6 +80,7 @@ def Initialize(params: dict<any>): dict<any>
       referencesProvider: true,
       renameProvider: {prepareProvider: true},
       signatureHelpProvider: {triggerCharacters: ['(', ',']},
+      codeActionProvider: {codeActionKinds: ['quickfix']},
     },
     serverInfo: {name: 'vim9ls', version: VERSION},
   }
@@ -662,6 +664,18 @@ def SignatureHelp(params: dict<any>): any
   return sig.Help(ScriptSignature(found.symbol), active)
 enddef
 
+def CodeActions(params: dict<any>): any
+  var uri = params.textDocument.uri
+  var d = docs->get(uri, null_dict)
+  if d == null_dict
+    return v:null
+  endif
+  var range = params->get('range', {})
+  return fix.Actions(Parsed(d), d.lines, uri,
+    range->get('start', {})->get('line', 0),
+    range->get('end', {})->get('line', len(d.lines)), encoding)
+enddef
+
 def References(params: dict<any>): any
   var w = TokenWhere(params)
   if w == null_dict
@@ -752,6 +766,8 @@ def Request(method: string, params: dict<any>): any
     return Rename(params)
   elseif method == 'textDocument/signatureHelp'
     return SignatureHelp(params)
+  elseif method == 'textDocument/codeAction'
+    return CodeActions(params)
   endif
   throw 'MethodNotFound'
 enddef

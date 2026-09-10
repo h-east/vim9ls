@@ -263,6 +263,55 @@ def g:Test_document_symbol()
   assert_false(symbols[0]->has_key('children'))
 enddef
 
+# A quick fix for each of the three things the parser reports.
+def g:Test_code_action()
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc([
+    'vim9script',
+    'let x = 1',
+    'let x = 2',
+    'let g:y = 3',
+    'def F()',
+    '  if x',
+    '    echo x',
+    'enddef',
+  ])
+  var Ask = (first: number, last: number) => helper.Request(
+    'textDocument/codeAction', {textDocument: {uri: helper.URI},
+      range: {start: {line: first, character: 0},
+        end: {line: last, character: 0}},
+      context: {diagnostics: []}}).result
+  var actions = Ask(0, 8)
+  assert_equal([
+    [1, 'Replace :let with :var'],
+    [2, 'Drop :let, the variable is there'],
+    [3, 'Drop :let, the variable is there'],
+    [4, 'Insert enddef'],
+    [5, 'Insert endif'],
+    [7, 'Remove the enddef without a start'],
+  ], actions->mapnew((_, a) => [a.diagnostics[0].range.start.line, a.title])
+    ->sort((a, b) => a[0] - b[0]))
+  assert_equal('quickfix', actions[0].kind)
+  var Edit = (title: string) => actions[actions->indexof(
+    (_, a) => a.title == title)].edit.changes[helper.URI][0]
+  assert_equal({range: {start: {line: 1, character: 0},
+    end: {line: 1, character: 3}}, newText: 'var'},
+    Edit('Replace :let with :var'))
+  assert_equal({range: {start: {line: 2, character: 0},
+    end: {line: 2, character: 4}}, newText: ''},
+    Edit('Drop :let, the variable is there'))
+  assert_equal({range: {start: {line: 7, character: 0},
+    end: {line: 7, character: 0}}, newText: "  endif\n"},
+    Edit('Insert endif'))
+  assert_equal({range: {start: {line: 7, character: 0},
+    end: {line: 8, character: 0}}, newText: ''},
+    Edit('Remove the enddef without a start'))
+  # Only the diagnostics in the range asked about.
+  assert_equal(['Replace :let with :var'],
+    Ask(1, 1)->mapnew((_, a) => a.title))
+enddef
+
 def g:Test_diagnostics()
   helper.StartServer()
   helper.Initialize()
