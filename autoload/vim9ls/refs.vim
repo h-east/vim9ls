@@ -273,7 +273,7 @@ export def ImportFile(path: string, spec: string, autoload: bool): string
   if !autoload
     var file = spec =~ '^\.\.\=/' ? fnamemodify(path, ':h') .. '/' .. spec
       : spec
-    return filereadable(file) ? fnamemodify(file, ':p') : ''
+    return filereadable(file) ? simplify(fnamemodify(file, ':p')) : ''
   endif
   var rel = spec =~ '\.vim$' ? spec : spec .. '.vim'
   return AutoloadFile(path, rel)
@@ -301,7 +301,7 @@ export def AutoloadFile(path: string, rel: string): string
   for d in AutoloadDirs(path)
     var file = d .. '/' .. rel
     if filereadable(file)
-      return fnamemodify(file, ':p')
+      return simplify(fnamemodify(file, ':p'))
     endif
   endfor
   return ''

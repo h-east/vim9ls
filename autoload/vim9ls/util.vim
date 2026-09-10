@@ -34,7 +34,7 @@ def PercentDecode(s: string): string
 enddef
 
 export def PathToUri(path: string): string
-  var full = fnamemodify(path, ':p')
+  var full = simplify(fnamemodify(path, ':p'))
   if has('win32')
     full = substitute(full, '\\', '/', 'g')
     # A drive letter needs a leading slash: "C:/x" becomes "/C:/x".
