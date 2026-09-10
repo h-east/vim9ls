@@ -93,6 +93,11 @@ Completion ~
 Builtin functions, plus the functions, variables, classes and other names the
 script defines.  After "&" and in a ":set" command: options.  At the start of
 a statement: Ex commands as well.  "v:" variables after "v:".
+After a ".": the exported names of the imported script when the name before
+it is the alias of an import, the members of a class or an enum when it is
+their name, of the class a variable is declared with or made with
+"Class.new()", and of the class around "this".  After "foo#bar#": the
+functions of autoload/foo/bar.vim and the files below it as "foo#bar#name#".
 
 Document symbols ~
 The functions, variables, constants, classes with their members, enums with

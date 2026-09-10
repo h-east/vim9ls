@@ -31,7 +31,8 @@ const SYMBOL_KINDS = {
 }
 
 # Where the cursor is in "line", as far as completion cares: the word being
-# typed, whether an option is expected, and whether a command is.
+# typed, whether an option is expected, whether a command is, and the name
+# before a "." when the word is a member of it.
 export def Context(line: string, col: number): dict<any>
   var before = line[: col - 1]
   if col == 0
@@ -49,7 +50,27 @@ export def Context(line: string, col: number): dict<any>
       || head =~ statement
         .. '\%(se\%[tlocal]\|setg\%[lobal]\)\s\+\%(\S\+\s\+\)*$',
     command: head =~ '^\s*\%(:\s*\)*$',
+    owner: matchstr(head, '\h\w*\ze\.$'),
   }
+enddef
+
+# The completion items for "symbols", those whose name starts with "prefix".
+export def ItemsOf(symbols: list<dict<any>>, prefix: string): list<dict<any>>
+  var items: list<dict<any>> = []
+  var seen: dict<bool> = {}
+  for s in symbols
+    if seen->has_key(s.name)
+        || (prefix != '' && s.name[: strlen(prefix) - 1] !=# prefix)
+      continue
+    endif
+    seen[s.name] = true
+    var item = {label: s.name, kind: SYMBOL_KINDS->get(s.kind, KIND_VARIABLE)}
+    if s.detail != ''
+      item.detail = s.detail
+    endif
+    add(items, item)
+  endfor
+  return items
 enddef
 
 # The completion items for the cursor at "col" in "line"; "symbols" is what

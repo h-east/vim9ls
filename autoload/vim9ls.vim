@@ -303,10 +303,89 @@ def Completion(params: dict<any>): any
   if w == null_dict
     return v:null
   endif
-  return {
-    isIncomplete: false,
-    items: complete.Items(w.line, w.col, w.parsed.symbols),
-  }
+  var ctx = complete.Context(w.line, w.col)
+  var items: list<dict<any>>
+  if ctx.owner != ''
+    items = complete.ItemsOf(Members(w, ctx.owner), ctx.prefix)
+  elseif ctx.prefix =~ '#'
+    items = AutoloadItems(w, ctx.prefix)
+  else
+    items = complete.Items(w.line, w.col, w.parsed.symbols)
+  endif
+  return {isIncomplete: false, items: items}
+enddef
+
+# The symbols of "script" that other scripts can use: the exported ones.
+def Exported(script: dict<any>): list<dict<any>>
+  return copy(script.parsed.symbols)->filter((_, s) =>
+    script.lines[s.line] =~ '^\s*export\s')
+enddef
+
+# What can follow "owner." at line "w.lnum": the exported names of an
+# imported script, the members of a class or an enum named, of the class
+# of a variable, or of the class "this" is in.
+def Members(w: dict<any>, owner: string): list<dict<any>>
+  var parsed = w.parsed
+  if owner == 'this'
+    for s in parsed.symbols
+      if s.kind == parse.KIND_CLASS && s.line <= w.lnum
+          && w.lnum <= s.end_line
+        return s.children
+      endif
+    endfor
+    return []
+  endif
+  var token = {text: owner, col: 0, end: strlen(owner), prev: ' ',
+    in_string: false}
+  var found = refs.Resolve(parsed, token, w.lnum)
+  if found == null_dict
+    return []
+  endif
+  if found.kind == parse.KIND_MODULE
+    var file = refs.ImportFile(w.path, found.detail,
+      found->get('autoload', false))
+    var script = file == '' ? null_dict : ScriptAt(file)
+    return script == null_dict ? [] : Exported(script)
+  endif
+  if found.kind == parse.KIND_CLASS || found.kind == parse.KIND_ENUM
+      || found.kind == parse.KIND_INTERFACE
+    return found.children
+  endif
+  # A variable: the class it is declared with, or made with "Class.new()".
+  var type = found.detail =~ '^\h\w*$' ? found.detail
+    : matchstr(w.doc.lines[found.line], '=\s*\zs\h\w*\ze\.new\w*(')
+  var cls = type == '' ? null_dict : TopLevel(parsed, type)
+  return cls == null_dict ? [] : cls.children
+enddef
+
+# What the autoload name "prefix", "foo#bar#Fu" for one, can complete to: the
+# functions of autoload/foo/bar.vim and the files below it as "foo#bar#name#".
+# Each item replaces the whole prefix, "#" is no keyword character.
+def AutoloadItems(w: dict<any>, prefix: string): list<dict<any>>
+  var head = matchstr(prefix, '.*#')
+  var dir = substitute(head, '#', '/', 'g')
+  var symbols: list<dict<any>> = []
+  var file = refs.AutoloadFile(w.path, dir[: -2] .. '.vim')
+  var script = file == '' ? null_dict : ScriptAt(file)
+  if script != null_dict
+    for s in script.parsed.symbols
+      if s.name =~ '#'
+        add(symbols, s)
+      elseif script.lines[s.line] =~ '^\s*export\s'
+        add(symbols, extend(copy(s), {name: head .. s.name}))
+      endif
+    endfor
+  endif
+  for d in refs.AutoloadDirs(w.path)
+    for f in glob(d .. '/' .. dir .. '*.vim', true, true)
+      add(symbols, {name: head .. fnamemodify(f, ':t:r') .. '#',
+        kind: parse.KIND_MODULE, detail: ''})
+    endfor
+  endfor
+  var range = util.Range(w.doc.lines, w.lnum, w.col - strlen(prefix), w.lnum,
+    w.col, encoding)
+  return complete.ItemsOf(symbols, prefix)->map((_, item) =>
+    extend(item, {textEdit: {range: range, newText: item.label}}))
 enddef
 
 def DocumentSymbols(params: dict<any>): any

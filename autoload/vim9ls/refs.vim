@@ -279,8 +279,9 @@ export def ImportFile(path: string, spec: string, autoload: bool): string
   return AutoloadFile(path, rel)
 enddef
 
-# "rel" under an autoload directory that applies to the script "path".
-export def AutoloadFile(path: string, rel: string): string
+# The autoload directories that apply to the script "path": those above it
+# and the one of $VIMRUNTIME.
+export def AutoloadDirs(path: string): list<string>
   var dir = fnamemodify(path, ':p:h')
   var dirs: list<string> = []
   while true
@@ -292,7 +293,12 @@ export def AutoloadFile(path: string, rel: string): string
     dir = up
   endwhile
   add(dirs, $VIMRUNTIME .. '/autoload')
-  for d in dirs
+  return dirs
+enddef
+
+# "rel" under an autoload directory that applies to the script "path".
+export def AutoloadFile(path: string, rel: string): string
+  for d in AutoloadDirs(path)
     var file = d .. '/' .. rel
     if filereadable(file)
       return fnamemodify(file, ':p')

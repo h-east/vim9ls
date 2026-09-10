@@ -55,7 +55,8 @@ See `:help vim9ls` for the details.
 - Hover: the help entry for the builtin function, option, Ex command or `v:`
   variable under the cursor.
 - Completion: builtin functions, options, commands, and what the script
-  defines.
+  defines; after a `.` the exported names of an import or the members of a
+  class, after `foo#bar#` the autoload functions of that file.
 - Document symbols: functions, variables, classes and their members, enums,
   interfaces, augroups, imports and user commands.
 - Definition, references and rename for what the script defines; definition
@@ -211,7 +212,7 @@ In the order they are meant to be taken up.
       imported script or an autoload file, found in the files that use it.
 - [x] Vim9 block scope: a `var` inside a block belongs to that block, so two
       blocks of one function can declare the same name.
-- [ ] Completion of the exported names after an import alias, of autoload
+- [x] Completion of the exported names after an import alias, of autoload
       functions after `foo#`, and of members after `.`.
 - [ ] `completionItem/resolve`: the help entry of a builtin, fetched for the
       item that is looked at rather than sent with every item.

@@ -157,6 +157,69 @@ def g:Test_completion()
   assert_equal(14, items[Labels(items)->index('echo')].kind)
 enddef
 
+# After "alias.", "foo#bar#", "this.", "var." and "Class.": what is there,
+# and nothing else.
+def g:Test_completion_members()
+  var root = helper.HERE .. '/Xproj'
+  mkdir(root .. '/autoload/xold', 'p')
+  mkdir(root .. '/plugin', 'p')
+  writefile(['vim9script', 'export def Greet(): string', "  return 'hi'",
+    'enddef', 'def Hidden()', 'enddef', 'export var greeting = 1'],
+    root .. '/autoload/xlib.vim')
+  writefile(['function xold#Func()', 'endfunction', 'function xold#Other()',
+    'endfunction'], root .. '/autoload/xold.vim')
+  writefile(['vim9script'], root .. '/autoload/xold/sub.vim')
+  var main = root .. '/plugin/xmain.vim'
+  var uri = util.PathToUri(main)
+  try
+    helper.StartServer()
+    helper.Initialize()
+    helper.OpenDoc([
+      'vim9script',
+      "import autoload 'xlib.vim' as lib",
+      'echo lib.Gr',
+      'echo lib.',
+      'call xold#F',
+      'class Shape',
+      '  var width: number',
+      '  def Area(): number',
+      '    return this.',
+      '  enddef',
+      'endclass',
+      'var s: Shape = Shape.new()',
+      'echo s.',
+      'var t = Shape.new()',
+      'echo t.',
+      'echo Shape.',
+      'enum Color',
+      '  Red,',
+      '  Blue',
+      'endenum',
+      'echo Color.',
+      'echo strlen.',
+    ], uri)
+    var Items = (line: number, col: number) => helper.Request(
+      'textDocument/completion', helper.Params(line, col, uri)).result.items
+    var Names = (line: number, col: number) => Items(line, col)
+      ->mapnew((_, i) => i.label)->sort()
+    assert_equal(['Greet'], Names(2, 11))
+    assert_equal(['Greet', 'greeting'], Names(3, 9))
+    assert_equal(['xold#Func'], Names(4, 11))
+    assert_equal({range: {start: {line: 4, character: 5},
+      end: {line: 4, character: 11}}, newText: 'xold#Func'},
+      Items(4, 11)[0].textEdit)
+    assert_equal(['xold#Func', 'xold#Other', 'xold#sub#'], Names(4, 10))
+    assert_equal(['Area', 'width'], Names(8, 16))
+    assert_equal(['Area', 'width'], Names(12, 7))
+    assert_equal(['Area', 'width'], Names(14, 7))
+    assert_equal(['Area', 'width'], Names(15, 11))
+    assert_equal(['Blue', 'Red'], Names(20, 11))
+    assert_equal([], Names(21, 12))
+  finally
+    delete(root, 'rf')
+  endtry
+enddef
+
 def g:Test_document_symbol()
   helper.StartServer()
   helper.Initialize()
