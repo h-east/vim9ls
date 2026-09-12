@@ -118,11 +118,71 @@ export def Parameters(label: string): list<list<number>>
   return out
 enddef
 
+# The names help gives an argument that are a type: with several types such a
+# name contradicts the others.
+const TYPE_NAMES = ['number', 'string', 'float', 'bool', 'blob', 'list',
+  'dict', 'tuple', 'func', 'object', 'class', 'job', 'channel']
+
+# The signature of a builtin from what exists_info() reports, "info", with
+# the names the help "label" gives the arguments: "name({a}: type [, {b}:
+# type]): type".  The number of arguments and the optional ones come from the
+# info, the types of an argument are joined with " | ".  An argument the help
+# does not name, or that accepts several types and is named after one of them,
+# "{list}" of get(), is named "{argN}".  The last argument gets " ..." when
+# there is no maximum or the help writes "..." after it.  Returns {label,
+# parameters}, the parameters as [start, end) byte pairs.
+export def Typed(label: string, info: dict<any>): dict<any>
+  var names = Parameters(label)
+    ->mapnew((_, p) => substitute(label[p[0] : p[1] - 1], '\s*\.\.\.$', '',
+      ''))
+  var args: list<dict<any>> = info->get('args', [])
+  var min = info->get('minargs', len(args))
+  var max = info->get('maxargs', len(args))
+  var count = max < 0 ? len(args) : max
+  var more = max < 0
+  if label =~ '\.\.\.' && count > len(names)
+    count = max([len(names), min])
+    more = true
+  endif
+  var out = label[: stridx(label, '(')]
+  var params: list<list<number>> = []
+  var optional = 0
+  for i in range(count)
+    if i > 0
+      out ..= i >= min ? ' [, ' : ', '
+    elseif i >= min
+      out ..= '['
+    endif
+    if i >= min
+      optional += 1
+    endif
+    var name = names->get(i, '')
+    var types = args->get(i, {types: []}).types
+    if name == '' || (len(types) > 1
+        && index(TYPE_NAMES, matchstr(name, '^{\zs\w*\ze}$')) >= 0)
+      name = '{arg' .. (i + 1) .. '}'
+    endif
+    var begin = strlen(out)
+    out ..= name .. (types->empty() ? '' : ': ' .. join(types, ' | '))
+    if i == count - 1 && more
+      out ..= ' ...'
+    endif
+    add(params, [begin, strlen(out)])
+  endfor
+  out ..= repeat(']', optional) .. ')'
+  var returns = info->get('returns', '')
+  if returns != '' && returns != 'any'
+    out ..= ': ' .. returns
+  endif
+  return {label: out, parameters: params}
+enddef
+
 # The LSP SignatureHelp for "label", with the cursor in argument "active".
+# The parameter spans are found in the label unless "spans" gives them.
 # Trailing spaces of a parameter span are not part of it.
-export def Help(label: string, active: number,
-    documentation: string = ''): dict<any>
-  var params = Parameters(label)
+export def Help(label: string, active: number, documentation: string = '',
+    spans: any = null): dict<any>
+  var params = (spans == null ? Parameters(label) : spans)
     ->mapnew((_, p) => ({label: [p[0],
       p[1] - strlen(matchstr(label[p[0] : p[1] - 1], '\s*$'))]}))
   var signature: dict<any> = {label: label, parameters: params}

@@ -31,8 +31,9 @@ Vim 9.2.1055 or later with the |+channel| and |+job| features.  The
 |--stdio-channel| argument came with 9.2.1049, and 9.2.1055 has Vim compile
 a function with a lambda after another function failed to compile, which the
 checker relies on.  The diagnostics from Vim itself need |:source-dryrun| as
-well.  The Vim that runs the server does not have to be the one that is
-editing, but with lsp.vim it is: |vim9ls#Command()| names |v:progpath|.
+well, and the types in the signature help of a builtin |exists_info()|.  The
+Vim that runs the server does not have to be the one that is editing, but
+with lsp.vim it is: |vim9ls#Command()| names |v:progpath|.
 
 ==============================================================================
 3. Installation					*vim9ls-installation*
@@ -143,6 +144,13 @@ in marked: for a builtin the first line of its help entry, with the rest of
 the entry as documentation, for a function of the script or an imported one
 its "def" or "function" line.  After "->" the value in front counts as the
 first argument.  A call that started up to 30 lines above the cursor is found.
+With a Vim that has |exists_info()| the signature of a builtin is built from
+what that reports: the number of arguments and which are optional, the types
+each accepts, "{expr}: string | list<any>", the return type after the ")",
+and the argument the value before "->" fills, which for append() is the
+second.  The help line only names the arguments.  An argument the help line
+does not name, or that accepts several types and is named after one of them,
+"{list}" of get(), is shown as "{argN}", N being its number.
 
 Code actions ~
 A quick fix for what the parser reports, offered for the diagnostics in the

@@ -651,7 +651,19 @@ def SignatureHelp(params: dict<any>): any
     var text = doc.HelpText(hit.name .. '()')
     var nl = stridx(text, "\n")
     var label = nl < 0 ? text : text[: nl - 1]
-    return sig.Help(label, active, nl < 0 ? '' : text[nl + 1 :])
+    var documentation = nl < 0 ? '' : text[nl + 1 :]
+    # With exists_info() the label gets the types, and the argument the value
+    # before "->" fills is known: it is not always the first.
+    var info = exists('*exists_info')
+      ? call('exists_info', ['*' .. hit.name]) : {}
+    if info->empty()
+      return sig.Help(label, active, documentation)
+    endif
+    if hit.method
+      active = hit.active + (hit.active >= info.method - 1 ? 1 : 0)
+    endif
+    var typed = sig.Typed(label, info)
+    return sig.Help(typed.label, active, documentation, typed.parameters)
   endif
 
   var token = {text: hit.name, col: hit.col, end: hit.col

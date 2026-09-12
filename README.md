@@ -18,7 +18,9 @@ Vim 9.2.1055 or later with `+channel` and `+job`. The `--stdio-channel`
 argument came with 9.2.1049, and 9.2.1055 has Vim compile a function with a
 lambda after another function failed to compile, which the checker relies on.
 The diagnostics from Vim itself need `:source ++dryrun` as well; without it
-the diagnostics are what the parser finds.
+the diagnostics are what the parser finds.  The types in the signature help
+of a builtin need `exists_info()`; without it the signature is the first
+line of the help entry.
 
 ## Installation
 
@@ -63,7 +65,9 @@ See `:help vim9ls` for the details.
   follows imports and legacy autoload functions into other files, and
   references and rename follow an exported name or an autoload function into
   the other files of the plugin and the open documents.
-- Signature help for builtin functions and the script's own.
+- Signature help for builtin functions and the script's own; with a Vim
+  that has `exists_info()` the arguments of a builtin come with their types
+  and the return type.
 - Code actions: a quick fix for what the parser reports, `:let` to `var`,
   the `endif` a block lacks, an `endif` without an `if`.
 - Diagnostics: blocks that do not add up, `:let` under Vim9 rules, in legacy
@@ -223,9 +227,9 @@ In the order they are meant to be taken up.
       with `:source ++dryrun`.
 - [x] `textDocument/codeAction` with a quick fix for what a diagnostic
       reports: `:let` to `var` under Vim9 rules, the `endif` a block lacks.
-- [ ] Signature help with the types of a builtin's arguments; the help entry
-      names them but does not type them.  Needs Vim to hand those out, which
-      is Vim's side of the work.
+- [x] Signature help with the types of a builtin's arguments; the help entry
+      names them but does not type them.  Vim hands them out with
+      `exists_info()`.
 - [ ] `textDocument/inlayHint`: the parameter names at a call, from what
       signature help knows, and the type of a `var` that leaves it to the
       initializer, from the "Return type:" line of the builtin's help entry.

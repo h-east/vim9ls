@@ -688,12 +688,19 @@ def g:Test_signature_help()
     'echo Add(',
     '  1,',
     '  ',
+    'echo 1->append(',
+    'echo get(',
   ])
+  # With exists_info() the label carries the types.
+  var typed = exists('*exists_info')
   var resp = helper.Request('textDocument/signatureHelp',
     helper.Params(4, 26))
   var help = resp.result
   assert_equal(2, help.activeParameter)
-  assert_equal('matchstr({expr}, {pat} [, {start} [, {count}]])',
+  assert_equal(typed
+    ? 'matchstr({expr}: string | list<any>, {pat}: string [, {start}: number'
+      .. ' [, {count}: number]]): string'
+    : 'matchstr({expr}, {pat} [, {start} [, {count}]])',
     help.signatures[0].label)
   assert_equal(4, len(help.signatures[0].parameters))
   assert_match('^Same as', help.signatures[0].documentation.value)
@@ -723,6 +730,22 @@ def g:Test_signature_help()
   assert_equal('Add(a: number, b: number = 1): number',
     resp.result.signatures[0].label)
   assert_equal(1, resp.result.activeParameter)
+
+  # The value before "->" fills the second argument of append(), so the
+  # argument typed is the first, {lnum}.  Without exists_info() the value is
+  # taken for the first argument.
+  resp = helper.Request('textDocument/signatureHelp', helper.Params(15, 16))
+  assert_equal(typed ? 0 : 1, resp.result.activeParameter)
+
+  # The help names the first argument of get() "{list}" while it accepts more
+  # types than a list: the name becomes the number of the argument.
+  resp = helper.Request('textDocument/signatureHelp', helper.Params(16, 9))
+  assert_equal(typed
+    ? 'get({arg1}: blob | list<any> | tuple<any> | dict<any> | func,'
+      .. ' {idx}: string | number [, {default}: any])'
+    : 'get({list}, {idx} [, {default}])',
+    resp.result.signatures[0].label)
+  assert_match('^Get item', resp.result.signatures[0].documentation.value)
 enddef
 
 # Changes come as ranges; the server keeps the text up to date from them.
