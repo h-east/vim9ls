@@ -230,9 +230,13 @@ In the order they are meant to be taken up.
 - [x] Signature help with the types of a builtin's arguments; the help entry
       names them but does not type them.  Vim hands them out with
       `exists_info()`.
+- [x] The type of an expression as the Vim9 compiler infers it, for the
+      hints and the hover to come: literals, operators, indexing, lambdas,
+      the script's own functions by their declared type and the builtins by
+      what `exists_info()` reports for the argument types.
 - [ ] `textDocument/inlayHint`: the parameter names at a call, from what
       signature help knows, and the type of a `var` that leaves it to the
-      initializer, from the "Return type:" line of the builtin's help entry.
+      initializer.
 - [ ] `workspace/symbol` over the autoload and plugin files on `'runtimepath'`.
 - [ ] `textDocument/documentHighlight` and `textDocument/foldingRange`, from
       what references and the parser already know.
