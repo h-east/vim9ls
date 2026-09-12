@@ -17,10 +17,10 @@ else needs to be installed.
 Vim 9.2.1055 or later with `+channel` and `+job`. The `--stdio-channel`
 argument came with 9.2.1049, and 9.2.1055 has Vim compile a function with a
 lambda after another function failed to compile, which the checker relies on.
-The diagnostics from Vim itself need `:source ++dryrun` as well; without it
-the diagnostics are what the parser finds.  The types in the signature help
-of a builtin need `exists_info()`; without it the signature is the first
-line of the help entry.
+The diagnostics from Vim itself need `:source ++dryrun` as well, which came
+with 9.2.1084; without it the diagnostics are what the parser finds.  The
+types in the signature help of a builtin need `exists_info()`; without it the
+signature is the first line of the help entry.
 
 ## Installation
 
