@@ -1,14 +1,19 @@
 vim9script
 
-# vim9ls - inlay hints: the type of a "var" that leaves it to the initializer
+# vim9ls - inlay hints: the type of a "var" that leaves it to the
+# initializer, the parameter names at a call
 # Maintainer: Hirohito Higashi <h.east.727@gmail.com>
 
 import './parse.vim'
 import './refs.vim'
 import './infer.vim'
 
-# How many lines an initializer may go on for.
+# How many lines an initializer or a call may go on for.
 const MORE_LINES = 30
+
+# The kinds of the protocol.
+export const KIND_TYPE = 1
+export const KIND_PARAMETER = 2
 
 # The parameters of a "def" line "(a: number, b = 1): string" as [name,
 # type] pairs, "any" for a parameter without a type, and the return type,
@@ -164,15 +169,17 @@ def Collect(symbols: list<dict<any>>, scope: list<dict<any>>,
       var type = infer.TypeOf(text, {vars: vars, funcs: ctx.funcs})
       s.inferred = type
       if type != 'any' && first <= s.line && s.line <= last
-        add(out, {line: s.line, col: s.name_end, label: ': ' .. type})
+        add(out, {line: s.line, col: s.name_end, label: ': ' .. type,
+          kind: KIND_TYPE})
       endif
     endif
   endfor
 enddef
 
 # The type hints for the "var"s of lines "first" to "last" of a parsed
-# script that leave the type to the initializer, as {line, col, label}; the
-# hint goes after the name.  A type that cannot be told gives no hint.
+# script that leave the type to the initializer, as {line, col, label,
+# kind}; the hint goes after the name.  A type that cannot be told gives no
+# hint.
 export def TypeHints(parsed: dict<any>, lines: list<string>, first: number,
     last: number): list<dict<any>>
   var funcs: dict<string> = {}
@@ -184,5 +191,103 @@ export def TypeHints(parsed: dict<any>, lines: list<string>, first: number,
   var out: list<dict<any>> = []
   Collect(parsed.symbols, [], {top: parsed.symbols, funcs: funcs}, lines,
     parse.Vim9Lines(parsed, len(lines)), first, last, out)
+  return out
+enddef
+
+# The arguments of the call whose "(" is at byte "col" of line "lnum": where
+# each starts, {line, col, text}, "text" being the argument up to the end of
+# its line.  Empty when the ")" is not found within the lines allowed.
+def Arguments(lines: list<string>, lnum: number, col: number,
+    vim9_at: list<bool>): list<dict<any>>
+  var args: list<dict<any>> = []
+  var depth = 0
+  var expect = true
+  for at in range(lnum, min([lnum + MORE_LINES, len(lines) - 1]))
+    var line = lines[at]
+    var spans = refs.CodeSpans(line, vim9_at[at])
+    var stop = CodeEnd(line, vim9_at[at])
+    var pos = at == lnum ? col : 0
+    while pos < stop
+      # The inside of a string is not code; its quotes are.
+      var skipped = false
+      for [s_start, s_end] in spans.strings
+        if s_start <= pos && pos < s_end
+          pos = s_end
+          skipped = true
+          break
+        endif
+      endfor
+      if skipped
+        continue
+      endif
+      var c = line[pos]
+      if depth == 1 && expect && c !~ '[[:space:],]'
+        if c == ')'
+          return args
+        endif
+        add(args, {line: at, col: pos, text: line[pos : stop - 1]})
+        expect = false
+      endif
+      if c =~ '[[({]'
+        depth += 1
+      elseif c =~ '[\])}]'
+        depth -= 1
+        if depth == 0
+          return args
+        endif
+      elseif c == ',' && depth == 1
+        expect = true
+      endif
+      pos += 1
+    endwhile
+  endfor
+  return []
+enddef
+
+# The parameter name hints for the calls that start on lines "first" to
+# "last", as {line, col, label, kind}; the hint goes in front of the
+# argument.  "Params" gives, for the name of a function, the names of its
+# parameters and which of them the value before "->" fills, {names,
+# method}; an empty Dict for a function it does not know.  A name of "{argN}"
+# gives no hint, nor does an argument that is the name itself.
+export def ParamHints(parsed: dict<any>, lines: list<string>, first: number,
+    last: number, Params: func(string): dict<any>): list<dict<any>>
+  var vim9_at = parse.Vim9Lines(parsed, len(lines))
+  var out: list<dict<any>> = []
+  for lnum in range(first, min([last, len(lines) - 1]))
+    var line = lines[lnum]
+    # A function header is not a call.
+    if matchstr(line, '^\s*\%(\%(export\|static\)\s\+\)*\zs\h\w*')
+        =~ '^\%(def\|fu\%[nction]\)$'
+      continue
+    endif
+    for token in refs.Tokens(line, vim9_at[lnum])
+      # A call by name: not a member, whose parameters are not known here.
+      if token.in_string || line[token.end] != '(' || token.prev == '.'
+        continue
+      endif
+      var params = Params(token.text)
+      if params->empty()
+        continue
+      endif
+      var names: list<string> = params.names
+      # The value before "->" fills one argument, the others shift past it.
+      var filled = line[: token.col - 1] =~ '->$' ? params.method - 1 : -1
+      var i = 0
+      for arg in Arguments(lines, lnum, token.end, vim9_at)
+        if i == filled
+          i += 1
+        endif
+        var name = names->get(i, '')
+        i += 1
+        var text = matchstr(arg.text, '^[^,)]*')->trim()
+        if name == '' || name =~ '^{arg\d\+}$' || text == name
+          continue
+        endif
+        add(out, {line: arg.line, col: arg.col, label: name .. ':',
+          kind: KIND_PARAMETER})
+      endfor
+    endfor
+  endfor
   return out
 enddef

@@ -277,16 +277,21 @@ def g:Test_inlay_hint()
     '  return first',
     'enddef',
     'var l = [n]',
+    'echo F(l)->strpart(n, 2)',
   ])
   var Ask = (first: number, last: number) => helper.Request(
     'textDocument/inlayHint', {textDocument: {uri: helper.URI},
       range: {start: {line: first, character: 0},
         end: {line: last, character: 0}}}).result
   assert_equal([
-    [{line: 1, character: 5}, ': number', 1],
-    [{line: 4, character: 11}, ': string', 1],
-    [{line: 7, character: 5}, ': list<number>', 1],
-  ], Ask(0, 8)->mapnew((_, h) => [h.position, h.label, h.kind]))
+    [{line: 1, character: 5}, ': number', 1, false],
+    [{line: 4, character: 11}, ': string', 1, false],
+    [{line: 7, character: 5}, ': list<number>', 1, false],
+    [{line: 8, character: 7}, 'a:', 2, true],
+    [{line: 8, character: 19}, 'start:', 2, true],
+    [{line: 8, character: 22}, 'len:', 2, true],
+  ], Ask(0, 9)->mapnew((_, h) => [h.position, h.label, h.kind,
+    h.paddingRight]))
   assert_equal([4], Ask(3, 6)->mapnew((_, h) => h.position.line))
   assert_equal([], Ask(2, 3))
 enddef

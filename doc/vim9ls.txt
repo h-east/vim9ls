@@ -161,6 +161,11 @@ parameters in scope, the "def" lines of the script's functions, and for a
 builtin what |exists_info()| reports; without that function a builtin gives
 no type.  An initializer that goes on over lines is read to its end.  A type
 that cannot be told gives no hint.
+And the name of the parameter in front of each argument of a call, "start:",
+from what signature help knows: the help entry of a builtin, the definition
+of a function of the script.  The argument the value before "->" fills gets
+none, nor does one that is the name itself, nor one signature help would
+show as "{argN}".
 
 Code actions ~
 A quick fix for what the parser reports, offered for the diagnostics in the

@@ -696,14 +696,42 @@ def InlayHints(params: dict<any>): any
     return v:null
   endif
   var range = params->get('range', {})
-  return hints.TypeHints(Parsed(d), d.lines,
-    range->get('start', {})->get('line', 0),
-    range->get('end', {})->get('line', len(d.lines)))
+  var first = range->get('start', {})->get('line', 0)
+  var last = range->get('end', {})->get('line', len(d.lines))
+  var parsed = Parsed(d)
+  return (hints.TypeHints(parsed, d.lines, first, last)
+    + hints.ParamHints(parsed, d.lines, first, last,
+      (name: string) => ParamNames(parsed, name)))
     ->mapnew((_, h) => ({
       position: util.Position(d.lines, h.line, h.col, encoding),
       label: h.label,
-      kind: 1,
+      kind: h.kind,
+      paddingRight: h.kind == hints.KIND_PARAMETER,
     }))
+enddef
+
+# The parameter names of function "name" for the hints: a builtin's from its
+# help entry, a function of the script's from its definition.  An empty Dict
+# for a name that is neither.
+def ParamNames(parsed: dict<any>, name: string): dict<any>
+  if doc.HasTag(name .. '()')
+    var text = doc.HelpText(name .. '()')
+    var nl = stridx(text, "\n")
+    var info = exists('*exists_info')
+      ? call('exists_info', ['*' .. name]) : {}
+    var params = sig.Names(nl < 0 ? text : text[: nl - 1], info)
+      ->map((_, n) => n =~ '^{arg\d\+}$' ? n : matchstr(n, '^{\zs.*\ze}$'))
+    return {names: params, method: max([1, info->get('method', 1)])}
+  endif
+  for s in parse.AllSymbols(parsed.symbols)
+    if (s.kind == parse.KIND_FUNCTION || s.kind == parse.KIND_METHOD)
+        && s.name ==# name
+      return {names: s.children->copy()
+        ->filter((_, c) => c->get('param', false))
+        ->mapnew((_, c) => substitute(c.name, '^a:', '', '')), method: 1}
+    endif
+  endfor
+  return {}
 enddef
 
 def References(params: dict<any>): any

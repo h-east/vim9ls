@@ -123,18 +123,32 @@ enddef
 const TYPE_NAMES = ['number', 'string', 'float', 'bool', 'blob', 'list',
   'dict', 'tuple', 'func', 'object', 'class', 'job', 'channel']
 
-# The signature of a builtin from what exists_info() reports, "info", with
-# the names the help "label" gives the arguments: "name({a}: type [, {b}:
-# type]): type".  The number of arguments and the optional ones come from the
-# info, the types of an argument are joined with " | ".  An argument the help
-# does not name, or that accepts several types and is named after one of them,
-# "{list}" of get(), is named "{argN}".  The last argument gets " ..." when
-# there is no maximum or the help writes "..." after it.  Returns {label,
-# parameters}, the parameters as [start, end) byte pairs.
-export def Typed(label: string, info: dict<any>): dict<any>
+# The names the help "label" gives the arguments of a builtin, "{name}", one
+# for each: an argument the help does not name, or that accepts several types
+# by "info" and is named after one of them, "{list}" of get(), is "{argN}".
+export def Names(label: string, info: dict<any>): list<string>
   var names = Parameters(label)
     ->mapnew((_, p) => substitute(label[p[0] : p[1] - 1], '\s*\.\.\.$', '',
       ''))
+  var args: list<dict<any>> = info->get('args', [])
+  for i in range(len(names))
+    var types = args->get(i, {types: []}).types
+    if names[i] == '' || (len(types) > 1
+        && index(TYPE_NAMES, matchstr(names[i], '^{\zs\w*\ze}$')) >= 0)
+      names[i] = '{arg' .. (i + 1) .. '}'
+    endif
+  endfor
+  return names
+enddef
+
+# The signature of a builtin from what exists_info() reports, "info", with
+# the names Names() gives the arguments: "name({a}: type [, {b}: type]):
+# type".  The number of arguments and the optional ones come from the info,
+# the types of an argument are joined with " | ".  The last argument gets
+# " ..." when there is no maximum or the help writes "..." after it.  Returns
+# {label, parameters}, the parameters as [start, end) byte pairs.
+export def Typed(label: string, info: dict<any>): dict<any>
+  var names = Names(label, info)
   var args: list<dict<any>> = info->get('args', [])
   var min = info->get('minargs', len(args))
   var max = info->get('maxargs', len(args))
@@ -156,12 +170,8 @@ export def Typed(label: string, info: dict<any>): dict<any>
     if i >= min
       optional += 1
     endif
-    var name = names->get(i, '')
+    var name = names->get(i, '{arg' .. (i + 1) .. '}')
     var types = args->get(i, {types: []}).types
-    if name == '' || (len(types) > 1
-        && index(TYPE_NAMES, matchstr(name, '^{\zs\w*\ze}$')) >= 0)
-      name = '{arg' .. (i + 1) .. '}'
-    endif
     var begin = strlen(out)
     out ..= name .. (types->empty() ? '' : ': ' .. join(types, ' | '))
     if i == count - 1 && more
