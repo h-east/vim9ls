@@ -70,6 +70,8 @@ See `:help vim9ls` for the details.
   and the return type.
 - Code actions: a quick fix for what the parser reports, `:let` to `var`,
   the `endif` a block lacks, an `endif` without an `if`.
+- Inlay hints: the type of a `var` that leaves it to the initializer, as
+  the Vim9 compiler infers it.
 - Diagnostics: blocks that do not add up, `:let` under Vim9 rules, in legacy
   script words that are not commands, calls of functions that are not
   defined, and `v:` variables Vim does not have.  And what Vim itself reports
@@ -148,7 +150,7 @@ below, and 65 are left out for the reason given.
 | `textDocument/semanticTokens/full` | no | Vim's syntax file does the highlighting |
 | `textDocument/semanticTokens/full/delta` | no |  |
 | `textDocument/semanticTokens/range` | no |  |
-| `textDocument/inlayHint` | planned | the parameter names at a call, and the type of a `var` that leaves it to the initializer |
+| `textDocument/inlayHint` | yes | the type of a `var` that leaves it to the initializer; the parameter names at a call are planned |
 | `inlayHint/resolve` | no | a hint comes complete |
 | `textDocument/publishDiagnostics` | yes | after the changes pause |
 | `textDocument/diagnostic` | no | diagnostics are sent, not asked for |
@@ -234,9 +236,10 @@ In the order they are meant to be taken up.
       hints and the hover to come: literals, operators, indexing, lambdas,
       the script's own functions by their declared type and the builtins by
       what `exists_info()` reports for the argument types.
-- [ ] `textDocument/inlayHint`: the parameter names at a call, from what
-      signature help knows, and the type of a `var` that leaves it to the
-      initializer.
+- [x] `textDocument/inlayHint` with the type of a `var` that leaves it to
+      the initializer.
+- [ ] Inlay hints with the parameter names at a call, from what signature
+      help knows.
 - [ ] `workspace/symbol` over the autoload and plugin files on `'runtimepath'`.
 - [ ] `textDocument/documentHighlight` and `textDocument/foldingRange`, from
       what references and the parser already know.

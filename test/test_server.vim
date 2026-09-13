@@ -23,6 +23,7 @@ def g:Test_initialize()
   assert_true(caps.documentSymbolProvider)
   assert_equal(['&', ':'], caps.completionProvider.triggerCharacters)
   assert_equal(['(', ','], caps.signatureHelpProvider.triggerCharacters)
+  assert_true(caps.inlayHintProvider)
   assert_equal('vim9ls', resp.result.serverInfo.name)
 enddef
 
@@ -264,6 +265,32 @@ def g:Test_document_symbol()
 enddef
 
 # A quick fix for each of the three things the parser reports.
+def g:Test_inlay_hint()
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc([
+    'vim9script',
+    'var n = 1',
+    'var s: string = "x"',
+    'def F(a: list<number>): string',
+    "  var first = a[0] .. s",
+    '  return first',
+    'enddef',
+    'var l = [n]',
+  ])
+  var Ask = (first: number, last: number) => helper.Request(
+    'textDocument/inlayHint', {textDocument: {uri: helper.URI},
+      range: {start: {line: first, character: 0},
+        end: {line: last, character: 0}}}).result
+  assert_equal([
+    [{line: 1, character: 5}, ': number', 1],
+    [{line: 4, character: 11}, ': string', 1],
+    [{line: 7, character: 5}, ': list<number>', 1],
+  ], Ask(0, 8)->mapnew((_, h) => [h.position, h.label, h.kind]))
+  assert_equal([4], Ask(3, 6)->mapnew((_, h) => h.position.line))
+  assert_equal([], Ask(2, 3))
+enddef
+
 def g:Test_code_action()
   helper.StartServer()
   helper.Initialize()

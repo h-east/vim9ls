@@ -20,6 +20,7 @@ import autoload './vim9ls/compile.vim'
 import autoload './vim9ls/wrap.vim'
 import autoload './vim9ls/names.vim'
 import autoload './vim9ls/fix.vim'
+import autoload './vim9ls/hints.vim'
 
 export const VERSION = '0.1.001'
 
@@ -81,6 +82,7 @@ def Initialize(params: dict<any>): dict<any>
       renameProvider: {prepareProvider: true},
       signatureHelpProvider: {triggerCharacters: ['(', ',']},
       codeActionProvider: {codeActionKinds: ['quickfix']},
+      inlayHintProvider: true,
     },
     serverInfo: {name: 'vim9ls', version: VERSION},
   }
@@ -688,6 +690,22 @@ def CodeActions(params: dict<any>): any
     range->get('end', {})->get('line', len(d.lines)), encoding)
 enddef
 
+def InlayHints(params: dict<any>): any
+  var d = docs->get(params.textDocument.uri, null_dict)
+  if d == null_dict
+    return v:null
+  endif
+  var range = params->get('range', {})
+  return hints.TypeHints(Parsed(d), d.lines,
+    range->get('start', {})->get('line', 0),
+    range->get('end', {})->get('line', len(d.lines)))
+    ->mapnew((_, h) => ({
+      position: util.Position(d.lines, h.line, h.col, encoding),
+      label: h.label,
+      kind: 1,
+    }))
+enddef
+
 def References(params: dict<any>): any
   var w = TokenWhere(params)
   if w == null_dict
@@ -780,6 +798,8 @@ def Request(method: string, params: dict<any>): any
     return SignatureHelp(params)
   elseif method == 'textDocument/codeAction'
     return CodeActions(params)
+  elseif method == 'textDocument/inlayHint'
+    return InlayHints(params)
   endif
   throw 'MethodNotFound'
 enddef

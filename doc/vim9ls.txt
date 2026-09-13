@@ -153,6 +153,15 @@ second.  The help line only names the arguments.  An argument the help line
 does not name, or that accepts several types and is named after one of them,
 "{list}" of get(), is shown as "{argN}", N being its number.
 
+Inlay hints ~
+The type of a "var" that leaves it to the initializer, shown after the name
+as the Vim9 compiler infers it: from the literals, operators, indexing and
+lambdas of the initializer, the declared types of the variables and
+parameters in scope, the "def" lines of the script's functions, and for a
+builtin what |exists_info()| reports; without that function a builtin gives
+no type.  An initializer that goes on over lines is read to its end.  A type
+that cannot be told gives no hint.
+
 Code actions ~
 A quick fix for what the parser reports, offered for the diagnostics in the
 range asked about: ":let" under Vim9 rules becomes "var" when it declares the
