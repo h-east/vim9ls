@@ -710,17 +710,21 @@ def InlayHints(params: dict<any>): any
     }))
 enddef
 
-# The parameter names of function "name" for the hints: a builtin's from its
-# help entry, a function of the script's from its definition.  An empty Dict
-# for a name that is neither.
+# The parameter names of function "name" for the hints: a builtin's as
+# signature help knows them, a function of the script's from its definition.
+# An empty Dict for a name that is neither.  A builtin's argument that has no
+# name or is named after its type, "{string}" of strlen(), gets ''.
 def ParamNames(parsed: dict<any>, name: string): dict<any>
   if doc.HasTag(name .. '()')
     var text = doc.HelpText(name .. '()')
     var nl = stridx(text, "\n")
     var info = exists('*exists_info')
       ? call('exists_info', ['*' .. name]) : {}
+    var args: list<dict<any>> = info->get('args', [])
     var params = sig.Names(nl < 0 ? text : text[: nl - 1], info)
-      ->map((_, n) => n =~ '^{arg\d\+}$' ? n : matchstr(n, '^{\zs.*\ze}$'))
+      ->map((i, n) => n =~ '^{arg\d\+}$'
+        || sig.TypeNamed(n, args->get(i, {types: []}).types)
+        ? '' : matchstr(n, '^{\zs.*\ze}$'))
     return {names: params, method: max([1, info->get('method', 1)])}
   endif
   for s in parse.AllSymbols(parsed.symbols)

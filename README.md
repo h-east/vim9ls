@@ -19,8 +19,8 @@ argument came with 9.2.1049, and 9.2.1055 has Vim compile a function with a
 lambda after another function failed to compile, which the checker relies on.
 The diagnostics from Vim itself need `:source ++dryrun` as well, which came
 with 9.2.1084; without it the diagnostics are what the parser finds.  The
-types in the signature help of a builtin need `exists_info()`; without it the
-signature is the first line of the help entry.
+names and types of the arguments in the signature help of a builtin need
+`exists_info()`; without it the signature is the first line of the help entry.
 
 ## Installation
 
@@ -66,8 +66,8 @@ See `:help vim9ls` for the details.
   references and rename follow an exported name or an autoload function into
   the other files of the plugin and the open documents.
 - Signature help for builtin functions and the script's own; with a Vim
-  that has `exists_info()` the arguments of a builtin come with their types
-  and the return type.
+  that has `exists_info()` the arguments of a builtin come with their names
+  and types as Vim reports them, and the return type.
 - Code actions: a quick fix for what the parser reports, `:let` to `var`,
   the `endif` a block lacks, an `endif` without an `if`.
 - Inlay hints: the type of a `var` that leaves it to the initializer, as

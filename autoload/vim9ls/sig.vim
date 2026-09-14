@@ -73,9 +73,11 @@ enddef
 # with commas at the top level.
 export def Parameters(label: string): list<list<number>>
   var out: list<list<number>> = []
-  # Help style: nothing between the parentheses but "{name}", "[, " and "]".
+  # Help style: nothing between the parentheses but "{name}", "[, ", "]" and
+  # "...".
   if label =~ ')$'
-      && matchstr(label, '(\zs.*\ze)$') =~ '^\%(\s\|,\|\[\|\]\|{[^}]*}\)*$'
+      && matchstr(label, '(\zs.*\ze)$')
+        =~ '^\%(\s\|,\|\[\|\]\|\.\.\.\|{[^}]*}\)*$'
     var pos = 0
     while true
       var m = matchstrpos(label, '{[^}]*}', pos)
@@ -118,23 +120,26 @@ export def Parameters(label: string): list<list<number>>
   return out
 enddef
 
-# The names help gives an argument that are a type: with several types such a
-# name contradicts the others.
-const TYPE_NAMES = ['number', 'string', 'float', 'bool', 'blob', 'list',
-  'dict', 'tuple', 'func', 'object', 'class', 'job', 'channel']
+# Whether "name", "{name}", is one of the "types" of the argument: "{list}"
+# for "list<any>".
+export def TypeNamed(name: string, types: list<string>): bool
+  return index(types->mapnew((_, t) => matchstr(t, '^\w*')),
+    matchstr(name, '^{\zs\w*\ze}$')) >= 0
+enddef
 
-# The names the help "label" gives the arguments of a builtin, "{name}", one
-# for each: an argument the help does not name, or that accepts several types
-# by "info" and is named after one of them, "{list}" of get(), is "{argN}".
+# The names of the arguments of a builtin, "{name}", one for each: what
+# exists_info() reports in "info", or the help "label" when the info has no
+# arguments.  An argument without a name, or that accepts several types and is
+# named after one of them, "{list}" of get(), is "{argN}".
 export def Names(label: string, info: dict<any>): list<string>
-  var names = Parameters(label)
-    ->mapnew((_, p) => substitute(label[p[0] : p[1] - 1], '\s*\.\.\.$', '',
-      ''))
   var args: list<dict<any>> = info->get('args', [])
+  var names = args->empty()
+    ? Parameters(label)->mapnew((_, p) =>
+      substitute(label[p[0] : p[1] - 1], '\s*\.\.\.$', '', ''))
+    : args->mapnew((_, a) => a->has_key('name') ? '{' .. a.name .. '}' : '')
   for i in range(len(names))
     var types = args->get(i, {types: []}).types
-    if names[i] == '' || (len(types) > 1
-        && index(TYPE_NAMES, matchstr(names[i], '^{\zs\w*\ze}$')) >= 0)
+    if names[i] == '' || (len(types) > 1 && TypeNamed(names[i], types))
       names[i] = '{arg' .. (i + 1) .. '}'
     endif
   endfor
@@ -154,8 +159,11 @@ export def Typed(label: string, info: dict<any>): dict<any>
   var max = info->get('maxargs', len(args))
   var count = max < 0 ? len(args) : max
   var more = max < 0
-  if label =~ '\.\.\.' && count > len(names)
-    count = max([len(names), min])
+  # The help writes "..." after the last argument it names for the many
+  # more the table allows, printf() has 19.
+  var named = len(Parameters(label))
+  if label =~ '\.\.\.' && count > named
+    count = max([named, min])
     more = true
   endif
   var out = label[: stridx(label, '(')]

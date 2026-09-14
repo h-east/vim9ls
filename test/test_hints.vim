@@ -96,7 +96,7 @@ enddef
 const PARAMS = {
   strpart: {names: ['src', 'start', 'len', 'chars'], method: 1},
   append: {names: ['lnum', 'text'], method: 2},
-  get: {names: ['{arg1}', 'idx', 'default'], method: 1},
+  get: {names: ['', 'idx', 'default'], method: 1},
   Add: {names: ['a', 'b'], method: 1},
 }
 

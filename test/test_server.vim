@@ -278,11 +278,15 @@ def g:Test_inlay_hint()
     'enddef',
     'var l = [n]',
     'echo F(l)->strpart(n, 2)',
+    'echo strlen(s) + repeat(s, n)',
   ])
   var Ask = (first: number, last: number) => helper.Request(
     'textDocument/inlayHint', {textDocument: {uri: helper.URI},
       range: {start: {line: first, character: 0},
         end: {line: last, character: 0}}}).result
+  # With exists_info() the argument of strlen() is known to be named after
+  # its type, "{string}", and gets no hint.
+  var typed = exists('*exists_info')
   assert_equal([
     [{line: 1, character: 5}, ': number', 1, false],
     [{line: 4, character: 11}, ': string', 1, false],
@@ -290,7 +294,10 @@ def g:Test_inlay_hint()
     [{line: 8, character: 7}, 'a:', 2, true],
     [{line: 8, character: 19}, 'start:', 2, true],
     [{line: 8, character: 22}, 'len:', 2, true],
-  ], Ask(0, 9)->mapnew((_, h) => [h.position, h.label, h.kind,
+  ] + (typed ? [] : [[{line: 9, character: 12}, 'string:', 2, true]]) + [
+    [{line: 9, character: 24}, 'expr:', 2, true],
+    [{line: 9, character: 27}, 'count:', 2, true],
+  ], Ask(0, 10)->mapnew((_, h) => [h.position, h.label, h.kind,
     h.paddingRight]))
   assert_equal([4], Ask(3, 6)->mapnew((_, h) => h.position.line))
   assert_equal([], Ask(2, 3))

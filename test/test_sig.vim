@@ -90,9 +90,11 @@ def g:Test_help()
 enddef
 
 def g:Test_typed()
+  # The info is what exists_info() reports.
   var info = {
-    args: [{types: ['string', 'list<any>']}, {types: ['string']},
-      {types: ['number']}, {types: ['number']}],
+    args: [{name: 'expr', types: ['string', 'list<any>']},
+      {name: 'pat', types: ['string']}, {name: 'start', types: ['number']},
+      {name: 'count', types: ['number']}],
     returns: 'string',
   }
   extend(info, {minargs: 2, maxargs: 4})
@@ -113,18 +115,21 @@ def g:Test_typed()
   assert_equal('getpid()', sig.Typed('getpid()',
     {args: [], minargs: 0, maxargs: 0, returns: ''}).label)
   assert_equal('foo({x}: any)', sig.Typed('foo({x})',
-    {args: [{types: ['any']}], minargs: 1, maxargs: 1, returns: 'any'}).label)
+    {args: [{name: 'x', types: ['any']}], minargs: 1, maxargs: 1,
+      returns: 'any'}).label)
 
   # The help writes "..." for the arguments the info has more of.
-  typed = sig.Typed('printf({fmt}, {expr1} ...)', {
-    args: [{types: ['string']}] + repeat([{types: ['any']}], 18),
+  typed = sig.Typed('printf({fmt} [, {expr1} ...])', {
+    args: [{name: 'fmt', types: ['string']}, {name: 'expr1', types: ['any']}]
+      + repeat([{types: ['any']}], 17),
     minargs: 1, maxargs: 19, returns: 'string'})
   assert_equal('printf({fmt}: string [, {expr1}: any ...]): string',
     typed.label)
   assert_equal([[7, 20], [24, 40]], typed.parameters)
   # No maximum: the last argument stands for the rest.
-  typed = sig.Typed('instanceof({object}, {class})', {
-    args: [{types: ['object<any>']}, {types: ['class']}],
+  typed = sig.Typed('instanceof({object}, {class} ...)', {
+    args: [{name: 'object', types: ['object<any>']},
+      {name: 'class', types: ['class']}],
     minargs: 2, maxargs: -1, returns: 'bool'})
   assert_equal('instanceof({object}: object<any>, {class}: class ...): bool',
     typed.label)
@@ -133,28 +138,49 @@ def g:Test_typed()
   # A name that is a type contradicts the other types the argument accepts: it
   # becomes the number of the argument.  With one type it stays.
   typed = sig.Typed('get({list}, {idx} [, {default}])', {
-    args: [{types: ['blob', 'list<any>', 'dict<any>']},
-      {types: ['string', 'number']}, {types: ['any']}],
+    args: [{name: 'list', types: ['blob', 'list<any>', 'dict<any>']},
+      {name: 'idx', types: ['string', 'number']},
+      {name: 'default', types: ['any']}],
     minargs: 2, maxargs: 3, returns: 'any'})
   assert_equal('get({arg1}: blob | list<any> | dict<any>,'
     .. ' {idx}: string | number [, {default}: any])', typed.label)
   assert_equal([[4, 40], [42, 64], [68, 82]], typed.parameters)
-  typed = sig.Typed('strlen({string})', {args: [{types: ['string',
-    'number']}], minargs: 1, maxargs: 1, returns: 'number'})
+  typed = sig.Typed('strlen({string})', {args: [{name: 'string',
+    types: ['string', 'number']}], minargs: 1, maxargs: 1,
+    returns: 'number'})
   assert_equal('strlen({arg1}: string | number): number', typed.label)
-  typed = sig.Typed('add({list}, {expr})', {args: [{types: ['list<any>']},
-    {types: ['any']}], minargs: 2, maxargs: 2, returns: 'any'})
+  typed = sig.Typed('add({list}, {expr})', {args: [{name: 'list',
+    types: ['list<any>']}, {name: 'expr', types: ['any']}], minargs: 2,
+    maxargs: 2, returns: 'any'})
   assert_equal('add({list}: list<any>, {expr}: any)', typed.label)
 
-  # The info knows the optional arguments, the help line may not name them
-  # all: remove() has a line for two arguments and one for three.
+  # The info names the arguments, the help line need not name them all:
+  # remove() has a line for two arguments and one for three.
   typed = sig.Typed('remove({list}, {idx})', {
-    args: [{types: ['list<any>', 'dict<any>', 'blob']},
-      {types: ['number', 'string']}, {types: ['any']}],
+    args: [{name: 'list', types: ['list<any>', 'dict<any>', 'blob']},
+      {name: 'idx', types: ['number', 'string']},
+      {name: 'end', types: ['any']}],
     minargs: 2, maxargs: 3, returns: 'any'})
   assert_equal('remove({arg1}: list<any> | dict<any> | blob,'
-    .. ' {idx}: number | string [, {arg3}: any])', typed.label)
-  assert_equal([[7, 43], [45, 67], [71, 82]], typed.parameters)
+    .. ' {idx}: number | string [, {end}: any])', typed.label)
+  assert_equal([[7, 43], [45, 67], [71, 81]], typed.parameters)
+  # An argument the info does not name is its number: the second of getreg()
+  # is a value in the help.
+  typed = sig.Typed('getreg([{regname} [, 1 [, {list}]]])', {
+    args: [{name: 'regname', types: ['string']}, {types: ['bool']},
+      {name: 'list', types: ['bool']}],
+    minargs: 0, maxargs: 3, returns: 'any'})
+  assert_equal('getreg([{regname}: string [, {arg2}: bool [, {list}: bool]]])',
+    typed.label)
+  # Without the info the names come from the help line.
+  assert_equal(['{expr}', '{pat}', '{start}', '{count}'],
+    sig.Names('matchstr({expr}, {pat} [, {start} [, {count}]])', {}))
+
+  # A name that is one of the types of the argument.
+  assert_true(sig.TypeNamed('{list}', ['list<any>', 'blob']))
+  assert_true(sig.TypeNamed('{string}', ['string']))
+  assert_false(sig.TypeNamed('{expr}', ['string', 'number']))
+  assert_false(sig.TypeNamed('{list}', ['dict<any>']))
 enddef
 
 # vim: ts=2 sw=0 et

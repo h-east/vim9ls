@@ -248,7 +248,7 @@ enddef
 # "last", as {line, col, label, kind}; the hint goes in front of the
 # argument.  "Params" gives, for the name of a function, the names of its
 # parameters and which of them the value before "->" fills, {names,
-# method}; an empty Dict for a function it does not know.  A name of "{argN}"
+# method}; an empty Dict for a function it does not know.  An empty name
 # gives no hint, nor does an argument that is the name itself.
 export def ParamHints(parsed: dict<any>, lines: list<string>, first: number,
     last: number, Params: func(string): dict<any>): list<dict<any>>
@@ -281,7 +281,7 @@ export def ParamHints(parsed: dict<any>, lines: list<string>, first: number,
         var name = names->get(i, '')
         i += 1
         var text = matchstr(arg.text, '^[^,)]*')->trim()
-        if name == '' || name =~ '^{arg\d\+}$' || text == name
+        if name == '' || text == name
           continue
         endif
         add(out, {line: arg.line, col: arg.col, label: name .. ':',
