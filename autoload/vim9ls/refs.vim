@@ -4,6 +4,7 @@ vim9script
 # Maintainer: Hirohito Higashi <h.east.727@gmail.com>
 
 import autoload './parse.vim'
+import autoload './util.vim'
 
 # What a name is made of, "<SID>" aside.
 export const NAME = '[[:alnum:]_:#]'
@@ -273,7 +274,7 @@ export def ImportFile(path: string, spec: string, autoload: bool): string
   if !autoload
     var file = spec =~ '^\.\.\=/' ? fnamemodify(path, ':h') .. '/' .. spec
       : spec
-    return filereadable(file) ? simplify(fnamemodify(file, ':p')) : ''
+    return filereadable(file) ? util.FullPath(file) : ''
   endif
   var rel = spec =~ '\.vim$' ? spec : spec .. '.vim'
   return AutoloadFile(path, rel)
@@ -301,7 +302,7 @@ export def AutoloadFile(path: string, rel: string): string
   for d in AutoloadDirs(path)
     var file = d .. '/' .. rel
     if filereadable(file)
-      return simplify(fnamemodify(file, ':p'))
+      return util.FullPath(file)
     endif
   endfor
   return ''

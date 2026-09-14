@@ -558,7 +558,7 @@ def UsersOf(path: string): list<string>
   var root = matchstr(path,
     '.*\ze[/\\]\%(autoload\|plugin\|ftplugin\|import\|syntax\|indent\)[/\\]')
   var paths = root == '' ? [] : glob(root .. '/**/*.vim', true, true)
-    ->map((_, f) => fnamemodify(f, ':p'))
+    ->map((_, f) => util.FullPath(f))
   for uri in keys(docs)
     add(paths, util.UriToPath(uri))
   endfor

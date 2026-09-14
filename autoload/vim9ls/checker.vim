@@ -82,7 +82,13 @@ function StartLine(name, path)
   catch
     return 0
   endtry
-  return empty(m) || fnamemodify(m[1], ':p') !=# a:path ? 0 : str2nr(m[2])
+  return empty(m) || s:FullPath(m[1]) !=# a:path ? 0 : str2nr(m[2])
+endfunction
+
+# A path spelled the way the server spells them: on MS-Windows with "/".
+function FullPath(path)
+  let full = simplify(fnamemodify(a:path, ':p'))
+  return has('win32') ? substitute(full, '\\', '/', 'g') : full
 endfunction
 
 # The 0-based line of an error, from the context Vim named for it and the
@@ -100,7 +106,7 @@ function Where(context, lnum, path)
       return -1
     endif
     let [name, at] = [m[1], str2nr(m[2])]
-    if fnamemodify(name, ':p') ==# a:path
+    if s:FullPath(name) ==# a:path
       return at + offset - 1
     endif
     if name !~ '^<lambda>'
@@ -149,7 +155,7 @@ endfunction
 # is appended to the script, so that it is compiled along with the rest.
 # An error in it is reported on the line of the script it came from.
 function Check(path, lines, wrapped)
-  let path = fnamemodify(a:path, ':p')
+  let path = s:FullPath(a:path)
   " This script is running here, its functions cannot be defined again.
   if path ==# s:SELF
     let path ..= '.dryrun'

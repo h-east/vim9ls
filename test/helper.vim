@@ -43,18 +43,20 @@ export def HasDryrun(): bool
 enddef
 
 # Starts the server as this Vim would as a client; the channel is in "lsp"
-# mode on both ends.
-export def StartServer(): job
+# mode on both ends.  "cmd" is what to start instead of this Vim, the
+# launcher; it is told to use this Vim.
+export def StartServer(cmd: list<string> = null_list): job
   notifications = []
   stderr = []
   delete(LOG)
-  job = job_start([v:progpath, '--clean', '--stdio-channel', '-S', SERVER], {
+  job = job_start(cmd == null_list
+      ? [v:progpath, '--clean', '--stdio-channel', '-S', SERVER] : cmd, {
     in_mode: 'lsp',
     out_mode: 'lsp',
     err_mode: 'nl',
     out_cb: (_, msg) => add(notifications, msg),
     err_cb: (_, msg) => add(stderr, msg),
-    env: {VIM9LS_LOG: LOG},
+    env: {VIM9LS_LOG: LOG, VIM9LS_VIM: v:progpath},
   })
   if job_status(job) != 'run'
     add(v:errors, 'the server did not start')

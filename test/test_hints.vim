@@ -75,10 +75,18 @@ def g:Test_hints_over_lines()
     var s = 'x'
       .. 'y'
     var n = d.a
-      ->string()
-      ->len()
+      ->Str()
+      ->Len()
     var last = 1
+    def Str(v: number): string
+      return string(v)
+    enddef
+    def Len(s: string): number
+      return len(s)
+    enddef
   END
+  # The chain calls the script's own functions: a builtin's type is only
+  # known with exists_info().
   assert_equal([
     [1, 5, ': dict<number>'],
     [5, 5, ': string'],

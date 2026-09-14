@@ -246,8 +246,8 @@ In the order they are meant to be taken up.
       type hierarchy for Vim9 classes and interfaces.
 - [ ] `textDocument/formatting` and `rangeFormatting` with Vim's own indent
       script, run in the server; for editors other than Vim.
-- [ ] Tests on MS-Windows in CI: `bin/vim9ls.cmd`, and vim.exe standing in
-      for gvim.exe.
+- [x] Tests on MS-Windows in CI, and the launchers `bin/vim9ls` and
+      `bin/vim9ls.cmd` started the way a client starts them.
 - [ ] Hover in Markdown, for the editors that render it.
 
 ## Contributing

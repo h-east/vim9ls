@@ -33,14 +33,19 @@ def PercentDecode(s: string): string
   return list2blob(bytes)->blob2str()->get(0, '')
 enddef
 
-export def PathToUri(path: string): string
+# The full path of "path" the way the server spells every path, so that two
+# spellings of one file compare equal: simplified, and on MS-Windows with "/"
+# for every "\".
+export def FullPath(path: string): string
   var full = simplify(fnamemodify(path, ':p'))
-  if has('win32')
-    full = substitute(full, '\\', '/', 'g')
-    # A drive letter needs a leading slash: "C:/x" becomes "/C:/x".
-    if full =~ '^\a:'
-      full = '/' .. full
-    endif
+  return has('win32') ? substitute(full, '\\', '/', 'g') : full
+enddef
+
+export def PathToUri(path: string): string
+  var full = FullPath(path)
+  # A drive letter needs a leading slash: "C:/x" becomes "/C:/x".
+  if has('win32') && full =~ '^\a:'
+    full = '/' .. full
   endif
   return 'file://' .. substitute(full, UNRESERVED .. '\@!.',
     (m) => PercentEncode(m[0]), 'g')
@@ -56,7 +61,7 @@ export def UriToPath(uri: string): string
   if has('win32') && path =~ '^/\a:'
     path = path[1 : ]
   endif
-  return simplify(path)
+  return FullPath(path)
 enddef
 
 # LSP counts a position in the encoding agreed on at initialize, the server

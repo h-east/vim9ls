@@ -13,6 +13,16 @@ def g:Test_command()
   assert_true(executable(cmd[0]))
 enddef
 
+# The launcher a client other than Vim starts: the shell script, or the
+# .cmd through cmd.exe on MS-Windows.
+def g:Test_launcher()
+  var launcher = fnamemodify(helper.HERE, ':h') .. '/bin/vim9ls'
+  helper.StartServer(has('win32')
+    ? ['cmd', '/c', tr(launcher, '/', '\') .. '.cmd'] : [launcher])
+  var resp = helper.Initialize()
+  assert_true(resp.result.capabilities.hoverProvider, string(helper.stderr))
+enddef
+
 def g:Test_initialize()
   helper.StartServer()
   var resp = helper.Initialize(['utf-8', 'utf-16'])

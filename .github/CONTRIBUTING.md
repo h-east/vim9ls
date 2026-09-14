@@ -53,3 +53,8 @@ the checker is skipped.
 The unit tests read the parser and the conversions directly.  The server
 tests start the server the way a client would and talk LSP to it, checking
 what it answers and what it sends on its own.
+
+CI runs the tests on Linux with a Vim built from the current sources of
+vim/vim, and on MS-Windows with the newest build from vim-win32-installer.
+One of the server tests starts the launcher, `bin/vim9ls` or
+`bin/vim9ls.cmd`, the way a client does.

@@ -7,7 +7,9 @@ def g:Test_uri_roundtrip()
   var uri = util.PathToUri(path)
   assert_match('^file:///', uri)
   assert_match('a%20b\.vim$', uri)
-  assert_equal(fnamemodify(path, ':p'), util.UriToPath(uri))
+  # The server spells a path with "/" on MS-Windows too.
+  assert_equal(has('win32') ? 'C:/tmp/a b.vim' : '/tmp/a b.vim',
+    util.UriToPath(uri))
   assert_equal('untitled:x', util.UriToPath('untitled:x'))
 enddef
 
