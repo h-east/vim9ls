@@ -157,7 +157,7 @@ endfunction
 function Check(path, lines, wrapped)
   let path = s:FullPath(a:path)
   " This script is running here, its functions cannot be defined again.
-  if path ==# s:SELF
+  if path ==# s:FullPath(s:SELF)
     let path ..= '.dryrun'
   endif
   let text = type(a:wrapped) != v:t_list ? a:lines
