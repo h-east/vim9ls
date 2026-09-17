@@ -2,7 +2,7 @@
 
 [![Test](https://github.com/h-east/vim9ls/actions/workflows/test.yml/badge.svg)](https://github.com/h-east/vim9ls/actions/workflows/test.yml)
 [![Update doc/tags](https://github.com/h-east/vim9ls/actions/workflows/update-doc-tags.yml/badge.svg)](https://github.com/h-east/vim9ls/actions/workflows/update-doc-tags.yml)
-[![Vim 9.2.1055+](https://img.shields.io/badge/Vim-9.2.1055%2B-015b01?logo=vim&logoColor=white)](#requirements)
+[![Vim 9.2.1xxx+](https://img.shields.io/badge/Vim-9.2.1xxx%2B-015b01?logo=vim&logoColor=white)](#requirements)
 
 A language server for Vim9 script and legacy Vim script, run by Vim itself.
 
@@ -14,13 +14,20 @@ else needs to be installed.
 
 ## Requirements
 
-Vim 9.2.1055 or later with `+channel` and `+job`. The `--stdio-channel`
-argument came with 9.2.1049, and 9.2.1055 has Vim compile a function with a
-lambda after another function failed to compile, which the checker relies on.
-The diagnostics from Vim itself need `:source ++dryrun` as well, which came
-with 9.2.1084; without it the diagnostics are what the parser finds.  The
-names and types of the arguments in the signature help of a builtin need
-`exists_info()`; without it the signature is the first line of the help entry.
+Vim 9.2.1xxx or later with `+channel` and `+job`.
+
+<details>
+<summary>What those patches are for</summary>
+
+- 9.2.1xxx: `exists_info()` names and types the arguments in the signature
+  help of a builtin
+- 9.2.1084: `:source ++dryrun` brings the diagnostics from Vim itself
+- 9.2.1055: lets a function holding a lambda compile after an earlier one
+  failed, which the checker relies on
+- 9.2.1049: adds `--stdio-channel`, which is how the server talks to a client
+  on stdin and stdout
+
+</details>
 
 ## Installation
 
@@ -28,13 +35,6 @@ With a plugin manager, vim-plug for instance:
 
 ```vim
 Plug 'h-east/vim9ls'
-```
-
-Or as an optional package, put it under `pack/*/opt/vim9ls` and load it from
-your vimrc:
-
-```vim
-packadd! vim9ls
 ```
 
 ## Setup
@@ -45,7 +45,7 @@ Any LSP client that talks stdio can use the server.
 With lsp.vim: install it the same way and add the server to
 `g:lsp_server_list`:
 
-    {name: 'vim9ls', filetypes: ['vim'], cmd: function('vim9ls#Command')}
+    {filetypes: ['vim'], name: 'vim9ls', cmd: function('vim9ls#Command')}
 
 With another LSP client: point it at `bin/vim9ls` (`bin/vim9ls.cmd` on
 MS-Windows).
