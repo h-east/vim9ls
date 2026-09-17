@@ -12,6 +12,10 @@ commands, and the plugins you already have.  A new function or option is
 there as soon as Vim has it, since nothing is copied out of Vim.  Nothing
 else needs to be installed.
 
+The diagnostics are Vim's own.  The script is read with `:source ++dryrun`,
+which runs nothing in it and compiles its `:def` functions, so what is
+reported is what Vim finds in the script, not what another parser guesses.
+
 ## Requirements
 
 Vim 9.2.1xxx or later with `+channel` and `+job`.
@@ -74,10 +78,9 @@ See `:help vim9ls` for the details.
   the Vim9 compiler infers it, and the parameter names at a call.
 - Diagnostics: blocks that do not add up, `:let` under Vim9 rules, in legacy
   script words that are not commands, calls of functions that are not
-  defined, and `v:` variables Vim does not have.  And what Vim itself reports
-  when it reads the script with `:source ++dryrun`, which runs nothing in
-  it, and compiles its `:def` functions and, in a Vim9 script, the script
-  level: a type mismatch, a name that is not found, an argument too many.
+  defined, and `v:` variables Vim does not have.  And from Vim itself: a type
+  mismatch, a name that is not found, an argument too many, in a `:def`
+  function and, in a Vim9 script, at the script level.
 
 ## Protocol coverage
 

@@ -24,6 +24,10 @@ and the plugins you already have.  A new function or option is there as soon
 as Vim has it, since nothing is copied out of Vim.  Nothing else needs to be
 installed.
 
+The diagnostics are Vim's own.  The script is read with |:source-dryrun|,
+which runs nothing in it and compiles its |:def| functions, so what is
+reported is what Vim finds in the script, not what another parser guesses.
+
 ==============================================================================
 2. Requirements					*vim9ls-requirements*
 
