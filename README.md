@@ -23,7 +23,7 @@ Vim 9.2.1xxx or later with `+channel` and `+job`.
 <details>
 <summary>What those patches are for</summary>
 
-- 9.2.1xxx: `exists_info()` names and types the arguments in the signature
+- 9.2.1xxx: `getinfo()` names and types the arguments in the signature
   help of a builtin
 - 9.2.1084: `:source ++dryrun` brings the diagnostics from Vim itself
 - 9.2.1055: lets a function holding a lambda compile after an earlier one
@@ -70,7 +70,7 @@ See `:help vim9ls` for the details.
   references and rename follow an exported name or an autoload function into
   the other files of the plugin and the open documents.
 - Signature help for builtin functions and the script's own; with a Vim
-  that has `exists_info()` the arguments of a builtin come with their names
+  that has `getinfo()` the arguments of a builtin come with their names
   and types as Vim reports them, and the return type.
 - Code actions: a quick fix for what the parser reports, `:let` to `var`,
   the `endif` a block lacks, an `endif` without an `if`.
@@ -234,11 +234,11 @@ In the order they are meant to be taken up.
       reports: `:let` to `var` under Vim9 rules, the `endif` a block lacks.
 - [x] Signature help with the types of a builtin's arguments; the help entry
       names them but does not type them.  Vim hands them out with
-      `exists_info()`.
+      `getinfo()`.
 - [x] The type of an expression as the Vim9 compiler infers it, for the
       hints and the hover to come: literals, operators, indexing, lambdas,
       the script's own functions by their declared type and the builtins by
-      what `exists_info()` reports for the argument types.
+      what `getinfo()` reports for the argument types.
 - [x] `textDocument/inlayHint` with the type of a `var` that leaves it to
       the initializer, and the parameter names at a call from what
       signature help knows.

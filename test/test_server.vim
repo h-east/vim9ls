@@ -294,9 +294,9 @@ def g:Test_inlay_hint()
     'textDocument/inlayHint', {textDocument: {uri: helper.URI},
       range: {start: {line: first, character: 0},
         end: {line: last, character: 0}}}).result
-  # With exists_info() the argument of strlen() is known to be named after
+  # With getinfo() the argument of strlen() is known to be named after
   # its type, "{string}", and gets no hint.
-  var typed = exists('*exists_info')
+  var typed = exists('*getinfo')
   assert_equal([
     [{line: 1, character: 5}, ': number', 1, false],
     [{line: 4, character: 11}, ': string', 1, false],
@@ -740,8 +740,8 @@ def g:Test_signature_help()
     'echo 1->append(',
     'echo get(',
   ])
-  # With exists_info() the label carries the types.
-  var typed = exists('*exists_info')
+  # With getinfo() the label carries the types.
+  var typed = exists('*getinfo')
   var resp = helper.Request('textDocument/signatureHelp',
     helper.Params(4, 26))
   var help = resp.result
@@ -781,7 +781,7 @@ def g:Test_signature_help()
   assert_equal(1, resp.result.activeParameter)
 
   # The value before "->" fills the second argument of append(), so the
-  # argument typed is the first, {lnum}.  Without exists_info() the value is
+  # argument typed is the first, {lnum}.  Without getinfo() the value is
   # taken for the first argument.
   resp = helper.Request('textDocument/signatureHelp', helper.Params(15, 16))
   assert_equal(typed ? 0 : 1, resp.result.activeParameter)

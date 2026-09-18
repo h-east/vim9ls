@@ -126,7 +126,7 @@ const CALLS = [
   ['func(list<number>, any): number', '(a: list<number>, b) => a[0]'],
 ]
 
-# A builtin is asked of Vim with exists_info().
+# A builtin is asked of Vim with getinfo().
 const BUILTINS = [
   ['number', 'len(l)'],
   ['number', 'U(1)->len()'],
@@ -176,7 +176,7 @@ enddef
 
 def g:Test_infer_calls()
   Check(CALLS)
-  if exists('*exists_info')
+  if exists('*getinfo')
     Check(BUILTINS)
   else
     assert_equal('any', infer.TypeOf('len(l)', CTX))
@@ -210,8 +210,8 @@ enddef
 
 # The tables above hold what the compiler gave once; this Vim may differ.
 def g:Test_infer_against_compiler()
-  if !exists('*exists_info')
-    throw 'Skipped: exists_info() is needed for the builtins'
+  if !exists('*getinfo')
+    throw 'Skipped: getinfo() is needed for the builtins'
   endif
   var lang = v:lang
   language messages C

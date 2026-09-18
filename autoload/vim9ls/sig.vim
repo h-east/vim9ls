@@ -128,7 +128,7 @@ export def TypeNamed(name: string, types: list<string>): bool
 enddef
 
 # The names of the arguments of a builtin, "{name}", one for each: what
-# exists_info() reports in "info", or the help "label" when the info has no
+# getinfo() reports in "info", or the help "label" when the info has no
 # arguments.  An argument without a name, or that accepts several types and is
 # named after one of them, "{list}" of get(), is "{argN}".
 export def Names(label: string, info: dict<any>): list<string>
@@ -146,7 +146,7 @@ export def Names(label: string, info: dict<any>): list<string>
   return names
 enddef
 
-# The signature of a builtin from what exists_info() reports, "info", with
+# The signature of a builtin from what getinfo() reports, "info", with
 # the names Names() gives the arguments: "name({a}: type [, {b}: type]):
 # type".  The number of arguments and the optional ones come from the info,
 # the types of an argument are joined with " | ".  The last argument gets

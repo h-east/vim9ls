@@ -86,7 +86,7 @@ def g:Test_hints_over_lines()
     enddef
   END
   # The chain calls the script's own functions: a builtin's type is only
-  # known with exists_info().
+  # known with getinfo().
   assert_equal([
     [1, 5, ': dict<number>'],
     [5, 5, ': string'],

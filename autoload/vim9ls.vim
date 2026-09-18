@@ -654,10 +654,10 @@ def SignatureHelp(params: dict<any>): any
     var nl = stridx(text, "\n")
     var label = nl < 0 ? text : text[: nl - 1]
     var documentation = nl < 0 ? '' : text[nl + 1 :]
-    # With exists_info() the label gets the types, and the argument the value
+    # With getinfo() the label gets the types, and the argument the value
     # before "->" fills is known: it is not always the first.
-    var info = exists('*exists_info')
-      ? call('exists_info', ['*' .. hit.name]) : {}
+    var info = exists('*getinfo')
+      ? call('getinfo', ['function', hit.name]) : {}
     if info->empty()
       return sig.Help(label, active, documentation)
     endif
@@ -718,8 +718,8 @@ def ParamNames(parsed: dict<any>, name: string): dict<any>
   if doc.HasTag(name .. '()')
     var text = doc.HelpText(name .. '()')
     var nl = stridx(text, "\n")
-    var info = exists('*exists_info')
-      ? call('exists_info', ['*' .. name]) : {}
+    var info = exists('*getinfo')
+      ? call('getinfo', ['function', name]) : {}
     var args: list<dict<any>> = info->get('args', [])
     var params = sig.Names(nl < 0 ? text : text[: nl - 1], info)
       ->map((i, n) => n =~ '^{arg\d\+}$'

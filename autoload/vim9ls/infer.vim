@@ -115,14 +115,14 @@ export def Member(t: string): string
   return m == '' ? 'any' : m
 enddef
 
-# What Vim reports for "name" through exists_info(), an empty Dict without
-# it or when the name is not known.
-def Info(name: string, opts: dict<any> = {}): dict<any>
-  if !exists('*exists_info')
+# What getinfo() reports, an empty Dict without that function or when the
+# name is not known.
+def Info(kind: string, name: string, opts: dict<any> = {}): dict<any>
+  if !exists('*getinfo')
     return {}
   endif
   try
-    return call('exists_info', opts->empty() ? [name] : [name, opts])
+    return call('getinfo', opts->empty() ? [kind, name] : [kind, name, opts])
   catch
     return {}
   endtry
@@ -154,10 +154,10 @@ def CallType(st: dict<any>, name: string, argtypes: list<string>): string
   if st.funcs->has_key(name)
     return ReturnOf(st.funcs[name])
   endif
-  var info = Info('*' .. name, {argtypes: argtypes})
+  var info = Info('function', name, {argtypes: argtypes})
   if info->empty()
     # A type the argument list cannot pass, or too many arguments.
-    info = Info('*' .. name)
+    info = Info('function', name)
   endif
   return info->get('returns', 'any')
 enddef
@@ -319,7 +319,7 @@ def Primary(st: dict<any>): string
     return 'string'
   elseif tok.k == 'opt'
     st.i += 1
-    return Info('&' .. substitute(tok.t, '^&\%([lg]:\)\=', '', ''))
+    return Info('option', substitute(tok.t, '^&\%([lg]:\)\=', '', ''))
       ->get('type', 'any')
   elseif tok.k == 'name'
     st.i += 1
@@ -335,7 +335,7 @@ def Primary(st: dict<any>): string
       return LITERALS[tok.t]
     endif
     if tok.t =~ '^v:'
-      return Info(tok.t)->get('type', 'any')
+      return Info('vimvar', tok.t)->get('type', 'any')
     endif
     if st.vars->has_key(tok.t)
       return st.vars[tok.t]
@@ -524,7 +524,7 @@ enddef
 # The type of "expr" in Vim9 script, "any" when it cannot be told.  "ctx" may
 # give "vars", the types of the variables by name, and "funcs", the types of
 # the functions of the script by name, "func(number): string".  Builtin
-# functions are asked of Vim with exists_info(); without that function their
+# functions are asked of Vim with getinfo(); without that function their
 # result is "any".
 export def TypeOf(expr: string, ctx: dict<any> = {}): string
   var tokens = Tokenize(expr)

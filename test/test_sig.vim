@@ -90,7 +90,7 @@ def g:Test_help()
 enddef
 
 def g:Test_typed()
-  # The info is what exists_info() reports.
+  # The info is what getinfo() reports.
   var info = {
     args: [{name: 'expr', types: ['string', 'list<any>']},
       {name: 'pat', types: ['string']}, {name: 'start', types: ['number']},

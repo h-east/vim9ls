@@ -34,7 +34,7 @@ reported is what Vim finds in the script, not what another parser guesses.
 Vim 9.2.1xxx or later with the |+channel| and |+job| features.
 
 What those patches are for:
-9.2.1xxx: |exists_info()| gives the names and the types of the arguments in
+9.2.1xxx: |getinfo()| gives the names and the types of the arguments in
           the signature help of a builtin
 9.2.1084: |:source-dryrun| brings the diagnostics from Vim itself
 9.2.1055: lets a function holding a lambda compile after an earlier one
@@ -154,7 +154,7 @@ in marked: for a builtin the first line of its help entry, with the rest of
 the entry as documentation, for a function of the script or an imported one
 its "def" or "function" line.  After "->" the value in front counts as the
 first argument.  A call that started up to 30 lines above the cursor is found.
-With a Vim that has |exists_info()| the signature of a builtin is built from
+With a Vim that has |getinfo()| the signature of a builtin is built from
 what that reports: the names of the arguments, how many there are and which
 are optional, the types each accepts, "{expr}: string | list<any>", the
 return type after the ")", and the argument the value before "->" fills,
@@ -167,7 +167,7 @@ The type of a "var" that leaves it to the initializer, shown after the name
 as the Vim9 compiler infers it: from the literals, operators, indexing and
 lambdas of the initializer, the declared types of the variables and
 parameters in scope, the "def" lines of the script's functions, and for a
-builtin what |exists_info()| reports; without that function a builtin gives
+builtin what |getinfo()| reports; without that function a builtin gives
 no type.  An initializer that goes on over lines is read to its end.  A type
 that cannot be told gives no hint.
 And the name of the parameter in front of each argument of a call, "start:",
