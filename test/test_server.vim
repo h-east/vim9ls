@@ -687,6 +687,65 @@ def g:Test_references()
   assert_equal(null, resp.result)
 enddef
 
+def g:Test_document_highlight()
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc([
+    'vim9script',
+    'var count = 0',
+    'def Bump()',
+    '  count += 1',
+    'enddef',
+    'echo count',
+    'if count == 1',
+    'endif',
+  ])
+  var resp = helper.Request('textDocument/documentHighlight',
+    helper.Params(5, 6))
+  var Marks = (result: any) => result->mapnew((_, h) =>
+    [h.range.start.line, h.range.start.character, h.range.end.character,
+      h.kind])
+  # The declaration and the "+=" are writes, reading it is not.
+  assert_equal([[1, 4, 9, 3], [3, 2, 7, 3], [5, 5, 10, 2], [6, 3, 8, 2]],
+    Marks(resp.result))
+
+  # Nothing known under the cursor.
+  resp = helper.Request('textDocument/documentHighlight', helper.Params(0, 0))
+  assert_equal(null, resp.result)
+enddef
+
+def g:Test_document_highlight_of_a_name_vim_knows()
+  if !exists('*getinfo')
+    throw 'Skipped: getinfo() is needed to tell a builtin from a typo'
+  endif
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc([
+    'vim9script',
+    'echo strlen("a")',
+    'echo strlen("bb") + v:count',
+    'echo "strlen"',
+    'echo notafunction(1)',
+  ])
+  var Marks = (result: any) => result->mapnew((_, h) =>
+    [h.range.start.line, h.range.start.character, h.range.end.character])
+
+  # A builtin is marked where it is called, not inside a string.
+  var resp = helper.Request('textDocument/documentHighlight',
+    helper.Params(1, 7))
+  assert_equal([[1, 5, 11], [2, 5, 11]], Marks(resp.result))
+
+  # A v: variable as well.
+  resp = helper.Request('textDocument/documentHighlight',
+    helper.Params(2, 20))
+  assert_equal([[2, 20, 27]], Marks(resp.result))
+
+  # A name Vim does not know is left alone.
+  resp = helper.Request('textDocument/documentHighlight',
+    helper.Params(4, 7))
+  assert_equal(null, resp.result)
+enddef
+
 def g:Test_rename()
   helper.StartServer()
   helper.Initialize()

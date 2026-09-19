@@ -117,7 +117,7 @@ enddef
 
 # What getinfo() reports, an empty Dict without that function or when the
 # name is not known.
-def Info(kind: string, name: string, opts: dict<any> = {}): dict<any>
+export def Info(kind: string, name: string, opts: dict<any> = {}): dict<any>
   if !exists('*getinfo')
     return {}
   endif

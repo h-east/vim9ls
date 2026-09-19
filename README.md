@@ -134,7 +134,7 @@ below, and 65 are left out for the reason given.
 | `textDocument/typeDefinition` | planned | the class a Vim9 variable is typed with |
 | `textDocument/implementation` | planned | the classes that implement a Vim9 interface |
 | `textDocument/references` | yes |  |
-| `textDocument/documentHighlight` | planned | the other uses of the name, from what references knows |
+| `textDocument/documentHighlight` | yes | the other uses of the name in the document, a declaration or an assignment marked as a write |
 | `textDocument/documentSymbol` | yes |  |
 | `textDocument/codeAction` | yes | a quick fix for what a diagnostic reports: `:let` to `var`, a missing `endif` |
 | `codeAction/resolve` | no | an action comes with its edit |
@@ -243,8 +243,7 @@ In the order they are meant to be taken up.
       the initializer, and the parameter names at a call from what
       signature help knows.
 - [ ] `workspace/symbol` over the autoload and plugin files on `'runtimepath'`.
-- [ ] `textDocument/documentHighlight` and `textDocument/foldingRange`, from
-      what references and the parser already know.
+- [ ] `textDocument/foldingRange`, from what the parser already knows.
 - [ ] `textDocument/typeDefinition`, `textDocument/implementation` and the
       type hierarchy for Vim9 classes and interfaces.
 - [ ] `textDocument/formatting` and `rangeFormatting` with Vim's own indent

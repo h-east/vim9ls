@@ -21,6 +21,7 @@ import autoload './vim9ls/wrap.vim'
 import autoload './vim9ls/names.vim'
 import autoload './vim9ls/fix.vim'
 import autoload './vim9ls/hints.vim'
+import autoload './vim9ls/infer.vim'
 
 export const VERSION = '0.1.001'
 
@@ -79,6 +80,7 @@ def Initialize(params: dict<any>): dict<any>
       documentSymbolProvider: true,
       definitionProvider: true,
       referencesProvider: true,
+      documentHighlightProvider: true,
       renameProvider: {prepareProvider: true},
       signatureHelpProvider: {triggerCharacters: ['(', ',']},
       codeActionProvider: {codeActionKinds: ['quickfix']},
@@ -753,6 +755,84 @@ def References(params: dict<any>): any
       u.line, u.end, encoding)}))
 enddef
 
+# Whether the name at "col" in "line" is being written to: 3 for a write, 2
+# for a read, the numbers |DocumentHighlightKind| uses.
+def UseKind(line: string, col: number, endcol: number): number
+  var before = col > 0 ? line[: col - 1] : ''
+  var after = line[endcol :]
+  # A declaration, also the names in "var [a, b]" and "for [a, b]".
+  if before =~ '\<\%(var\|final\|const\|let\|for\)\s\+\%(\[[^]]*\)\=$'
+    return 3
+  endif
+  # An assignment: "x = 1", "x += 1", "x ..= 'a'".  Not "x == 1" or "x =~ 'p'".
+  if after =~ '^\s*\%(=[^=~]\|[-+*/%]=\|\.\.=\)'
+    return 3
+  endif
+  return 2
+enddef
+
+# The uses of a name Vim itself knows, a builtin function or a v: variable.
+# The parser does not track these, so the tokens are matched by name.
+def VimNameUses(w: dict<any>): list<dict<number>>
+  var name = w.token.text
+  if w.token.in_string || w.token.prev == '.' || w.token.prev == '&'
+    return []
+  endif
+  if infer.Info(name =~# '^v:' ? 'vimvar' : 'function', name)->empty()
+    return []
+  endif
+  var vim9_at = parse.Vim9Lines(w.parsed, len(w.doc.lines))
+  var uses: list<dict<number>> = []
+  for lnum in range(len(w.doc.lines))
+    var line = w.doc.lines[lnum]
+    if stridx(line, name) < 0
+      continue
+    endif
+    for token in refs.Tokens(line, vim9_at[lnum])
+      if token.text ==# name && !token.in_string && token.prev != '.'
+          && token.prev != '&'
+        uses->add({line: lnum, col: token.col, end: token.end})
+      endif
+    endfor
+  endfor
+  return uses
+enddef
+
+# The uses of the name under the cursor in this document alone.
+def Highlights(params: dict<any>): any
+  var w = TokenWhere(params)
+  if w == null_dict
+    return v:null
+  endif
+  var hit = Lookup(w, w.token)
+  if hit == null_dict
+    var known = VimNameUses(w)
+    return known->empty() ? v:null : known->mapnew((_, r) => ({
+      range: util.Range(w.doc.lines, r.line, r.col, r.line, r.end, encoding),
+      kind: UseKind(w.doc.lines->get(r.line, ''), r.col, r.end),
+    }))
+  endif
+  var uses: list<dict<number>> = []
+  if hit.uri ==# w.uri
+    for r in refs.References(hit.parsed, hit.lines, hit.symbol, true)
+      var text = hit.lines[r.line][r.col : r.end - 1]
+      uses->add({line: r.line, col: r.col + strridx(text, '#') + 1,
+        end: r.end})
+    endfor
+  else
+    # The name belongs to another script, only its uses here can be marked.
+    var shared = Shared(hit)
+    if shared == null_dict
+      return v:null
+    endif
+    uses = refs.UsesOf(w.parsed, w.doc.lines, w.path, shared)
+  endif
+  return uses->mapnew((_, r) => ({
+    range: util.Range(w.doc.lines, r.line, r.col, r.line, r.end, encoding),
+    kind: UseKind(w.doc.lines->get(r.line, ''), r.col, r.end),
+  }))
+enddef
+
 # The name proper of the token under the cursor and what defines it, for
 # renaming; null_dict when the name is neither defined in this document nor
 # shared by the script that defines it.
@@ -822,6 +902,8 @@ def Request(method: string, params: dict<any>): any
     return Definition(params)
   elseif method == 'textDocument/references'
     return References(params)
+  elseif method == 'textDocument/documentHighlight'
+    return Highlights(params)
   elseif method == 'textDocument/prepareRename'
     return PrepareRename(params)
   elseif method == 'textDocument/rename'

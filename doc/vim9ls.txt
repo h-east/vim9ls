@@ -148,6 +148,12 @@ or "try" with each of its branches, is seen from its declaration to the end
 of that block, so two blocks may declare the same name and are told apart.
 A block of its own, "{" to "}", is not told apart from what holds it.
 
+Document highlight marks the other uses of the name in the document alone,
+which is what an editor colors in the buffer it has open.  A declaration and
+an assignment ("x = 1", "x += 1") are reported as a write, everything else as
+a read.  A builtin function or a "v:" variable is marked by name, since the
+parser does not track what Vim itself defines.
+
 Signature help ~
 Inside a call, the signature of the function with the argument the cursor is
 in marked: for a builtin the first line of its help entry, with the rest of
