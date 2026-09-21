@@ -138,7 +138,7 @@ enddef
 # The state of one parse, handed to the functions below.
 def NewState(): dict<any>
   return {vim9: false, stack: [], top: [], diags: [], heredoc: '',
-    heredoc_lines: [], params: null_dict, params_depth: 0}
+    heredoc_lines: [], blocks: [], params: null_dict, params_depth: 0}
 enddef
 
 def Container(st: dict<any>): list<dict<any>>
@@ -197,6 +197,9 @@ def Close(st: dict<any>, closer: string, lnum: number, col: number,
   var entry = remove(st.stack, -1)
   if entry.symbol != null_dict
     entry.symbol.end_line = lnum
+  else
+    # A block with no name: a named one keeps its lines in its symbol.
+    add(st.blocks, {line: entry.line, end_line: lnum})
   endif
   EndScope(entry, lnum)
 enddef
@@ -576,7 +579,7 @@ export def Parse(lines: list<string>): dict<any>
   endfor
 
   return {vim9: st.vim9, symbols: st.top, diags: st.diags,
-    heredoc_lines: st.heredoc_lines}
+    heredoc_lines: st.heredoc_lines, blocks: st.blocks}
 enddef
 
 # Every symbol in the tree, flattened.

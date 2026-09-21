@@ -20,6 +20,7 @@ import autoload './vim9ls/compile.vim'
 import autoload './vim9ls/wrap.vim'
 import autoload './vim9ls/names.vim'
 import autoload './vim9ls/fix.vim'
+import autoload './vim9ls/fold.vim'
 import autoload './vim9ls/hints.vim'
 import autoload './vim9ls/infer.vim'
 
@@ -79,6 +80,7 @@ def Initialize(params: dict<any>): dict<any>
         resolveProvider: true},
       documentSymbolProvider: true,
       workspaceSymbolProvider: true,
+      foldingRangeProvider: true,
       definitionProvider: true,
       referencesProvider: true,
       documentHighlightProvider: true,
@@ -413,6 +415,14 @@ def AutoloadItems(w: dict<any>, prefix: string): list<dict<any>>
     w.col, encoding)
   return complete.ItemsOf(symbols, prefix)->map((_, item) =>
     extend(item, {textEdit: {range: range, newText: item.label}}))
+enddef
+
+def FoldingRanges(params: dict<any>): any
+  var d = docs->get(params.textDocument.uri, null_dict)
+  if d == null_dict
+    return v:null
+  endif
+  return fold.Ranges(Parsed(d), d.lines)
 enddef
 
 def DocumentSymbols(params: dict<any>): any
@@ -957,6 +967,8 @@ def Request(method: string, params: dict<any>): any
     return DocumentSymbols(params)
   elseif method == 'workspace/symbol'
     return WorkspaceSymbols(params)
+  elseif method == 'textDocument/foldingRange'
+    return FoldingRanges(params)
   elseif method == 'textDocument/definition'
     return Definition(params)
   elseif method == 'textDocument/references'

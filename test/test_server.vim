@@ -274,6 +274,44 @@ def g:Test_document_symbol()
   assert_false(symbols[0]->has_key('children'))
 enddef
 
+def g:Test_folding_range()
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc([
+    'vim9script',            # 0
+    "import './one.vim'",    # 1
+    "import './two.vim'",    # 2
+    '',                      # 3
+    '# What the next one is',  # 4
+    '# for, on two lines',   # 5
+    'def Outer(): number',   # 6
+    '  if true',             # 7
+    '    echo 1',            # 8
+    '  endif',               # 9
+    '  return 0',            # 10
+    'enddef',                # 11
+    '',                      # 12
+    'class Shape',           # 13
+    '  def Area(): number',  # 14
+    '    return 0',          # 15
+    '  enddef',              # 16
+    'endclass',              # 17
+    'def Unclosed()',        # 18
+  ])
+  var ranges = helper.Request('textDocument/foldingRange',
+    {textDocument: {uri: helper.URI}}).result
+  assert_equal([
+    {startLine: 1, endLine: 2, kind: 'imports'},
+    {startLine: 4, endLine: 5, kind: 'comment'},
+    {startLine: 6, endLine: 11},
+    {startLine: 7, endLine: 9},
+    {startLine: 13, endLine: 17},
+    {startLine: 14, endLine: 16},
+    # A function that is never closed reaches the end of the document.
+    {startLine: 18, endLine: 19},
+  ], ranges)
+enddef
+
 def g:Test_workspace_symbol()
   var root = helper.HERE .. '/Xproj'
   mkdir(root .. '/autoload', 'p')

@@ -66,6 +66,9 @@ See `:help vim9ls` for the details.
 - Document symbols: functions, variables, classes and their members, enums,
   interfaces, augroups, imports and user commands.  The same names are
   searched across the workspace with `workspace/symbol`.
+- Folding ranges: functions, classes, enums, interfaces, augroups, the
+  blocks of `if`, `while`, `for` and `try`, and the runs of comments and of
+  imports.
 - Definition, references and rename for what the script defines; definition
   follows imports and legacy autoload functions into other files, and
   references and rename follow an exported name or an autoload function into
@@ -86,7 +89,7 @@ See `:help vim9ls` for the details.
 ## Protocol coverage
 
 What this server does with each of the 95 requests and notifications in the
-LSP 3.18 meta model: 20 are answered, 10 are planned and listed in the TODO
+LSP 3.18 meta model: 21 are answered, 9 are planned and listed in the TODO
 below, and 65 are left out for the reason given.
 
 <details>
@@ -143,7 +146,7 @@ below, and 65 are left out for the reason given.
 | `codeLens/resolve` | no |  |
 | `textDocument/documentLink` | no | definition already follows an import to its file |
 | `documentLink/resolve` | no |  |
-| `textDocument/foldingRange` | planned | the blocks the parser already finds |
+| `textDocument/foldingRange` | yes | functions, classes, blocks, and the runs of comments and imports |
 | `textDocument/selectionRange` | no | Vim has text objects for that |
 | `textDocument/prepareCallHierarchy` | no |  |
 | `callHierarchy/incomingCalls` | no | references show the callers, and a function body its calls |
@@ -244,7 +247,7 @@ In the order they are meant to be taken up.
       the initializer, and the parameter names at a call from what
       signature help knows.
 - [x] `workspace/symbol` over the autoload and plugin files on `'runtimepath'`.
-- [ ] `textDocument/foldingRange`, from what the parser already knows.
+- [x] `textDocument/foldingRange`, from what the parser already knows.
 - [ ] `textDocument/typeDefinition`, `textDocument/implementation` and the
       type hierarchy for Vim9 classes and interfaces.
 - [ ] `textDocument/formatting` and `rangeFormatting` with Vim's own indent

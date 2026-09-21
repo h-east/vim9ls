@@ -127,6 +127,14 @@ around it.  The search answers with at most 200 names; an empty search text
 with the names of the open documents alone, since every script on
 'runtimepath' would be read for it.
 
+Folding ranges ~
+A range for each function, class, interface, enum, augroup and user command,
+for the block of an "if", "while", "for" or "try", and for a run of comment
+lines or of imports.  A range ends on the line that closes it, so ":enddef"
+is folded away with the function it ends; one that never closes reaches the
+end of the document.  Only ranges of two lines or more are reported, a fold
+that hides nothing being of no use.
+
 Definition, references and rename ~
 For the names the script defines: functions, variables and parameters, classes
 and their members, enum values, imports and user commands.  A name is looked
