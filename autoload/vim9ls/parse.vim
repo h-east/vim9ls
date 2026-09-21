@@ -325,7 +325,10 @@ def Statement(st: dict<any>, lnum: number, text: string, col: number,
   var cmd = first_cmd
   var arg_text = ArgText(rest, 0, word)
 
+  # Kept for the "def" below, which an "abstract" leaves without a body.
+  var abstract = false
   while MODIFIERS->has_key(cmd)
+    abstract = abstract || cmd == 'abstract'
     offset += strlen(rest) - strlen(arg_text)
     rest = arg_text
     word = matchstr(rest, '^\h\w*')
@@ -409,8 +412,8 @@ def Statement(st: dict<any>, lnum: number, text: string, col: number,
         st.params_depth = depth
       endif
     endif
-    # An interface only declares its methods, there is no body to close.
-    if !InKind(st, 'interface')
+    # A method that is only declared has no body to close.
+    if !InKind(st, 'interface') && !abstract
       Open(st, cmd, symbol, lnum)
     endif
   elseif CLOSES->has_key(cmd)

@@ -135,6 +135,29 @@ def g:Test_parse_all_symbols()
   assert_true(index(names, 'Green') >= 0)
 enddef
 
+# An abstract method is declared and not defined: nothing closes it, as with
+# a method of an interface.
+def g:Test_parse_abstract_method()
+  var lines =<< trim END
+    vim9script
+    abstract class Base
+      var name: string
+      abstract def Area(): number
+      def Describe(): string
+        return this.name
+      enddef
+    endclass
+    def After()
+    enddef
+  END
+  var parsed = parse.Parse(lines)
+  assert_equal([], parsed.diags)
+  assert_equal(['Base', 'After'], Names(parsed.symbols))
+  assert_equal(['name', 'Area', 'Describe'],
+    Names(parsed.symbols[0].children))
+  assert_equal(7, parsed.symbols[0].end_line)
+enddef
+
 # A generated table of a plugin is written on one line, tens of thousands of
 # characters of it; the bars in it are what has the line split into commands.
 def g:Test_parse_a_very_long_line()
