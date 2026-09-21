@@ -73,6 +73,8 @@ See `:help vim9ls` for the details.
   with, whether the type is written out or left to the initializer.
 - Implementation: from an interface or a class to the classes that implement
   or extend it, and from a method of one to the method of each.
+- Type hierarchy: what a class, an interface or an enum extends and
+  implements, and what names it in turn.
 - Definition, references and rename for what the script defines; definition
   follows imports and legacy autoload functions into other files, and
   references and rename follow an exported name or an autoload function into
@@ -93,7 +95,7 @@ See `:help vim9ls` for the details.
 ## Protocol coverage
 
 What this server does with each of the 95 requests and notifications in the
-LSP 3.18 meta model: 23 are answered, 7 are planned and listed in the TODO
+LSP 3.18 meta model: 26 are answered, 4 are planned and listed in the TODO
 below, and 65 are left out for the reason given.
 
 <details>
@@ -155,9 +157,9 @@ below, and 65 are left out for the reason given.
 | `textDocument/prepareCallHierarchy` | no |  |
 | `callHierarchy/incomingCalls` | no | references show the callers, and a function body its calls |
 | `callHierarchy/outgoingCalls` | no |  |
-| `textDocument/prepareTypeHierarchy` | planned | what a Vim9 class extends and implements, and what extends it |
-| `typeHierarchy/supertypes` | planned |  |
-| `typeHierarchy/subtypes` | planned |  |
+| `textDocument/prepareTypeHierarchy` | yes | a class, an interface or an enum starts a hierarchy |
+| `typeHierarchy/supertypes` | yes | what the type extends and implements |
+| `typeHierarchy/subtypes` | yes | the types that name it in their header |
 | `textDocument/semanticTokens/full` | no | Vim's syntax file does the highlighting |
 | `textDocument/semanticTokens/full/delta` | no |  |
 | `textDocument/semanticTokens/range` | no |  |
@@ -252,7 +254,7 @@ In the order they are meant to be taken up.
       signature help knows.
 - [x] `workspace/symbol` over the autoload and plugin files on `'runtimepath'`.
 - [x] `textDocument/foldingRange`, from what the parser already knows.
-- [ ] `textDocument/typeDefinition`, `textDocument/implementation` and the
+- [x] `textDocument/typeDefinition`, `textDocument/implementation` and the
       type hierarchy for Vim9 classes and interfaces.
 - [ ] `textDocument/formatting` and `rangeFormatting` with Vim's own indent
       script, run in the server; for editors other than Vim.

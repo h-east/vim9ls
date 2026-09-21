@@ -153,6 +153,15 @@ the classes found is not among them.  Looked in are the same scripts a
 workspace search reads.  Ask from the line that declares the interface, the
 class or the method.
 
+Type hierarchy ~
+A class, an interface or an enum starts one, asked for from the line that
+declares it.  Above it are the class it "extends" and the interfaces it
+"implements", an interface being able to extend another and an enum to
+implement one; below it are the types that name it in their header, the same
+ones the implementation of it leads to.  Each answer is one step: the client
+asks again for the next.  A name that leads nowhere, a type of a script that
+is neither imported nor open, is left out.
+
 Definition, references and rename ~
 For the names the script defines: functions, variables and parameters, classes
 and their members, enum values, imports and user commands.  A name is looked

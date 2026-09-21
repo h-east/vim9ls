@@ -390,6 +390,85 @@ def g:Test_implementation()
   endtry
 enddef
 
+def g:Test_type_hierarchy()
+  var root = helper.HERE .. '/Xproj'
+  mkdir(root .. '/plugin', 'p')
+  writefile(['vim9script', "import './xmain.vim' as xmain",
+    'class Square extends xmain.Shape', 'endclass'],
+    root .. '/plugin/xother.vim')
+  var main = root .. '/plugin/xmain.vim'
+  var uri = util.PathToUri(main)
+  try
+    helper.StartServer()
+    helper.Initialize()
+    # The other script imports this one, so it has to be on disk as well.
+    var lines = [
+      'vim9script',                       # 0
+      'export interface Drawable',        # 1
+      '  def Draw(): void',               # 2
+      'endinterface',                     # 3
+      'interface Solid extends Drawable', # 4
+      'endinterface',                     # 5
+      'export class Shape implements Drawable',  # 6
+      '  def Draw(): void',               # 7
+      '  enddef',                         # 8
+      'endclass',                         # 9
+      'enum Color implements Drawable',   # 10
+      '  Red',                            # 11
+      '  def Draw(): void',               # 12
+      '  enddef',                         # 13
+      'endenum',                          # 14
+      'def Plain()',                      # 15
+      'enddef',                           # 16
+    ]
+    writefile(lines, main)
+    helper.OpenDoc(lines, uri)
+    var Prepare = (line: number, character: number) => helper.Request(
+      'textDocument/prepareTypeHierarchy',
+      helper.Params(line, character, uri)).result
+
+    # A class, an interface and an enum start a hierarchy; a function does
+    # not.
+    var items = Prepare(6, 13)
+    assert_equal(['Shape'], items->mapnew((_, i) => i.name))
+    assert_equal(5, items[0].kind)
+    assert_equal({line: 6, character: 13}, items[0].selectionRange.start)
+    assert_equal(null, Prepare(15, 4))
+
+    # What it implements, through the alias of an import as well.
+    var supers = helper.Request('typeHierarchy/supertypes',
+      {item: items[0]}).result
+    assert_equal(['Drawable'], supers->mapnew((_, i) => i.name))
+    assert_equal(1, supers[0].range.start.line)
+
+    # An interface that extends one, and an enum that implements it, are
+    # both below it.
+    var drawable = Prepare(1, 17)[0]
+    var subs = helper.Request('typeHierarchy/subtypes',
+      {item: drawable}).result
+    assert_equal([['Solid', uri], ['Shape', uri], ['Color', uri]],
+      subs->mapnew((_, i) => [i.name, i.uri]))
+
+    # A class of another script, which names this one through its import.
+    var shape_subs = helper.Request('typeHierarchy/subtypes',
+      {item: items[0]}).result
+    assert_equal(['Square'], shape_subs->mapnew((_, i) => i.name))
+    assert_equal(util.PathToUri(root .. '/plugin/xother.vim'),
+      shape_subs[0].uri)
+
+    # Nothing is below an enum, and the item comes back from a file that is
+    # not open.
+    var square = shape_subs[0]
+    assert_equal(null, helper.Request('typeHierarchy/subtypes',
+      {item: square}).result)
+    var square_supers = helper.Request('typeHierarchy/supertypes',
+      {item: square}).result
+    assert_equal(['Shape'], square_supers->mapnew((_, i) => i.name))
+  finally
+    delete(root, 'rf')
+  endtry
+enddef
+
 def g:Test_folding_range()
   helper.StartServer()
   helper.Initialize()

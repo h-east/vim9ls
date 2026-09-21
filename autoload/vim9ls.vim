@@ -84,6 +84,7 @@ def Initialize(params: dict<any>): dict<any>
       definitionProvider: true,
       typeDefinitionProvider: true,
       implementationProvider: true,
+      typeHierarchyProvider: true,
       referencesProvider: true,
       documentHighlightProvider: true,
       renameProvider: {prepareProvider: true},
@@ -707,6 +708,30 @@ enddef
 
 # Where the type of the name at the cursor is defined.  A class, an
 # interface and an enum are a type themselves and lead to their own line.
+# The type "name" of the script "from", through the alias of an import when
+# there is one, as {uri, lines, parsed, path, symbol}; null_dict when it is
+# not found or is not a type.
+def ResolveType(from: dict<any>, alias: string, name: string): dict<any>
+  var script = from
+  if alias != ''
+    var imported = TopLevel(from.parsed, alias)
+    if imported == null_dict || imported.kind != parse.KIND_MODULE
+      return null_dict
+    endif
+    var file = refs.ImportFile(from.path, imported.detail,
+      imported->get('autoload', false))
+    script = file == '' ? null_dict : ScriptAt(file)
+    if script == null_dict
+      return null_dict
+    endif
+  endif
+  var target = TopLevel(script.parsed, name)
+  if target == null_dict || index(TYPE_KINDS, target.kind) < 0
+    return null_dict
+  endif
+  return extend({symbol: target}, script, 'keep')
+enddef
+
 def TypeDefinition(params: dict<any>): any
   var w = TokenWhere(params)
   if w == null_dict
@@ -724,24 +749,9 @@ def TypeDefinition(params: dict<any>): any
   if name == ''
     return v:null
   endif
-  var script = hit
-  if alias != ''
-    var imported = TopLevel(hit.parsed, alias)
-    if imported == null_dict || imported.kind != parse.KIND_MODULE
-      return v:null
-    endif
-    var file = refs.ImportFile(hit.path, imported.detail,
-      imported->get('autoload', false))
-    script = file == '' ? null_dict : ScriptAt(file)
-    if script == null_dict
-      return v:null
-    endif
-  endif
-  var target = TopLevel(script.parsed, name)
-  if target == null_dict || index(TYPE_KINDS, target.kind) < 0
-    return v:null
-  endif
-  return [Location(script.uri, script.lines, target)]
+  var found = ResolveType(hit, alias, name)
+  return found == null_dict ? v:null
+    : [Location(found.uri, found.lines, found.symbol)]
 enddef
 
 # The symbol whose name is at "lnum" and byte "col", the one the line
@@ -777,6 +787,52 @@ enddef
 # Where the name at the cursor is implemented: the classes that implement an
 # interface or extend a class, and their method of the same name when the
 # cursor is on a method.  Only what names the type itself counts.
+# Whether the type "s" names "parent" in its header: a class or an enum that
+# implements an interface, an interface that extends one, a class that
+# extends a class.
+def NamesType(s: dict<any>, parent: dict<any>): bool
+  # The name may come through the alias of an import: "extends lib.Shape".
+  var extends = '\<extends\s\+\%(\h\w*\.\)\=' .. parent.name .. '\>'
+  if parent.kind == parse.KIND_INTERFACE
+    return s.kind == parse.KIND_INTERFACE ? s.detail =~ extends
+      : s.detail =~ '\<implements\>.*\<' .. parent.name .. '\>'
+  endif
+  return parent.kind == parse.KIND_CLASS && s.kind == parse.KIND_CLASS
+    && s.detail =~ extends
+enddef
+
+# The types that name "parent" in their header, each as the script it is in
+# with its symbol.  Only what names it itself counts, so a class extending
+# one of the classes found is not among them.
+def Subtypes(parent: dict<any>): list<dict<any>>
+  var out: list<dict<any>> = []
+  var pat = '\<\%(extends\|implements\)\>.*\<' .. parent.name .. '\>'
+  for path in WorkspaceFiles()
+    if len(out) >= WORKSPACE_LIMIT
+      break
+    endif
+    var uri = util.PathToUri(path)
+    var lines = docs->has_key(uri) ? docs[uri].lines
+      : filereadable(path) ? readfile(path) : []
+    if match(lines, pat) < 0
+      continue
+    endif
+    var script = ScriptAt(path)
+    if script == null_dict
+      continue
+    endif
+    for s in script.parsed.symbols
+      if index(TYPE_KINDS, s.kind) >= 0 && NamesType(s, parent)
+        out->add(extend({symbol: s}, script, 'keep'))
+      endif
+    endfor
+  endfor
+  return out
+enddef
+
+# Where the name at the cursor is implemented: the types that name it in
+# their header, and their method of the same name when the cursor is on a
+# method.
 def Implementation(params: dict<any>): any
   var w = TokenWhere(params)
   if w == null_dict
@@ -803,39 +859,100 @@ def Implementation(params: dict<any>): any
   if index(TYPE_KINDS, type.kind) < 0
     return v:null
   endif
-  var pat = type.kind == parse.KIND_INTERFACE
-    ? '\<implements\>.*\<' .. type.name .. '\>'
-    : '\<extends\s\+' .. type.name .. '\>'
   var out: list<dict<any>> = []
-  for path in WorkspaceFiles()
-    if len(out) >= WORKSPACE_LIMIT
-      break
-    endif
-    var uri = util.PathToUri(path)
-    var lines = docs->has_key(uri) ? docs[uri].lines
-      : filereadable(path) ? readfile(path) : []
-    if match(lines, pat) < 0
-      continue
-    endif
-    var script = ScriptAt(path)
-    if script == null_dict
-      continue
-    endif
-    for s in script.parsed.symbols
-      if s.kind != parse.KIND_CLASS || s.detail !~ pat
+  for sub in Subtypes(type)
+    var target = sub.symbol
+    if method != ''
+      var members = target.children->copy()->filter((_, c) => c.name == method)
+      if members->empty()
         continue
       endif
-      var target = s
-      if method != ''
-        var members = s.children->copy()->filter((_, c) => c.name == method)
-        if members->empty()
-          continue
-        endif
-        target = members[0]
-      endif
-      out->add(Location(script.uri, script.lines, target))
-    endfor
+      target = members[0]
+    endif
+    out->add(Location(sub.uri, sub.lines, target))
   endfor
+  return out->empty() ? v:null : out
+enddef
+
+# A type the way the protocol passes it around: the range is the type with
+# its body, the selection range its name.
+def TypeItem(script: dict<any>, s: dict<any>): dict<any>
+  return {
+    name: s.name,
+    kind: s.kind,
+    uri: script.uri,
+    range: util.Range(script.lines, s.line, s.col, s.end_line,
+      strlen(script.lines->get(s.end_line, '')), encoding),
+    selectionRange: util.Range(script.lines, s.line, s.name_col, s.line,
+      s.name_end, encoding),
+  }
+enddef
+
+# The type an item of the protocol stands for, as the script it is in with
+# its symbol; null_dict when the file or the name is gone.
+def TypeFromItem(item: any): dict<any>
+  if type(item) != v:t_dict || !item->has_key('uri')
+    return null_dict
+  endif
+  var script = ScriptAt(util.UriToPath(item.uri))
+  if script == null_dict
+    return null_dict
+  endif
+  var start = item->get('selectionRange', {})->get('start', {})
+  var lnum = start->get('line', 0)
+  var col = util.ColFromLsp(script.lines->get(lnum, ''),
+    start->get('character', 0), encoding)
+  var s = SymbolAt(script.parsed.symbols, lnum, col)
+  # The path is what an import of that script is looked for from.
+  return s == null_dict || index(TYPE_KINDS, s.kind) < 0 ? null_dict
+    : extend({symbol: s, path: util.UriToPath(item.uri)}, script, 'keep')
+enddef
+
+# The type hierarchy starts at a class, an interface or an enum; it is asked
+# for from the line that declares one.
+def PrepareTypeHierarchy(params: dict<any>): any
+  var w = TokenWhere(params)
+  if w == null_dict
+    return v:null
+  endif
+  var found = SymbolAt(w.parsed.symbols, w.lnum, w.col)
+  var hit = found != null_dict
+    ? {uri: w.uri, lines: w.doc.lines, parsed: w.parsed, symbol: found}
+    : Lookup(w, w.token)
+  if hit == null_dict || index(TYPE_KINDS, hit.symbol.kind) < 0
+    return v:null
+  endif
+  return [TypeItem(hit, hit.symbol)]
+enddef
+
+# What the type of the item extends and implements, in the order its header
+# names them.  A name that leads nowhere is left out.
+def Supertypes(params: dict<any>): any
+  var hit = TypeFromItem(params->get('item', null))
+  if hit == null_dict
+    return v:null
+  endif
+  var out: list<dict<any>> = []
+  for name in split(hit.symbol.detail, '\%(\<\%(extends\|implements\)\>\|,\)')
+    var [alias, plain] = TypeName(name)
+    if plain == ''
+      continue
+    endif
+    var above = ResolveType(hit, alias, plain)
+    if above != null_dict
+      out->add(TypeItem(above, above.symbol))
+    endif
+  endfor
+  return out->empty() ? v:null : out
+enddef
+
+# The subtypes of the item, as items of their own.
+def SubtypeItems(params: dict<any>): any
+  var hit = TypeFromItem(params->get('item', null))
+  if hit == null_dict
+    return v:null
+  endif
+  var out = Subtypes(hit.symbol)->mapnew((_, sub) => TypeItem(sub, sub.symbol))
   return out->empty() ? v:null : out
 enddef
 
@@ -1122,6 +1239,12 @@ def Request(method: string, params: dict<any>): any
     return TypeDefinition(params)
   elseif method == 'textDocument/implementation'
     return Implementation(params)
+  elseif method == 'textDocument/prepareTypeHierarchy'
+    return PrepareTypeHierarchy(params)
+  elseif method == 'typeHierarchy/supertypes'
+    return Supertypes(params)
+  elseif method == 'typeHierarchy/subtypes'
+    return SubtypeItems(params)
   elseif method == 'textDocument/references'
     return References(params)
   elseif method == 'textDocument/documentHighlight'
