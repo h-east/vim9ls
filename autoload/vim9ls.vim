@@ -83,6 +83,7 @@ def Initialize(params: dict<any>): dict<any>
       foldingRangeProvider: true,
       definitionProvider: true,
       typeDefinitionProvider: true,
+      implementationProvider: true,
       referencesProvider: true,
       documentHighlightProvider: true,
       renameProvider: {prepareProvider: true},
@@ -743,6 +744,101 @@ def TypeDefinition(params: dict<any>): any
   return [Location(script.uri, script.lines, target)]
 enddef
 
+# The symbol whose name is at "lnum" and byte "col", the one the line
+# declares rather than one it uses; null_dict when the cursor is elsewhere.
+def SymbolAt(symbols: list<dict<any>>, lnum: number, col: number): dict<any>
+  for s in parse.AllSymbols(symbols)
+    if s.line == lnum && s.name_col <= col && col < s.name_end
+      return s
+    endif
+  endfor
+  return null_dict
+enddef
+
+# The class, interface or enum the symbol "want" is a member of; null_dict
+# when it is not a member of one.
+def Enclosing(symbols: list<dict<any>>, want: dict<any>): dict<any>
+  for s in symbols
+    if index(TYPE_KINDS, s.kind) >= 0
+      for c in s.children
+        if c is want
+          return s
+        endif
+      endfor
+    endif
+    var found = Enclosing(s.children, want)
+    if found != null_dict
+      return found
+    endif
+  endfor
+  return null_dict
+enddef
+
+# Where the name at the cursor is implemented: the classes that implement an
+# interface or extend a class, and their method of the same name when the
+# cursor is on a method.  Only what names the type itself counts.
+def Implementation(params: dict<any>): any
+  var w = TokenWhere(params)
+  if w == null_dict
+    return v:null
+  endif
+  # The question is asked from the line that declares the name, an interface
+  # method for one, and not from a use of it, which is what Lookup() finds.
+  var found = SymbolAt(w.parsed.symbols, w.lnum, w.col)
+  var hit = found != null_dict
+    ? {uri: w.uri, lines: w.doc.lines, parsed: w.parsed, symbol: found}
+    : Lookup(w, w.token)
+  if hit == null_dict
+    return v:null
+  endif
+  var type = hit.symbol
+  var method = ''
+  if type.kind == parse.KIND_METHOD
+    method = type.name
+    type = Enclosing(hit.parsed.symbols, type)
+    if type == null_dict
+      return v:null
+    endif
+  endif
+  if index(TYPE_KINDS, type.kind) < 0
+    return v:null
+  endif
+  var pat = type.kind == parse.KIND_INTERFACE
+    ? '\<implements\>.*\<' .. type.name .. '\>'
+    : '\<extends\s\+' .. type.name .. '\>'
+  var out: list<dict<any>> = []
+  for path in WorkspaceFiles()
+    if len(out) >= WORKSPACE_LIMIT
+      break
+    endif
+    var uri = util.PathToUri(path)
+    var lines = docs->has_key(uri) ? docs[uri].lines
+      : filereadable(path) ? readfile(path) : []
+    if match(lines, pat) < 0
+      continue
+    endif
+    var script = ScriptAt(path)
+    if script == null_dict
+      continue
+    endif
+    for s in script.parsed.symbols
+      if s.kind != parse.KIND_CLASS || s.detail !~ pat
+        continue
+      endif
+      var target = s
+      if method != ''
+        var members = s.children->copy()->filter((_, c) => c.name == method)
+        if members->empty()
+          continue
+        endif
+        target = members[0]
+      endif
+      out->add(Location(script.uri, script.lines, target))
+    endfor
+  endfor
+  return out->empty() ? v:null : out
+enddef
+
 # The signature of the function a script defines: its name and what follows
 # it on the "def" or "function" line, up to the ")" for a legacy function.
 def ScriptSignature(s: dict<any>): string
@@ -1024,6 +1120,8 @@ def Request(method: string, params: dict<any>): any
     return Definition(params)
   elseif method == 'textDocument/typeDefinition'
     return TypeDefinition(params)
+  elseif method == 'textDocument/implementation'
+    return Implementation(params)
   elseif method == 'textDocument/references'
     return References(params)
   elseif method == 'textDocument/documentHighlight'

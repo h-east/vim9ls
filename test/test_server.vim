@@ -336,6 +336,60 @@ def g:Test_type_definition()
   endtry
 enddef
 
+def g:Test_implementation()
+  var root = helper.HERE .. '/Xproj'
+  mkdir(root .. '/plugin', 'p')
+  writefile(['vim9script', "import './xmain.vim' as xmain",
+    'class Square implements xmain.Drawable', '  def Draw(): void',
+    '  enddef', 'endclass'], root .. '/plugin/xother.vim')
+  var uri = util.PathToUri(root .. '/plugin/xmain.vim')
+  try
+    helper.StartServer()
+    helper.Initialize()
+    helper.OpenDoc([
+      'vim9script',                      # 0
+      'export interface Drawable',       # 1
+      '  def Draw(): void',              # 2
+      'endinterface',                    # 3
+      'abstract class Base',             # 4
+      '  abstract def Area(): number',   # 5
+      'endclass',                        # 6
+      'class Circle implements Drawable',  # 7
+      '  def Draw(): void',              # 8
+      '  enddef',                        # 9
+      'endclass',                        # 10
+      'class Box extends Base',          # 11
+      '  def Area(): number',            # 12
+      '    return 0',                    # 13
+      '  enddef',                        # 14
+      'endclass',                        # 15
+    ], uri)
+    var Ask = (line: number, character: number) => helper.Request(
+      'textDocument/implementation',
+      helper.Params(line, character, uri)).result
+
+    # The interface: the classes that implement it, here and in the other
+    # script, which names it through the alias of its import.
+    var got = Ask(1, 17)
+    assert_equal([[uri, 7], [util.PathToUri(root .. '/plugin/xother.vim'), 2]],
+      got->mapnew((_, l) => [l.uri, l.range.start.line])->sort())
+    # The method of the interface: the method of each class.
+    assert_equal([8, 3], Ask(2, 6)
+      ->mapnew((_, l) => l.range.start.line))
+
+    # A class that is extended, and the abstract method in it.
+    assert_equal([[uri, 11]], Ask(4, 15)
+      ->mapnew((_, l) => [l.uri, l.range.start.line]))
+    assert_equal([[uri, 12]], Ask(5, 15)
+      ->mapnew((_, l) => [l.uri, l.range.start.line]))
+
+    # Nothing implements a class nothing extends.
+    assert_equal(null, Ask(7, 6))
+  finally
+    delete(root, 'rf')
+  endtry
+enddef
+
 def g:Test_folding_range()
   helper.StartServer()
   helper.Initialize()

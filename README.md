@@ -71,6 +71,8 @@ See `:help vim9ls` for the details.
   imports.
 - Type definition: from a name to the class, interface or enum it is typed
   with, whether the type is written out or left to the initializer.
+- Implementation: from an interface or a class to the classes that implement
+  or extend it, and from a method of one to the method of each.
 - Definition, references and rename for what the script defines; definition
   follows imports and legacy autoload functions into other files, and
   references and rename follow an exported name or an autoload function into
@@ -91,7 +93,7 @@ See `:help vim9ls` for the details.
 ## Protocol coverage
 
 What this server does with each of the 95 requests and notifications in the
-LSP 3.18 meta model: 22 are answered, 8 are planned and listed in the TODO
+LSP 3.18 meta model: 23 are answered, 7 are planned and listed in the TODO
 below, and 65 are left out for the reason given.
 
 <details>
@@ -138,7 +140,7 @@ below, and 65 are left out for the reason given.
 | `textDocument/declaration` | no | Vim script declares nothing apart from the definition |
 | `textDocument/definition` | yes |  |
 | `textDocument/typeDefinition` | yes | the class, interface or enum a name is typed with, declared or inferred |
-| `textDocument/implementation` | planned | the classes that implement a Vim9 interface |
+| `textDocument/implementation` | yes | the classes that implement an interface or extend a class, and their method of the same name |
 | `textDocument/references` | yes |  |
 | `textDocument/documentHighlight` | yes | the other uses of the name in the document, a declaration or an assignment marked as a write |
 | `textDocument/documentSymbol` | yes |  |

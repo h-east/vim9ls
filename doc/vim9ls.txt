@@ -144,6 +144,15 @@ import it comes from.  A type of Vim's own, "string" or "list<number>", has
 nothing to go to.  As with the definition of a name, ask from where the name
 is used rather than from the line that declares it.
 
+Implementation ~
+From an interface to the classes that "implements" it, and from a class to
+the ones that "extends" it, whether it is abstract or not.  From a method of
+an interface or an abstract class to the method of the same name in each of
+them.  What names the type itself is what counts: a class extending one of
+the classes found is not among them.  Looked in are the same scripts a
+workspace search reads.  Ask from the line that declares the interface, the
+class or the method.
+
 Definition, references and rename ~
 For the names the script defines: functions, variables and parameters, classes
 and their members, enum values, imports and user commands.  A name is looked
