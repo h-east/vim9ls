@@ -78,6 +78,7 @@ def Initialize(params: dict<any>): dict<any>
       completionProvider: {triggerCharacters: ['&', ':'],
         resolveProvider: true},
       documentSymbolProvider: true,
+      workspaceSymbolProvider: true,
       definitionProvider: true,
       referencesProvider: true,
       documentHighlightProvider: true,
@@ -567,6 +568,62 @@ def UsersOf(path: string): list<string>
   return sort(paths)->uniq()->filter((_, p) => p != path)
 enddef
 
+# How many symbols a workspace search answers with.
+const WORKSPACE_LIMIT = 200
+
+# The scripts a workspace search reads: the open documents, the plugin each
+# one belongs to, and the autoload and plugin files on 'runtimepath'.
+def WorkspaceFiles(): list<string>
+  var paths: list<string> = []
+  for uri in keys(docs)
+    var path = util.UriToPath(uri)
+    add(paths, path)
+    paths->extend(UsersOf(path))
+  endfor
+  for dir in split(&runtimepath, ',')
+    for under in ['autoload', 'plugin']
+      paths->extend(glob(dir .. '/' .. under .. '/**/*.vim', true, true)
+        ->map((_, f) => util.FullPath(f)))
+    endfor
+  endfor
+  return sort(paths)->uniq()
+enddef
+
+# The symbols whose name holds the query.  An empty query is answered with
+# the open documents alone: every script on 'runtimepath' would be read.
+def WorkspaceSymbols(params: dict<any>): list<dict<any>>
+  var query = params->get('query', '')
+  var out: list<dict<any>> = []
+  if query == ''
+    for [uri, d] in items(docs)
+      out->extend(symbol.WorkspaceSymbols(Parsed(d).symbols, d.lines, uri,
+        '', encoding))
+    endfor
+    return out[: WORKSPACE_LIMIT - 1]
+  endif
+  # A script the query does not occur in defines no name holding it, and
+  # reading a script is cheaper than parsing it.
+  var pat = '\c\V' .. escape(query, '\')
+  for path in WorkspaceFiles()
+    if len(out) >= WORKSPACE_LIMIT
+      break
+    endif
+    var uri = util.PathToUri(path)
+    var lines = docs->has_key(uri) ? docs[uri].lines
+      : filereadable(path) ? readfile(path) : []
+    if match(lines, pat) < 0
+      continue
+    endif
+    var script = ScriptAt(path)
+    if script == null_dict
+      continue
+    endif
+    out->extend(symbol.WorkspaceSymbols(script.parsed.symbols, script.lines,
+      script.uri, query, encoding))
+  endfor
+  return out[: WORKSPACE_LIMIT - 1]
+enddef
+
 # The script at "path" when "name" occurs in its text, null_dict otherwise;
 # a script without it needs no parsing.
 def Mentions(path: string, name: string): dict<any>
@@ -898,6 +955,8 @@ def Request(method: string, params: dict<any>): any
     return ResolveItem(params)
   elseif method == 'textDocument/documentSymbol'
     return DocumentSymbols(params)
+  elseif method == 'workspace/symbol'
+    return WorkspaceSymbols(params)
   elseif method == 'textDocument/definition'
     return Definition(params)
   elseif method == 'textDocument/references'

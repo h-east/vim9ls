@@ -274,6 +274,50 @@ def g:Test_document_symbol()
   assert_false(symbols[0]->has_key('children'))
 enddef
 
+def g:Test_workspace_symbol()
+  var root = helper.HERE .. '/Xproj'
+  mkdir(root .. '/autoload', 'p')
+  mkdir(root .. '/plugin', 'p')
+  writefile(['vim9script', 'export def XprojGreet(): string',
+    "  return 'hi'", 'enddef', 'export const XPROJ_LIMIT = 3'],
+    root .. '/autoload/xlib.vim')
+  writefile(['vim9script', 'class XprojShape', '  var name: string',
+    '  def XprojArea(): number', '    return 0', '  enddef', 'endclass'],
+    root .. '/plugin/xclass.vim')
+  var uri = util.PathToUri(root .. '/plugin/xmain.vim')
+  try
+    helper.StartServer()
+    helper.Initialize()
+    helper.OpenDoc(['vim9script', 'def XprojRun()', 'enddef'], uri)
+
+    # The query is matched without regard to case, in the files of the
+    # plugin the open document belongs to as well as in the document.
+    var found = helper.Request('workspace/symbol', {query: 'xprojg'}).result
+    assert_equal(['XprojGreet'], found->mapnew((_, s) => s.name))
+    assert_equal(util.PathToUri(root .. '/autoload/xlib.vim'),
+      found[0].location.uri)
+    assert_equal({start: {line: 1, character: 11},
+      end: {line: 1, character: 21}}, found[0].location.range)
+
+    found = helper.Request('workspace/symbol', {query: 'xproj'}).result
+    assert_equal(['XPROJ_LIMIT', 'XprojArea', 'XprojGreet', 'XprojRun',
+      'XprojShape'], sort(found->mapnew((_, s) => s.name)))
+    # A method carries the class it is in.
+    var area = found->copy()->filter((_, s) => s.name == 'XprojArea')[0]
+    assert_equal('XprojShape', area.containerName)
+    assert_equal(6, area.kind)
+    assert_false(found->copy()
+      ->filter((_, s) => s.name == 'XprojGreet')[0]->has_key('containerName'))
+
+    # An empty query is answered with the open documents alone.
+    found = helper.Request('workspace/symbol', {query: ''}).result
+    assert_equal(['XprojRun'], found->mapnew((_, s) => s.name))
+    assert_equal(uri, found[0].location.uri)
+  finally
+    delete(root, 'rf')
+  endtry
+enddef
+
 # A quick fix for each of the three things the parser reports.
 def g:Test_inlay_hint()
   helper.StartServer()

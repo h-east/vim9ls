@@ -64,7 +64,8 @@ See `:help vim9ls` for the details.
   defines; after a `.` the exported names of an import or the members of a
   class, after `foo#bar#` the autoload functions of that file.
 - Document symbols: functions, variables, classes and their members, enums,
-  interfaces, augroups, imports and user commands.
+  interfaces, augroups, imports and user commands.  The same names are
+  searched across the workspace with `workspace/symbol`.
 - Definition, references and rename for what the script defines; definition
   follows imports and legacy autoload functions into other files, and
   references and rename follow an exported name or an autoload function into
@@ -85,7 +86,7 @@ See `:help vim9ls` for the details.
 ## Protocol coverage
 
 What this server does with each of the 95 requests and notifications in the
-LSP 3.18 meta model: 19 are answered, 11 are planned and listed in the TODO
+LSP 3.18 meta model: 20 are answered, 10 are planned and listed in the TODO
 below, and 65 are left out for the reason given.
 
 <details>
@@ -174,11 +175,11 @@ below, and 65 are left out for the reason given.
 
 | Method | State | Note |
 | --- | --- | --- |
-| `workspace/symbol` | planned | the names the autoload and plugin files on 'runtimepath' define |
+| `workspace/symbol` | yes | the names of the open documents, of their plugins, and of the autoload and plugin files on 'runtimepath' |
 | `workspaceSymbol/resolve` | no |  |
 | `workspace/configuration` | no | nothing to configure |
 | `workspace/didChangeConfiguration` | no |  |
-| `workspace/workspaceFolders` | no | the server reads the file it is given and the files it imports; there is no workspace |
+| `workspace/workspaceFolders` | no | the files a search reads are worked out from the open documents and 'runtimepath' |
 | `workspace/didChangeWorkspaceFolders` | no |  |
 | `workspace/didChangeWatchedFiles` | no |  |
 | `workspace/executeCommand` | no | nothing here runs a command |
@@ -242,7 +243,7 @@ In the order they are meant to be taken up.
 - [x] `textDocument/inlayHint` with the type of a `var` that leaves it to
       the initializer, and the parameter names at a call from what
       signature help knows.
-- [ ] `workspace/symbol` over the autoload and plugin files on `'runtimepath'`.
+- [x] `workspace/symbol` over the autoload and plugin files on `'runtimepath'`.
 - [ ] `textDocument/foldingRange`, from what the parser already knows.
 - [ ] `textDocument/typeDefinition`, `textDocument/implementation` and the
       type hierarchy for Vim9 classes and interfaces.
