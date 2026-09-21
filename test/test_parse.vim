@@ -135,4 +135,35 @@ def g:Test_parse_all_symbols()
   assert_true(index(names, 'Green') >= 0)
 enddef
 
+# A generated table of a plugin is written on one line, tens of thousands of
+# characters of it; the bars in it are what has the line split into commands.
+def g:Test_parse_a_very_long_line()
+  var table = 'var table = {' .. repeat("'key': {'sig': 'a | b'}, ", 4000)
+    .. '}'
+  var lines = ['vim9script', 'def Before()', 'enddef', table,
+    'def After()', 'enddef']
+  var start = reltime()
+  var parsed = parse.Parse(lines)
+  var took = reltimefloat(reltime(start))
+
+  assert_equal(['Before', 'table', 'After'], Names(parsed.symbols))
+  assert_equal([], parsed.diags)
+  # Walking the line by character index takes over ten seconds for this
+  # one; the bound is loose, a machine under load is nowhere near it.
+  assert_true(took < 5.0, printf('%d characters took %.1fs',
+    strlen(table), took))
+enddef
+
+# The offsets of the commands a bar separates are counted in bytes, the way
+# the rest of the parser counts columns.
+def g:Test_parse_bar_after_multibyte()
+  var parsed = parse.Parse(['vim9script', "var x = 'あいう' | var after = 1"])
+  var after = parsed.symbols->filter((_, s) => s.name == 'after')
+  assert_equal(1, len(after))
+  assert_equal(1, after[0].line)
+  # "var x = 'あいう' | var " is 26 bytes, the name starts after it.
+  assert_equal(26, after[0].name_col)
+  assert_equal(31, after[0].name_end)
+enddef
+
 # vim: ts=2 sw=0 et

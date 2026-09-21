@@ -226,15 +226,19 @@ enddef
 # depth at the end of "text" when there is no such ")".
 def HeaderEnd(text: string, depth: number): list<number>
   var d = depth
-  for i in range(strlen(text))
-    if text[i] == '('
+  var byte = 0
+  # Indexing a string is by character and counts from its start every time,
+  # so a long line is walked over its characters instead.
+  for c in split(text, '\zs')
+    if c == '('
       d += 1
-    elseif text[i] == ')'
+    elseif c == ')'
       d -= 1
       if d == 0
-        return [i, 0]
+        return [byte, 0]
       endif
     endif
+    byte += strlen(c)
   endfor
   return [strlen(text), d]
 enddef
@@ -244,35 +248,46 @@ enddef
 # a string that does not end.
 def Parts(text: string): list<list<any>>
   var parts: list<list<any>> = []
+  # The characters of the line, and the byte the current one starts at: the
+  # offsets go out as columns, which the rest of the parser counts in bytes.
+  var chars = split(text, '\zs')
+  var len = len(chars)
   var start = 0
+  var byte = 0
   var quote = ''
-  var len = strlen(text)
   var i = 0
   while i < len
-    var c = text[i]
+    var c = chars[i]
+    # Whether the character after this one belongs to it.
+    var pair = false
     if quote != ''
       if c == quote
-        if quote == "'" && text[i + 1] == "'"
-          i += 1
+        if quote == "'" && i + 1 < len && chars[i + 1] == "'"
+          pair = true
         else
           quote = ''
         endif
       elseif quote == '"' && c == '\'
-        i += 1
+        pair = true
       endif
     elseif c == "'" || c == '"'
       quote = c
     elseif c == '|'
-      if text[i + 1] == '|'
-        i += 1
-      elseif i == 0 || text[i - 1] != '\'
-        add(parts, [start, text[start : i - 1]])
-        start = i + 1
+      if i + 1 < len && chars[i + 1] == '|'
+        pair = true
+      elseif i == 0 || chars[i - 1] != '\'
+        add(parts, [start, strpart(text, start, byte - start)])
+        start = byte + 1
       endif
     endif
+    byte += strlen(c)
     i += 1
+    if pair
+      byte += strlen(chars[i])
+      i += 1
+    endif
   endwhile
-  add(parts, [start, text[start :]])
+  add(parts, [start, strpart(text, start)])
   return parts
 enddef
 
