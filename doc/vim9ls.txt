@@ -162,6 +162,19 @@ ones the implementation of it leads to.  Each answer is one step: the client
 asks again for the next.  A name that leads nowhere, a type of a script that
 is neither imported nor open, is left out.
 
+Formatting ~
+The indent of every line, as the indent script of Vim itself lays it out,
+with 'tabstop', 'shiftwidth' and 'expandtab' set to what the client asks for
+in "tabSize" and "insertSpaces".  Nothing else of the text is moved: Vim has
+no other way of its own to lay out a script.  The blanks at the end of a
+line, the newline at the end of the document and the empty lines before it
+are seen to where the client asks for that as well.  A range is taken by
+whole lines, the columns of it having no use for an indent.
+The answer is one change per line that differs, so a document that is
+already laid out comes back with nothing to do.  A whole script takes its
+time: what is asked for is what ":normal gg=G" does, and that is Vim script
+reading every line.
+
 Definition, references and rename ~
 For the names the script defines: functions, variables and parameters, classes
 and their members, enum values, imports and user commands.  A name is looked

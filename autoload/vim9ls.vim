@@ -21,6 +21,7 @@ import autoload './vim9ls/wrap.vim'
 import autoload './vim9ls/names.vim'
 import autoload './vim9ls/fix.vim'
 import autoload './vim9ls/fold.vim'
+import autoload './vim9ls/format.vim'
 import autoload './vim9ls/hints.vim'
 import autoload './vim9ls/infer.vim'
 
@@ -85,6 +86,8 @@ def Initialize(params: dict<any>): dict<any>
       typeDefinitionProvider: true,
       implementationProvider: true,
       typeHierarchyProvider: true,
+      documentFormattingProvider: true,
+      documentRangeFormattingProvider: true,
       referencesProvider: true,
       documentHighlightProvider: true,
       renameProvider: {prepareProvider: true},
@@ -418,6 +421,30 @@ def AutoloadItems(w: dict<any>, prefix: string): list<dict<any>>
     w.col, encoding)
   return complete.ItemsOf(symbols, prefix)->map((_, item) =>
     extend(item, {textEdit: {range: range, newText: item.label}}))
+enddef
+
+# The whole document, indented the way Vim itself would.
+def Formatting(params: dict<any>): any
+  var d = docs->get(params.textDocument.uri, null_dict)
+  if d == null_dict
+    return v:null
+  endif
+  return format.Edits(d.lines, 0, len(d.lines) - 1,
+    params->get('options', {}), encoding)
+enddef
+
+# The lines of the range, indented; a line is taken whole, the columns of
+# the range are of no use for an indent.
+def RangeFormatting(params: dict<any>): any
+  var d = docs->get(params.textDocument.uri, null_dict)
+  if d == null_dict
+    return v:null
+  endif
+  var first = params->get('range', {})->get('start', {})->get('line', 0)
+  var last = params->get('range', {})->get('end', {})->get('line', first)
+  var end = len(d.lines) - 1
+  return format.Edits(d.lines, min([first, end]), min([last, end]),
+    params->get('options', {}), encoding)
 enddef
 
 def FoldingRanges(params: dict<any>): any
@@ -1239,6 +1266,10 @@ def Request(method: string, params: dict<any>): any
     return TypeDefinition(params)
   elseif method == 'textDocument/implementation'
     return Implementation(params)
+  elseif method == 'textDocument/formatting'
+    return Formatting(params)
+  elseif method == 'textDocument/rangeFormatting'
+    return RangeFormatting(params)
   elseif method == 'textDocument/prepareTypeHierarchy'
     return PrepareTypeHierarchy(params)
   elseif method == 'typeHierarchy/supertypes'

@@ -75,6 +75,9 @@ See `:help vim9ls` for the details.
   or extend it, and from a method of one to the method of each.
 - Type hierarchy: what a class, an interface or an enum extends and
   implements, and what names it in turn.
+- Formatting of the document or of a range, with the indent script of Vim
+  itself; the blanks at the end of a line and the newline at the end of the
+  document are seen to when the client asks for it.
 - Definition, references and rename for what the script defines; definition
   follows imports and legacy autoload functions into other files, and
   references and rename follow an exported name or an autoload function into
@@ -95,7 +98,7 @@ See `:help vim9ls` for the details.
 ## Protocol coverage
 
 What this server does with each of the 95 requests and notifications in the
-LSP 3.18 meta model: 26 are answered, 4 are planned and listed in the TODO
+LSP 3.18 meta model: 28 are answered, 2 are planned and listed in the TODO
 below, and 65 are left out for the reason given.
 
 <details>
@@ -167,8 +170,8 @@ below, and 65 are left out for the reason given.
 | `inlayHint/resolve` | no | a hint comes complete |
 | `textDocument/publishDiagnostics` | yes | after the changes pause |
 | `textDocument/diagnostic` | no | diagnostics are sent, not asked for |
-| `textDocument/formatting` | planned | Vim's own indent script, run in the server; for editors other than Vim |
-| `textDocument/rangeFormatting` | planned |  |
+| `textDocument/formatting` | yes | Vim's own indent script, run in the server; for editors other than Vim |
+| `textDocument/rangeFormatting` | yes | the lines of the range, taken whole |
 | `textDocument/rangesFormatting` | no |  |
 | `textDocument/onTypeFormatting` | no | Vim indents as you type on its own |
 | `textDocument/rename` | yes |  |
@@ -256,7 +259,7 @@ In the order they are meant to be taken up.
 - [x] `textDocument/foldingRange`, from what the parser already knows.
 - [x] `textDocument/typeDefinition`, `textDocument/implementation` and the
       type hierarchy for Vim9 classes and interfaces.
-- [ ] `textDocument/formatting` and `rangeFormatting` with Vim's own indent
+- [x] `textDocument/formatting` and `rangeFormatting` with Vim's own indent
       script, run in the server; for editors other than Vim.
 - [x] Tests on MS-Windows in CI, and the launchers `bin/vim9ls` and
       `bin/vim9ls.cmd` started the way a client starts them.

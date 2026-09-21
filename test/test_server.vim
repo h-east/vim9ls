@@ -469,6 +469,78 @@ def g:Test_type_hierarchy()
   endtry
 enddef
 
+def g:Test_formatting()
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc([
+    'vim9script',            # 0
+    'def F(): number',       # 1
+    'if true',               # 2
+    'var x = 1   ',          # 3, with blanks at the end
+    'endif',                 # 4
+    'return 0',              # 5
+    'enddef',                # 6
+  ])
+  var Ask = (method: string, params: dict<any>) => helper.Request(method,
+    extend({textDocument: {uri: helper.URI}}, params)).result
+
+  # Two spaces of indent, and a line that is already right is left alone.
+  var edits = Ask('textDocument/formatting',
+    {options: {tabSize: 2, insertSpaces: true}})
+  assert_equal([[2, '  if true'], [3, '    var x = 1   '],
+    [4, '  endif'], [5, '  return 0']],
+    edits->mapnew((_, e) => [e.range.start.line, e.newText]))
+  assert_equal({line: 2, character: 0}, edits[0].range.start)
+  assert_equal({line: 2, character: 7}, edits[0].range.end)
+
+  # A tab of indent, and the blanks at the end taken off where it was asked
+  # for.
+  edits = Ask('textDocument/formatting',
+    {options: {tabSize: 4, insertSpaces: false,
+      trimTrailingWhitespace: true}})
+  assert_equal([[2, "\tif true"], [3, "\t\tvar x = 1"],
+    [4, "\tendif"], [5, "\treturn 0"]],
+    edits->mapnew((_, e) => [e.range.start.line, e.newText]))
+
+  # A range takes whole lines, and leaves the rest of the document alone.
+  edits = Ask('textDocument/rangeFormatting',
+    {options: {tabSize: 2, insertSpaces: true},
+      range: {start: {line: 2, character: 0}, end: {line: 3, character: 5}}})
+  assert_equal([[2, '  if true'], [3, '    var x = 1   ']],
+    edits->mapnew((_, e) => [e.range.start.line, e.newText]))
+enddef
+
+# The newline at the end of a document is the empty line after the last one.
+def g:Test_formatting_final_newlines()
+  helper.StartServer()
+  helper.Initialize()
+  var Format = (options: dict<any>) => helper.Request(
+    'textDocument/formatting',
+    {textDocument: {uri: helper.URI}, options: options}).result
+
+  # Three newlines at the end, of which two are taken away.
+  helper.Notify('textDocument/didOpen', {textDocument: {uri: helper.URI,
+    languageId: 'vim', version: 1, text: "vim9script\necho 1\n\n\n"}})
+  var edits = Format({tabSize: 2, insertSpaces: true,
+    trimFinalNewlines: true})
+  assert_equal(1, len(edits))
+  assert_equal('', edits[0].newText)
+  assert_equal({line: 2, character: 0}, edits[0].range.start)
+  assert_equal({line: 4, character: 0}, edits[0].range.end)
+
+  # None at the end, and one is put there.
+  helper.Notify('textDocument/didOpen', {textDocument: {uri: helper.URI,
+    languageId: 'vim', version: 2, text: "vim9script\necho 1"}})
+  edits = Format({tabSize: 2, insertSpaces: true, insertFinalNewline: true})
+  assert_equal(1, len(edits))
+  assert_equal("\n", edits[0].newText)
+  assert_equal({line: 1, character: 6}, edits[0].range.start)
+  assert_equal(edits[0].range.start, edits[0].range.end)
+
+  # Neither asked for, so the end is left as it is.
+  assert_equal([], Format({tabSize: 2, insertSpaces: true}))
+enddef
+
 def g:Test_folding_range()
   helper.StartServer()
   helper.Initialize()
