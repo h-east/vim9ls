@@ -98,7 +98,8 @@ under the cursor, as Vim's help has it.  An option is recognized after "&" and
 in a ":set" command, a command at the start of a statement.  Variables and
 functions of the script itself have no help and give nothing.
 This is for editors other than Vim.  In Vim, |K| opens the same entry in a
-help window, which is the better place to read it.
+help window, which is the better place to read it.  The help goes out as it
+stands, not turned into Markdown.
 
 Completion ~
 Builtin functions, plus the functions, variables, classes and other names the

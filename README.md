@@ -98,8 +98,8 @@ See `:help vim9ls` for the details.
 ## Protocol coverage
 
 What this server does with each of the 95 requests and notifications in the
-LSP 3.18 meta model: 28 are answered, 2 are planned and listed in the TODO
-below, and 65 are left out for the reason given.
+LSP 3.18 meta model: 30 are answered and 65 are left out for the reason
+given.
 
 <details>
 <summary>Method-by-method tables</summary>
@@ -263,7 +263,6 @@ In the order they are meant to be taken up.
       script, run in the server; for editors other than Vim.
 - [x] Tests on MS-Windows in CI, and the launchers `bin/vim9ls` and
       `bin/vim9ls.cmd` started the way a client starts them.
-- [ ] Hover in Markdown, for the editors that render it.
 
 ## Contributing
 
