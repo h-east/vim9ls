@@ -69,6 +69,8 @@ See `:help vim9ls` for the details.
 - Folding ranges: functions, classes, enums, interfaces, augroups, the
   blocks of `if`, `while`, `for` and `try`, and the runs of comments and of
   imports.
+- Type definition: from a name to the class, interface or enum it is typed
+  with, whether the type is written out or left to the initializer.
 - Definition, references and rename for what the script defines; definition
   follows imports and legacy autoload functions into other files, and
   references and rename follow an exported name or an autoload function into
@@ -89,7 +91,7 @@ See `:help vim9ls` for the details.
 ## Protocol coverage
 
 What this server does with each of the 95 requests and notifications in the
-LSP 3.18 meta model: 21 are answered, 9 are planned and listed in the TODO
+LSP 3.18 meta model: 22 are answered, 8 are planned and listed in the TODO
 below, and 65 are left out for the reason given.
 
 <details>
@@ -135,7 +137,7 @@ below, and 65 are left out for the reason given.
 | `textDocument/signatureHelp` | yes | triggered by `(` and `,` as well |
 | `textDocument/declaration` | no | Vim script declares nothing apart from the definition |
 | `textDocument/definition` | yes |  |
-| `textDocument/typeDefinition` | planned | the class a Vim9 variable is typed with |
+| `textDocument/typeDefinition` | yes | the class, interface or enum a name is typed with, declared or inferred |
 | `textDocument/implementation` | planned | the classes that implement a Vim9 interface |
 | `textDocument/references` | yes |  |
 | `textDocument/documentHighlight` | yes | the other uses of the name in the document, a declaration or an assignment marked as a write |

@@ -143,6 +143,72 @@ def Initializer(s: dict<any>, lines: list<string>, vim9_at: list<bool>): string
   return text
 enddef
 
+# What the initializer of the variable at "s" comes to; "scope" is the chain
+# of functions around it.  Empty when there is nothing to go by.
+def InferOne(s: dict<any>, scope: list<dict<any>>, ctx: dict<any>,
+    lines: list<string>, vim9_at: list<bool>): string
+  var text = Initializer(s, lines, vim9_at)
+  if text == ''
+    return ''
+  endif
+  # What the function can see: the script's variables, its parameters and
+  # its own variables above, the innermost last.
+  var vars = Visible(ctx.top, s.line)
+  for f in scope
+    for p in Header(f.detail).params
+      vars[p[0]] = p[1]
+    endfor
+    extend(vars, Visible(f.children, s.line))
+  endfor
+  return infer.TypeOf(text, {vars: vars, funcs: ctx.funcs})
+enddef
+
+# The types of the functions of a script by name, for the inference of a call.
+def FuncTypes(parsed: dict<any>): dict<string>
+  var funcs: dict<string> = {}
+  for s in parse.AllSymbols(parsed.symbols)
+    if IsFunction(s)
+      funcs[s.name] = FuncType(s)
+    endif
+  endfor
+  return funcs
+enddef
+
+# The chain of functions around the symbol "want", outermost first;
+# null_list when it is not in "symbols".
+def ScopeOf(symbols: list<dict<any>>, want: dict<any>,
+    scope: list<dict<any>>): list<dict<any>>
+  for s in symbols
+    if s is want
+      return scope
+    endif
+    if !s.children->empty()
+      var found = ScopeOf(s.children, want,
+        IsFunction(s) ? scope + [s] : scope)
+      if found != null_list
+        return found
+      endif
+    endif
+  endfor
+  return null_list
+enddef
+
+# The type of the variable "s" of a parsed script: the one it declares, or
+# what its initializer comes to.  Empty when neither tells.
+export def VariableType(parsed: dict<any>, lines: list<string>,
+    s: dict<any>): string
+  if s.detail != ''
+    return s.detail
+  endif
+  var scope = ScopeOf(parsed.symbols, s, [])
+  var vim9_at = parse.Vim9Lines(parsed, len(lines))
+  if scope == null_list || s.line >= len(vim9_at) || !vim9_at[s.line]
+    return ''
+  endif
+  return InferOne(s, scope, {top: parsed.symbols, funcs: FuncTypes(parsed)},
+    lines, vim9_at)
+enddef
+
 # The hints for the variables in "symbols" and their functions; "scope" is
 # the chain of function symbols around them, "top" the script-level symbols.
 def Collect(symbols: list<dict<any>>, scope: list<dict<any>>,
@@ -153,20 +219,10 @@ def Collect(symbols: list<dict<any>>, scope: list<dict<any>>,
       Collect(s.children, scope + [s], ctx, lines, vim9_at, first, last, out)
     elseif IsVariable(s) && !s->get('param', false) && s.detail == ''
         && vim9_at[s.line]
-      var text = Initializer(s, lines, vim9_at)
-      if text == ''
+      var type = InferOne(s, scope, ctx, lines, vim9_at)
+      if type == ''
         continue
       endif
-      # What the function can see: the script's variables, its parameters
-      # and its own variables above, the innermost last.
-      var vars = Visible(ctx.top, s.line)
-      for f in scope
-        for p in Header(f.detail).params
-          vars[p[0]] = p[1]
-        endfor
-        extend(vars, Visible(f.children, s.line))
-      endfor
-      var type = infer.TypeOf(text, {vars: vars, funcs: ctx.funcs})
       s.inferred = type
       if type != 'any' && first <= s.line && s.line <= last
         add(out, {line: s.line, col: s.name_end, label: ': ' .. type,
@@ -182,14 +238,9 @@ enddef
 # hint.
 export def TypeHints(parsed: dict<any>, lines: list<string>, first: number,
     last: number): list<dict<any>>
-  var funcs: dict<string> = {}
-  for s in parse.AllSymbols(parsed.symbols)
-    if IsFunction(s)
-      funcs[s.name] = FuncType(s)
-    endif
-  endfor
   var out: list<dict<any>> = []
-  Collect(parsed.symbols, [], {top: parsed.symbols, funcs: funcs}, lines,
+  Collect(parsed.symbols, [], {top: parsed.symbols, funcs: FuncTypes(parsed)},
+    lines,
     parse.Vim9Lines(parsed, len(lines)), first, last, out)
   return out
 enddef

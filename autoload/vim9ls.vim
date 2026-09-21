@@ -82,6 +82,7 @@ def Initialize(params: dict<any>): dict<any>
       workspaceSymbolProvider: true,
       foldingRangeProvider: true,
       definitionProvider: true,
+      typeDefinitionProvider: true,
       referencesProvider: true,
       documentHighlightProvider: true,
       renameProvider: {prepareProvider: true},
@@ -692,6 +693,56 @@ def Definition(params: dict<any>): any
   return [Location(hit.uri, hit.lines, hit.symbol)]
 enddef
 
+# The kinds of symbol that are a type of their own.
+const TYPE_KINDS = [parse.KIND_CLASS, parse.KIND_INTERFACE, parse.KIND_ENUM]
+
+# The name of the type "type" that a script may define, with the alias of
+# the import it comes from: "Shape" of "list<Shape>", "lib" and "Shape" of
+# "dict<lib.Shape>".  A type of Vim's own starts with a lower case letter.
+def TypeName(type: string): list<string>
+  var m = matchlist(type, '\%(\(\h\w*\)\.\)\=\(\u\w*\)')
+  return m->empty() ? ['', ''] : [m[1], m[2]]
+enddef
+
+# Where the type of the name at the cursor is defined.  A class, an
+# interface and an enum are a type themselves and lead to their own line.
+def TypeDefinition(params: dict<any>): any
+  var w = TokenWhere(params)
+  if w == null_dict
+    return v:null
+  endif
+  var hit = Lookup(w, w.token)
+  if hit == null_dict
+    return v:null
+  endif
+  if index(TYPE_KINDS, hit.symbol.kind) >= 0
+    return [Location(hit.uri, hit.lines, hit.symbol)]
+  endif
+  var [alias, name] = TypeName(
+    hints.VariableType(hit.parsed, hit.lines, hit.symbol))
+  if name == ''
+    return v:null
+  endif
+  var script = hit
+  if alias != ''
+    var imported = TopLevel(hit.parsed, alias)
+    if imported == null_dict || imported.kind != parse.KIND_MODULE
+      return v:null
+    endif
+    var file = refs.ImportFile(hit.path, imported.detail,
+      imported->get('autoload', false))
+    script = file == '' ? null_dict : ScriptAt(file)
+    if script == null_dict
+      return v:null
+    endif
+  endif
+  var target = TopLevel(script.parsed, name)
+  if target == null_dict || index(TYPE_KINDS, target.kind) < 0
+    return v:null
+  endif
+  return [Location(script.uri, script.lines, target)]
+enddef
+
 # The signature of the function a script defines: its name and what follows
 # it on the "def" or "function" line, up to the ")" for a legacy function.
 def ScriptSignature(s: dict<any>): string
@@ -971,6 +1022,8 @@ def Request(method: string, params: dict<any>): any
     return FoldingRanges(params)
   elseif method == 'textDocument/definition'
     return Definition(params)
+  elseif method == 'textDocument/typeDefinition'
+    return TypeDefinition(params)
   elseif method == 'textDocument/references'
     return References(params)
   elseif method == 'textDocument/documentHighlight'

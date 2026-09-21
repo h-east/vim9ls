@@ -274,6 +274,68 @@ def g:Test_document_symbol()
   assert_false(symbols[0]->has_key('children'))
 enddef
 
+def g:Test_type_definition()
+  var root = helper.HERE .. '/Xproj'
+  mkdir(root .. '/plugin', 'p')
+  writefile(['vim9script', 'export class Color', '  var name: string',
+    'endclass'], root .. '/plugin/xcolor.vim')
+  var uri = util.PathToUri(root .. '/plugin/xmain.vim')
+  try
+    helper.StartServer()
+    helper.Initialize()
+    helper.OpenDoc([
+      'vim9script',                       # 0
+      "import './xcolor.vim' as xcolor",  # 1
+      'class Shape',                      # 2
+      '  var name: string',               # 3
+      'endclass',                         # 4
+      'interface Drawable',               # 5
+      '  def Draw(): void',               # 6
+      'endinterface',                     # 7
+      'def Use()',                        # 8
+      '  var declared: Shape',            # 9
+      '  var inferred = Shape.new()',     # 10
+      '  var many: list<Shape>',          # 11
+      '  var other: xcolor.Color',        # 12
+      '  var plain: string',              # 13
+      '  var drawn: Drawable',            # 14
+      '  echo declared',                  # 15
+      '  echo inferred',                  # 16
+      '  echo many',                      # 17
+      '  echo other',                     # 18
+      '  echo plain',                     # 19
+      '  echo drawn',                     # 20
+      'enddef',                           # 21
+    ], uri)
+    var Ask = (line: number, character: number) => helper.Request(
+      'textDocument/typeDefinition',
+      helper.Params(line, character, uri)).result
+
+    # A declared type, a type the initializer tells, and one inside a list.
+    for lnum in [15, 16, 17]
+      var got = Ask(lnum, 7)
+      assert_equal(uri, got[0].uri, 'line ' .. lnum)
+      assert_equal({start: {line: 2, character: 6},
+        end: {line: 2, character: 11}}, got[0].range, 'line ' .. lnum)
+    endfor
+
+    # A type of another script, through the alias of the import.
+    var other = Ask(18, 7)
+    assert_equal(util.PathToUri(root .. '/plugin/xcolor.vim'), other[0].uri)
+    assert_equal(1, other[0].range.start.line)
+
+    # An interface is a type of its own, and so is a class: the name of one
+    # leads to the line it is on.
+    assert_equal(5, Ask(20, 7)[0].range.start.line)
+    assert_equal(2, Ask(10, 17)[0].range.start.line)
+
+    # A type of Vim's own has nothing to go to.
+    assert_equal(null, Ask(19, 7))
+  finally
+    delete(root, 'rf')
+  endtry
+enddef
+
 def g:Test_folding_range()
   helper.StartServer()
   helper.Initialize()
