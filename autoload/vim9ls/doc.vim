@@ -75,13 +75,13 @@ enddef
 # The help tag for "word" as what "kind" names it: a function, an option, a
 # command or a variable.  Empty when there is no such entry.
 export def TagFor(word: string, kind: string): string
-  var tag_name = kind ==# 'function' ? word .. '()'
-    : kind ==# 'option' ? "'" .. word .. "'"
-    : kind ==# 'command' ? ':' .. word
+  var tag_name = kind == 'function' ? word .. '()'
+    : kind == 'option' ? "'" .. word .. "'"
+    : kind == 'command' ? ':' .. word
     : word
   # Only a plain name can be a command; fullcommand() would read "g:x" as
   # ":g" with an argument.
-  if kind ==# 'command' && !HasTag(tag_name) && word =~ '^\h\w*$'
+  if kind == 'command' && !HasTag(tag_name) && word =~ '^\h\w*$'
     var full = fullcommand(word, false)
     tag_name = full == '' ? '' : ':' .. full
   endif

@@ -60,7 +60,7 @@ export def ItemsOf(symbols: list<dict<any>>, prefix: string): list<dict<any>>
   var seen: dict<bool> = {}
   for s in symbols
     if seen->has_key(s.name)
-        || (prefix != '' && s.name[: strlen(prefix) - 1] !=# prefix)
+        || (prefix != '' && s.name[: strlen(prefix) - 1] != prefix)
       continue
     endif
     seen[s.name] = true
@@ -116,7 +116,7 @@ export def Items(line: string, col: number,
     endfor
   endif
   for symbol in parse.AllSymbols(symbols)
-    if symbol.name[: strlen(prefix) - 1] ==# prefix || prefix == ''
+    if symbol.name[: strlen(prefix) - 1] == prefix || prefix == ''
       Add(symbol.name, SYMBOL_KINDS->get(symbol.kind, KIND_VARIABLE),
         symbol.detail)
     endif

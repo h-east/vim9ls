@@ -81,7 +81,7 @@ def Main()
       ->sort()
     # $TEST_FILTER narrows a run down to what is being looked at.
     for name in names
-      if $TEST_FILTER ==# '' || name =~ $TEST_FILTER
+      if $TEST_FILTER == '' || name =~ $TEST_FILTER
         RunOne(name)
       endif
     endfor

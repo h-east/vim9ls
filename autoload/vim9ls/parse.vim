@@ -353,7 +353,7 @@ def Statement(st: dict<any>, lnum: number, text: string, col: number,
         endif
         var seen = false
         for s in container
-          if s.name ==# name
+          if s.name == name
             seen = true
             break
           endif

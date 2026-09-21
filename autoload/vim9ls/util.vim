@@ -69,13 +69,13 @@ enddef
 # other two count a composing character on its own.
 
 export def ColToLsp(line: string, col: number, encoding: string): number
-  if encoding ==# 'utf-8'
+  if encoding == 'utf-8'
     return col
   endif
   if col >= strlen(line)
-    return encoding ==# 'utf-32' ? strcharlen(line) : strutf16len(line, true)
+    return encoding == 'utf-32' ? strcharlen(line) : strutf16len(line, true)
   endif
-  var idx = encoding ==# 'utf-32' ? charidx(line, col, true)
+  var idx = encoding == 'utf-32' ? charidx(line, col, true)
     : utf16idx(line, col, true)
   return idx < 0 ? 0 : idx
 enddef
@@ -83,10 +83,10 @@ enddef
 export def ColFromLsp(line: string, character: number,
     encoding: string): number
   var last = strlen(line)
-  if encoding ==# 'utf-8'
+  if encoding == 'utf-8'
     return character > last ? last : character
   endif
-  var idx = encoding ==# 'utf-32' ? byteidxcomp(line, character)
+  var idx = encoding == 'utf-32' ? byteidxcomp(line, character)
     : byteidxcomp(line, character, true)
   return idx < 0 ? last : idx
 enddef

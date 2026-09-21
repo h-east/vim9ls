@@ -468,7 +468,7 @@ enddef
 # defined under its full name.
 def TopLevel(parsed: dict<any>, name: string): dict<any>
   for s in parsed.symbols
-    if s.name ==# name || s.name =~# '#' .. name .. '$'
+    if s.name == name || s.name =~ '#' .. name .. '$'
       return s
     endif
   endfor
@@ -564,7 +564,7 @@ def UsersOf(path: string): list<string>
   for uri in keys(docs)
     add(paths, util.UriToPath(uri))
   endfor
-  return sort(paths)->uniq()->filter((_, p) => p !=# path)
+  return sort(paths)->uniq()->filter((_, p) => p != path)
 enddef
 
 # The script at "path" when "name" occurs in its text, null_dict otherwise;
@@ -731,7 +731,7 @@ def ParamNames(parsed: dict<any>, name: string): dict<any>
   endif
   for s in parse.AllSymbols(parsed.symbols)
     if (s.kind == parse.KIND_FUNCTION || s.kind == parse.KIND_METHOD)
-        && s.name ==# name
+        && s.name == name
       return {names: s.children->copy()
         ->filter((_, c) => c->get('param', false))
         ->mapnew((_, c) => substitute(c.name, '^a:', '', '')), method: 1}
@@ -778,7 +778,7 @@ def VimNameUses(w: dict<any>): list<dict<number>>
   if w.token.in_string || w.token.prev == '.' || w.token.prev == '&'
     return []
   endif
-  if infer.Info(name =~# '^v:' ? 'vimvar' : 'function', name)->empty()
+  if infer.Info(name =~ '^v:' ? 'vimvar' : 'function', name)->empty()
     return []
   endif
   var vim9_at = parse.Vim9Lines(w.parsed, len(w.doc.lines))
@@ -789,7 +789,7 @@ def VimNameUses(w: dict<any>): list<dict<number>>
       continue
     endif
     for token in refs.Tokens(line, vim9_at[lnum])
-      if token.text ==# name && !token.in_string && token.prev != '.'
+      if token.text == name && !token.in_string && token.prev != '.'
           && token.prev != '&'
         uses->add({line: lnum, col: token.col, end: token.end})
       endif
@@ -813,7 +813,7 @@ def Highlights(params: dict<any>): any
     }))
   endif
   var uses: list<dict<number>> = []
-  if hit.uri ==# w.uri
+  if hit.uri == w.uri
     for r in refs.References(hit.parsed, hit.lines, hit.symbol, true)
       var text = hit.lines[r.line][r.col : r.end - 1]
       uses->add({line: r.line, col: r.col + strridx(text, '#') + 1,

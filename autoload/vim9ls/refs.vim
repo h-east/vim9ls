@@ -109,7 +109,7 @@ const MEMBER_KINDS = [parse.KIND_FIELD, parse.KIND_METHOD,
 def Matches(token: dict<any>, symbol: dict<any>, vim9: bool): bool
   var [tscope, tname] = Split(token.text)
   var [sscope, sname] = Split(symbol.name)
-  if tname !=# sname
+  if tname != sname
     return false
   endif
   var member = index(MEMBER_KINDS, symbol.kind) >= 0
@@ -243,7 +243,7 @@ export def UsesOf(parsed: dict<any>, lines: list<string>, path: string,
   var aliases: list<string> = []
   for s in parse.AllSymbols(parsed.symbols)
     if s.kind == parse.KIND_MODULE && ImportFile(path, s.detail,
-        s->get('autoload', false)) ==# target.path
+        s->get('autoload', false)) == target.path
       add(aliases, s.name)
     endif
   endfor
@@ -255,9 +255,9 @@ export def UsesOf(parsed: dict<any>, lines: list<string>, path: string,
       continue
     endif
     for token in Tokens(line, vim9_at[lnum])
-      if target.autoload != '' && token.text ==# target.autoload
+      if target.autoload != '' && token.text == target.autoload
         out->add({line: lnum, col: token.end - strlen(name), end: token.end})
-      elseif token.prev == '.' && token.text ==# name && token.col >= 2
+      elseif token.prev == '.' && token.text == name && token.col >= 2
           && index(aliases,
             matchstr(line[: token.col - 2], NAME .. '\+$')) >= 0
         out->add({line: lnum, col: token.col, end: token.end})

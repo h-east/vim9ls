@@ -7,8 +7,9 @@ vim9script
 # compile.vim starts this with --stdio-channel and sends it the text of a
 # script.  Nothing in the script runs: the dry run defines what the script
 # defines and compiles its functions.  What Vim reports comes back with the
-# line it is about.  The work is done in legacy functions: an error must not
-# stop it, and in a :def or under :try it would.
+# line it is about.  The dry run, and the command that is meant to fail,
+# carry ":silent!": an error would abort the ":def" it runs in, while what
+# is reported still reaches ":redir".
 
 var conn: channel
 
@@ -21,53 +22,61 @@ const SELF = expand('<sfile>:p')
 # the same path again, so that Vim sees one script sourced once more and
 # lets it redefine its functions.  A script in a plugin directory has the
 # plugin put on 'runtimepath', for what it imports by name.
-function Load(path, lines)
-  let root = matchstr(a:path,
-    \ '.*\ze[/\\]\%(autoload\|plugin\|ftplugin\|import\|syntax\|indent\)[/\\]')
+def Load(path: string, lines: list<string>)
+  var root = matchstr(path,
+    '.*\ze[/\\]\%(autoload\|plugin\|ftplugin\|import\|syntax\|indent\)[/\\]')
   if root != '' && index(split(&runtimepath, ','), root) < 0
-    let &runtimepath = root .. ',' .. &runtimepath
+    &runtimepath = root .. ',' .. &runtimepath
   endif
-  if bufexists(a:path)
-    execute 'silent! keepalt buffer!' bufnr(a:path)
+  if bufexists(path)
+    execute 'silent! keepalt buffer!' bufnr(path)
   else
-    execute 'silent! keepalt edit!' fnameescape(a:path)
+    execute 'silent! keepalt edit!' fnameescape(path)
   endif
-  silent! %delete _
-  call setline(1, a:lines)
-endfunction
+  silent! :%delete _
+  setline(1, lines)
+enddef
 
 # Vim names the source of an error only when it differs from the last one;
 # an error of our own, thrown away, makes sure the next one is named.
-function Reset()
+def Reset()
+  var discard = ''
   redir => discard
-  eval NoSuchFunctionVim9ls()
+  silent! execute 'eval NoSuchFunctionVim9ls()'
   redir END
-endfunction
+enddef
 
 # Reads the buffer with "cmd" and returns what Vim reported.
-function Source(cmd)
-  call s:Reset()
+def Source(cmd: string): string
+  var messages = ''
+  Reset()
   redir => messages
-  execute a:cmd
+  silent! execute cmd
   redir END
   return messages
-endfunction
+enddef
+
+# A path spelled the way the server spells them: on MS-Windows with "/".
+def FullPath(path: string): string
+  var full = simplify(fnamemodify(path, ':p'))
+  return has('win32') ? substitute(full, '\\', '/', 'g') : full
+enddef
 
 # The line a function starts on in "path", 1-based, or 0 when it is not in
 # that file or not found.  A lambda is gone once its compilation failed.
 # Vim names the file with "~" for the home directory.  A method, named
 # "<SNR>5_Class.Method", is not listed by ":function"; its "def" is looked
 # for in the buffer, inside its class.
-function StartLine(name, path)
-  let m = matchlist(a:name, '^<SNR>\d\+_\(\h\w*\)\.\(\h\w*\)$')
+def StartLine(name: string, path: string): number
+  var m = matchlist(name, '^<SNR>\d\+_\(\h\w*\)\.\(\h\w*\)$')
   if !empty(m)
-    let inside = 0
-    let lnum = 0
+    var inside = false
+    var lnum = 0
     for line in getline(1, '$')
-      let lnum += 1
+      lnum += 1
       if !inside
-        let inside = line =~ '^\s*\%(\%(export\|abstract\)\s\+\)*'
-          \ .. '\%(class\|interface\|enum\)\s\+' .. m[1] .. '\>'
+        inside = line =~ '^\s*\%(\%(export\|abstract\)\s\+\)*'
+          .. '\%(class\|interface\|enum\)\s\+' .. m[1] .. '\>'
       elseif line =~ '^\s*end\%(class\|interface\|enum\)\>'
         return 0
       elseif line =~ '^\s*\%(static\s\+\)\=def\s\+' .. m[2] .. '\>'
@@ -77,124 +86,125 @@ function StartLine(name, path)
     return 0
   endif
   try
-    let m = matchlist(execute('verbose function ' .. a:name),
-      \ 'Last set from \(.*\) line \(\d\+\)')
+    m = matchlist(execute('verbose function ' .. name),
+      'Last set from \(.*\) line \(\d\+\)')
   catch
     return 0
   endtry
-  return empty(m) || s:FullPath(m[1]) !=# a:path ? 0 : str2nr(m[2])
-endfunction
-
-# A path spelled the way the server spells them: on MS-Windows with "/".
-function FullPath(path)
-  let full = simplify(fnamemodify(a:path, ':p'))
-  return has('win32') ? substitute(full, '\\', '/', 'g') : full
-endfunction
+  return empty(m) || FullPath(m[1]) != path ? 0 : str2nr(m[2])
+enddef
 
 # The 0-based line of an error, from the context Vim named for it and the
 # line within that context.  The context is a chain like
 #   script /path/file.vim[11]..function <SNR>6_Outer[1]..<lambda>3
 # read from the end: a lambda adds the line it started on in the function
 # around it, until a function that can be found or the script itself.
-function Where(context, lnum, path)
-  let offset = a:lnum
-  let elements = split(a:context, '\.\.')
+def Where(context: string, lnum: number, path: string): number
+  var offset = lnum
+  var elements = split(context, '\.\.')
   for i in range(len(elements) - 1, 0, -1)
-    let m = matchlist(elements[i],
-      \ '^\%(function \|script \)\=\(.\{-}\)\%(\[\(\d\+\)\]\)\=$')
+    var m = matchlist(elements[i],
+      '^\%(function \|script \)\=\(.\{-}\)\%(\[\(\d\+\)\]\)\=$')
     if empty(m)
       return -1
     endif
-    let [name, at] = [m[1], str2nr(m[2])]
-    if s:FullPath(name) ==# a:path
+    var [name, at] = [m[1], str2nr(m[2])]
+    if FullPath(name) == path
       return at + offset - 1
     endif
     if name !~ '^<lambda>'
-      let start = s:StartLine(name, a:path)
+      var start = StartLine(name, path)
       if start > 0
         return start + at + offset - 1
       endif
     endif
-    let offset += at
+    offset += at
   endfor
   return -1
-endfunction
+enddef
 
 # The errors in what Vim reported, as {line, message}, in the order of the
 # lines.
-function Errors(messages, path)
-  let errors = []
-  let context = ''
-  let lnum = 0
-  for line in split(a:messages, "\n")
-    let m = matchlist(line,
-      \ '^Error detected while \%(compiling\|processing\) \(.*\):$')
+def Errors(messages: string, path: string): list<dict<any>>
+  var errors: list<dict<any>> = []
+  var context = ''
+  var lnum = 0
+  for line in split(messages, "\n")
+    var m = matchlist(line,
+      '^Error detected while \%(compiling\|processing\) \(.*\):$')
     if !empty(m)
-      let [context, lnum] = [m[1], 0]
+      [context, lnum] = [m[1], 0]
       continue
     endif
-    let m = matchlist(line, '^line\s\+\(\d\+\):$')
+    m = matchlist(line, '^line\s\+\(\d\+\):$')
     if !empty(m)
-      let lnum = str2nr(m[1])
+      lnum = str2nr(m[1])
       continue
     endif
     if line !~ '^E\d\+:'
       continue
     endif
-    let at = s:Where(context, lnum, a:path)
-    let error = {'line': at, 'message': line}
+    # The summary of a failed compilation, after the error that caused it.
+    # It is only reported with ":silent!".
+    if line =~ '^E1028:'
+      continue
+    endif
+    var at = Where(context, lnum, path)
+    var error = {line: at, message: line}
     if at >= 0 && index(errors, error) < 0
-      call add(errors, error)
+      errors->add(error)
     endif
   endfor
-  return sort(errors, {a, b -> a.line - b.line})
-endfunction
+  return sort(errors, (a, b) => a.line - b.line)
+enddef
 
 # What Vim reports for "lines" as the script at "path".  "wrapped" is the
 # script level of a Vim9 script as the body of a function, see wrap.vim; it
 # is appended to the script, so that it is compiled along with the rest.
 # An error in it is reported on the line of the script it came from.
-function Check(path, lines, wrapped)
-  let path = s:FullPath(a:path)
-  " This script is running here, its functions cannot be defined again.
-  if path ==# s:FullPath(s:SELF)
-    let path ..= '.dryrun'
+def Check(path_arg: string, lines: list<string>, wrapped: any): list<dict<any>>
+  var path = FullPath(path_arg)
+  # This script is running here, its functions cannot be defined again.
+  if path == FullPath(SELF)
+    path ..= '.dryrun'
   endif
-  let text = type(a:wrapped) != v:t_list ? a:lines
-    \ : a:lines + ['def ScriptLevel()'] + a:wrapped + ['enddef']
-  call s:Load(path, text)
-  let errors = s:Errors(s:Source('%source ++dryrun'), path)
+  var text = type(wrapped) != v:t_list ? lines
+    : lines + ['def ScriptLevel()'] + wrapped + ['enddef']
+  Load(path, text)
+  # The range needs the colon: ":execute" from a ":def" reads the Vim9 way.
+  var errors = Errors(Source(':%source ++dryrun'), path)
   for e in errors
-    if e.line > len(a:lines)
-      let e.line -= len(a:lines) + 1
+    if e.line > len(lines)
+      e.line -= len(lines) + 1
     endif
   endfor
-  return sort(errors, {a, b -> a.line - b.line})
-endfunction
+  return sort(errors, (a, b) => a.line - b.line)
+enddef
 
-function OnMessage(ch, msg)
-  if get(a:msg, 'method', '') == 'check'
-    call ch_sendexpr(a:ch, {'id': a:msg.id, 'result': {
-      \ 'dryrun': s:dryrun,
-      \ 'errors': s:dryrun
-      \   ? s:Check(a:msg.params.path, a:msg.params.lines, a:msg.params.wrapped)
-      \   : [],
-      \ }})
+def OnMessage(ch: channel, msg: any)
+  if get(msg, 'method', '') == 'check'
+    ch_sendexpr(ch, {id: msg.id, result: {
+      dryrun: dryrun,
+      errors: dryrun
+        ? Check(msg.params.path, msg.params.lines, msg.params.wrapped)
+        : [],
+    }})
   endif
-endfunction
+enddef
 
 # Whether ":source ++dryrun" is understood: a Vim without it takes the
 # argument for a file name, which the range does not allow.
-function HasDryrun()
+def HasDryrun(): bool
+  var messages = ''
   new
-  on
-  call setline(1, 'vim9script')
+  only
+  setline(1, 'vim9script')
   redir => messages
-  silent! %source ++dryrun
+  silent! :%source ++dryrun
   redir END
   bwipe!
   return messages !~ 'E481:'
-endfunction
+enddef
 
 def OnClose(ch: channel)
   qall!
@@ -205,7 +215,7 @@ export def Start()
   # kept.
   set eventignore=all undolevels=-1 nomodeline
   silent! language messages C
-  dryrun = HasDryrun() != 0
+  dryrun = HasDryrun()
   conn = ch_open('stdio', {mode: 'lsp', callback: OnMessage,
     close_cb: OnClose})
   if ch_status(conn) != 'open'
