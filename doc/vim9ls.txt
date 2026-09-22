@@ -136,6 +136,15 @@ is folded away with the function it ends; one that never closes reaches the
 end of the document.  Only ranges of two lines or more are reported, a fold
 that hides nothing being of no use.
 
+Selection ranges ~
+The ranges a selection grows through at a position, from the name under the
+cursor outwards: the text between the quotes of a string and the string with
+them, the text between brackets and the brackets with the name of the call
+in front of them, the statement with the lines it carries on over, the branch
+of each block the position stands in and that block with its header and its
+end, and last the whole document.  A range no wider than the one inside it
+is left out, so a block of one line is one step, not two.
+
 Type definition ~
 From a name to the class, interface or enum it is typed with: the type it
 declares, or the one its initializer comes to.  A type inside another, the

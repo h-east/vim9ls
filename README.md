@@ -69,6 +69,9 @@ See `:help vim9ls` for the details.
 - Folding ranges: functions, classes, enums, interfaces, augroups, the
   blocks of `if`, `while`, `for` and `try`, and the runs of comments and of
   imports.
+- Selection ranges: from the name under the cursor out through the string or
+  the brackets it stands in, the statement with the lines it carries on
+  over, the branch of each block and the block itself.
 - Type definition: from a name to the class, interface or enum it is typed
   with, whether the type is written out or left to the initializer.
 - Implementation: from an interface or a class to the classes that implement
@@ -98,7 +101,7 @@ See `:help vim9ls` for the details.
 ## Protocol coverage
 
 What this server does with each of the 95 requests and notifications in the
-LSP 3.18 meta model: 30 are answered and 65 are left out for the reason
+LSP 3.18 meta model: 31 are answered and 64 are left out for the reason
 given.
 
 <details>
@@ -156,7 +159,7 @@ given.
 | `textDocument/documentLink` | no | definition already follows an import to its file |
 | `documentLink/resolve` | no |  |
 | `textDocument/foldingRange` | yes | functions, classes, blocks, and the runs of comments and imports |
-| `textDocument/selectionRange` | no | Vim has text objects for that |
+| `textDocument/selectionRange` | yes | from the name under the cursor out to the document |
 | `textDocument/prepareCallHierarchy` | no |  |
 | `callHierarchy/incomingCalls` | no | references show the callers, and a function body its calls |
 | `callHierarchy/outgoingCalls` | no |  |

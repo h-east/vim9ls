@@ -579,6 +579,116 @@ def g:Test_folding_range()
   ], ranges)
 enddef
 
+# The chain of ranges at one position, innermost first, each as the lines
+# and characters it runs between.
+def Chain(lnum: number, character: number): list<list<number>>
+  var chains = helper.Request('textDocument/selectionRange',
+    {textDocument: {uri: helper.URI},
+      positions: [{line: lnum, character: character}]}).result
+  var out: list<list<number>> = []
+  var item = chains[0]
+  while true
+    add(out, [item.range.start.line, item.range.start.character,
+      item.range.end.line, item.range.end.character])
+    if !item->has_key('parent')
+      break
+    endif
+    item = item.parent
+  endwhile
+  return out
+enddef
+
+def g:Test_selection_range()
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc([
+    'vim9script',                  # 0
+    'def Foo()',                   # 1
+    '  if cond',                   # 2
+    "    echo Bar(x, 'baz qux')",  # 3
+    '    echo 2',                  # 4
+    '  endif',                     # 5
+    'enddef',                      # 6
+    'var list = [',                # 7
+    '  1,',                        # 8
+    '  2,',                        # 9
+    '  ]',                         # 10
+    'nnoremap [c [czz',            # 11
+    'echo 1',                      # 12
+    'autocmd User X {',            # 13
+    '  echo 2',                    # 14
+    '}',                           # 15
+    'if cond',                     # 16
+    '  echo 3',                    # 17
+    '  echo 4',                    # 18
+    'else',                        # 19
+    '  echo 5',                    # 20
+    'endif',                       # 21
+  ])
+  assert_equal([
+    [3, 21, 3, 24],   # qux
+    [3, 17, 3, 24],   # baz qux
+    [3, 16, 3, 25],   # 'baz qux'
+    [3, 13, 3, 25],   # x, 'baz qux'
+    [3, 12, 3, 26],   # (x, 'baz qux')
+    [3, 9, 3, 26],    # Bar(x, 'baz qux')
+    [3, 4, 3, 26],    # the statement
+    [3, 4, 4, 10],    # the body of the "if"
+    [2, 2, 5, 7],     # if ~ endif
+    [1, 0, 6, 6],     # def ~ enddef
+    [0, 0, 22, 0],    # the document
+  ], Chain(3, 21))
+
+  # A statement that carries on over lines is one step.
+  assert_equal([
+    [8, 2, 8, 3],
+    [8, 2, 9, 4],     # what the brackets hold, without the blanks
+    [7, 11, 10, 3],
+    [7, 0, 10, 3],
+    [0, 0, 22, 0],
+  ], Chain(8, 2))
+
+  # The "[" of a mapping opens nothing, so the line below it is a statement
+  # of its own and not the tail of one that never ends.
+  assert_equal([
+    [12, 5, 12, 6],
+    [12, 0, 12, 6],
+    [0, 0, 22, 0],
+  ], Chain(12, 5))
+
+  # The name of a call leads to the call, although the cursor stands in
+  # front of the brackets rather than inside them.
+  assert_equal([3, 9, 3, 26], Chain(3, 9)[1])
+
+  # The lines of a block end where they will, and the "{" of its header
+  # still finds the "}".
+  assert_equal([
+    [14, 2, 14, 6],
+    [14, 2, 14, 8],   # the statement, and what the block holds
+    [13, 15, 15, 1],  # { ... }
+    [13, 0, 15, 1],   # the block with its header
+    [0, 0, 22, 0],
+  ], Chain(14, 2))
+
+  # What a block holds is the branch the position is in, not the lines of
+  # the other one.
+  assert_equal([
+    [17, 2, 17, 6],
+    [17, 2, 17, 8],
+    [17, 2, 18, 8],   # up to the ":else", which is not part of it
+    [16, 0, 21, 5],
+    [0, 0, 22, 0],
+  ], Chain(17, 2))
+
+  # One chain for each position asked about.
+  var chains = helper.Request('textDocument/selectionRange',
+    {textDocument: {uri: helper.URI},
+      positions: [{line: 3, character: 21}, {line: 8, character: 2}]}).result
+  assert_equal(2, len(chains))
+  assert_equal({line: 3, character: 21}, chains[0].range.start)
+  assert_equal({line: 8, character: 2}, chains[1].range.start)
+enddef
+
 def g:Test_workspace_symbol()
   var root = helper.HERE .. '/Xproj'
   mkdir(root .. '/autoload', 'p')

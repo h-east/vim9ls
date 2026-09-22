@@ -24,6 +24,7 @@ import autoload './vim9ls/fold.vim'
 import autoload './vim9ls/format.vim'
 import autoload './vim9ls/hints.vim'
 import autoload './vim9ls/infer.vim'
+import autoload './vim9ls/selection.vim'
 
 export const VERSION = '0.1.001'
 
@@ -82,6 +83,7 @@ def Initialize(params: dict<any>): dict<any>
       documentSymbolProvider: true,
       workspaceSymbolProvider: true,
       foldingRangeProvider: true,
+      selectionRangeProvider: true,
       definitionProvider: true,
       typeDefinitionProvider: true,
       implementationProvider: true,
@@ -453,6 +455,15 @@ def FoldingRanges(params: dict<any>): any
     return v:null
   endif
   return fold.Ranges(Parsed(d), d.lines)
+enddef
+
+def SelectionRanges(params: dict<any>): any
+  var d = docs->get(params.textDocument.uri, null_dict)
+  if d == null_dict
+    return v:null
+  endif
+  return selection.Ranges(Parsed(d), d.lines, params->get('positions', []),
+    encoding)
 enddef
 
 def DocumentSymbols(params: dict<any>): any
@@ -1260,6 +1271,8 @@ def Request(method: string, params: dict<any>): any
     return WorkspaceSymbols(params)
   elseif method == 'textDocument/foldingRange'
     return FoldingRanges(params)
+  elseif method == 'textDocument/selectionRange'
+    return SelectionRanges(params)
   elseif method == 'textDocument/definition'
     return Definition(params)
   elseif method == 'textDocument/typeDefinition'
