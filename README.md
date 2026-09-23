@@ -112,14 +112,14 @@ given.
 | Method | State | Note |
 | --- | --- | --- |
 | `initialize` | yes | position encoding "utf-8" when the client offers it, "utf-16" otherwise |
-| `initialized` | yes | tells what went wrong while starting, if anything |
+| `initialized` | yes | where the log of `$VIM9LS_LOG` is, or why it cannot be opened |
 | `shutdown` | yes |  |
 | `exit` | yes |  |
 | `client/registerCapability` | no | every capability is announced at `initialize` |
 | `client/unregisterCapability` | no |  |
 | `$/cancelRequest` | no | a request is answered before the next one is read |
 | `$/progress` | no | nothing takes long enough to report on |
-| `$/setTrace` | no | `$VIM9LS_LOG` has the channel log written anyway |
+| `$/setTrace` | no | the log of `$VIM9LS_LOG` has more |
 | `$/logTrace` | no |  |
 
 ### Keeping the server in step with the buffer
@@ -221,7 +221,7 @@ given.
 | --- | --- | --- |
 | `window/showMessage` | yes | a warning when the log of `$VIM9LS_LOG` cannot be opened |
 | `window/showMessageRequest` | no |  |
-| `window/logMessage` | yes | where the log of `$VIM9LS_LOG` is; what goes wrong goes to that log |
+| `window/logMessage` | yes | where the log of `$VIM9LS_LOG` is |
 | `window/showDocument` | no | nothing here opens a document |
 | `window/workDoneProgress/create` | no |  |
 | `window/workDoneProgress/cancel` | no |  |

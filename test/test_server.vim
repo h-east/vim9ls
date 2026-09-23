@@ -79,7 +79,7 @@ def g:Test_log_cannot_open()
   assert_equal(['F'], resp.result->mapnew((_, s) => s.name))
 enddef
 
-# Without a channel the server says why on stderr, which the client shows.
+# Without a channel the server reports the reason on stderr for the client.
 def g:Test_no_channel()
   var err: list<string> = []
   var job = job_start([v:progpath, '--clean', '-es',
