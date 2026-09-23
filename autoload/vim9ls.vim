@@ -30,14 +30,17 @@ export const VERSION = '0.1.001'
 
 const SCRIPT = expand('<sfile>:p')
 
+# The Vim the server and the checker need: --stdio-channel came with
+# 9.2.1049, 9.2.1055 compiles a function with a lambda after another
+# function failed to compile, and 9.2.1084 has ":source ++dryrun".
+const PATCH = '9.2.1084'
+
 export def Command(): list<string>
   if !has('channel') || !has('job')
     throw 'vim9ls: this Vim needs +channel and +job to run the server'
   endif
-  # --stdio-channel came with 9.2.1049, and 9.2.1055 compiles a function
-  # with a lambda after another function failed to compile.
-  if !has('patch-9.2.1055')
-    throw 'vim9ls: this Vim needs 9.2.1055 or later to run the server'
+  if !has('patch-' .. PATCH)
+    throw $'vim9ls: this Vim needs {PATCH} or later to run the server'
   endif
   var vim = v:progpath
   # gvim.exe would open a window; vim.exe next to it does not.
@@ -1375,6 +1378,10 @@ def Die(msg: string)
 enddef
 
 export def Start()
+  # A client other than Vim starts the server without Command().
+  if !has('patch-' .. PATCH)
+    Die($'this Vim needs {PATCH} or later to run the server')
+  endif
   # The log only helps to debug; not a reason to stop serving.
   if $VIM9LS_LOG != ''
     var dir = has('win32') ? $TEMP : $TMPDIR != '' ? $TMPDIR : '/tmp'

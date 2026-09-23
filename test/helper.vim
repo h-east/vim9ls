@@ -32,20 +32,6 @@ export def Job(): job
   return job
 enddef
 
-# Whether this Vim has ":source ++dryrun", which the checker needs; a test
-# of the checker throws "Skipped: ..." without it.
-export def HasDryrun(): bool
-  new
-  setline(1, 'vim9script')
-  # execute() with "silent!" drops the error; :redir keeps it.
-  var messages: string
-  redir => messages
-  silent! :%source ++dryrun
-  redir END
-  bwipe!
-  return messages !~ 'E481:'
-enddef
-
 # Starts the server as this Vim would as a client; the channel is in "lsp"
 # mode on both ends.  "cmd" is what to start instead of this Vim, the
 # launcher; it is told to use this Vim.  "tmp" is the temporary directory

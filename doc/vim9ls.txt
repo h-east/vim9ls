@@ -286,7 +286,7 @@ the checker, it goes on answering the client and sends the diagnostics once
 the checker has answered.  What Vim reports is added, each on the line it is
 about: a type mismatch, a name that is not found, an argument too many.
 What a legacy "function" does is not read until it is called, and neither is
-a mapping or an autocommand.  A Vim without |:source-dryrun| leaves this out.
+a mapping or an autocommand.
 
 ==============================================================================
 6. Environment					*vim9ls-environment*
@@ -308,9 +308,8 @@ The tests are in test/ and run with: >
 	cd test && ./run
 	VIMPROG=/path/to/vim ./run
 	TEST_FILTER=hover ./run
-The Vim they run in is also the server they start, so it needs
-|--stdio-channel|; without |:source-dryrun| the test of the checker is
-skipped.  Unit tests read the parser and the conversions directly; the server
-tests start the server and talk LSP to it.
+The Vim they run in is also the server they start, so it needs what the
+server needs, see |vim9ls-requirements|.  Unit tests read the parser and the
+conversions directly; the server tests start the server and talk LSP to it.
 
  vim:tw=78:ts=8:noet:ft=help:norl:

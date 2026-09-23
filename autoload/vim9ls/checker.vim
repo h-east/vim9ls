@@ -13,9 +13,6 @@ vim9script
 
 var conn: channel
 
-# Whether this Vim has ":source ++dryrun".
-var dryrun = false
-
 const SELF = expand('<sfile>:p')
 
 # The buffer for "path" with "lines" as its text.  The same buffer serves
@@ -184,26 +181,9 @@ enddef
 def OnMessage(ch: channel, msg: any)
   if get(msg, 'method', '') == 'check'
     ch_sendexpr(ch, {id: msg.id, result: {
-      dryrun: dryrun,
-      errors: dryrun
-        ? Check(msg.params.path, msg.params.lines, msg.params.wrapped)
-        : [],
+      errors: Check(msg.params.path, msg.params.lines, msg.params.wrapped),
     }})
   endif
-enddef
-
-# Whether ":source ++dryrun" is understood: a Vim without it takes the
-# argument for a file name, which the range does not allow.
-def HasDryrun(): bool
-  var messages = ''
-  new
-  only
-  setline(1, 'vim9script')
-  redir => messages
-  silent! :%source ++dryrun
-  redir END
-  bwipe!
-  return messages !~ 'E481:'
 enddef
 
 def OnClose(ch: channel)
@@ -215,7 +195,6 @@ export def Start()
   # kept.
   set eventignore=all undolevels=-1 nomodeline
   silent! language messages C
-  dryrun = HasDryrun()
   conn = ch_open('stdio', {mode: 'lsp', callback: OnMessage,
     close_cb: OnClose})
   if ch_status(conn) != 'open'

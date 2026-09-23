@@ -14,8 +14,6 @@ import autoload './parse.vim'
 const CHECKER = expand('<sfile>:p:h') .. '/checker.vim'
 
 var job: job
-# False once the checker turned out to be a Vim without ":source ++dryrun".
-var available = true
 # The checks that were asked and not answered yet, by request id:
 # {Done, timer, path}.
 var pending: dict<dict<any>> = {}
@@ -55,9 +53,6 @@ enddef
 # answer.  Returns false when there is no checker to ask.
 export def Check(path: string, lines: list<string>, wrapped: any,
     Done: func(any)): bool
-  if !available
-    return false
-  endif
   if !Running()
     Start()
     if !Running()
@@ -82,16 +77,7 @@ def OnReply(ch: channel, resp: dict<any>)
   var p = remove(pending, id)
   timer_stop(p.timer)
   var result = resp->get('result', null_dict)
-  if result == null_dict
-    p.Done(null)
-  elseif !result.dryrun
-    util.Log('the checker needs a Vim with ":source ++dryrun"')
-    available = false
-    Stop()
-    p.Done(null)
-  else
-    p.Done(result.errors)
-  endif
+  p.Done(result == null_dict ? null : result.errors)
 enddef
 
 def Unanswered(nr: number)

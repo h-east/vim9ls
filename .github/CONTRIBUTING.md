@@ -47,9 +47,9 @@ TEST_FILTER=hover ./run          # only the tests whose name matches
 
 The results are printed and also left in `test/messages`, and the exit status
 reports whether anything failed.  The Vim the tests run in is also the server
-they start, so it needs `--stdio-channel`; a Vim without it is reported as
-such rather than failing every test.  Without `:source ++dryrun` the test of
-the checker is skipped.
+they start, so it needs what the server needs (see the requirements in the
+README); a Vim that falls short is reported as such rather than failing
+every test.
 
 The unit tests read the parser and the conversions directly.  The server
 tests start the server the way a client would and talk LSP to it, checking

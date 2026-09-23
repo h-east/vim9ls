@@ -20,8 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # The server needs 9.2.1055 or later, and the checker ":source
-      # ++dryrun" of 9.2.1084: the current Vim has both.
+      # The server needs 9.2.1084 or later: the current Vim has it.
       - name: Build Vim
         run: |
           sudo apt-get update

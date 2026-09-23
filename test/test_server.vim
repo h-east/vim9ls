@@ -909,9 +909,6 @@ def After(lines: list<string>, version: number): list<list<any>>
 enddef
 
 def g:Test_compile_diagnostics()
-  if !helper.HasDryrun()
-    throw 'Skipped: this Vim has no :source ++dryrun'
-  endif
   helper.StartServer()
   helper.Initialize()
   helper.OpenDoc([
