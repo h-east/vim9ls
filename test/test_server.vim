@@ -50,6 +50,51 @@ def g:Test_initialize_utf16()
   assert_equal('utf-16', resp.result.capabilities.positionEncoding)
 enddef
 
+# With $VIM9LS_LOG set the server logs in a file of its own in the
+# temporary directory, and tells the client where.
+def g:Test_log()
+  var job = helper.StartServer()
+  helper.Initialize()
+  var file = $'{helper.LOG}/vim9ls_{job_info(job).process}.log'
+  var msg = helper.WaitNotification('window/logMessage')
+  assert_equal($'vim9ls: logging to "{file}"', msg.params.message)
+  assert_true(getfsize(file) > 0, file)
+enddef
+
+# A log that cannot be opened is told once the client listens; the server
+# goes on.
+def g:Test_log_cannot_open()
+  var tmp = helper.HERE .. '/Xnodir'
+  var job = helper.StartServer(null_list, tmp)
+  var resp = helper.Initialize()
+  assert_true(resp.result.capabilities.hoverProvider, string(helper.stderr))
+  var msg = helper.WaitNotification('window/showMessage')
+  assert_equal(2, msg.params.type)
+  var file = $'{tmp}/vim9ls_{job_info(job).process}.log'
+  assert_match('^vim9ls: cannot open the log file "\V' .. escape(file, '\')
+    .. '\m": E484:', msg.params.message)
+  helper.OpenDoc(['vim9script', 'def F()', 'enddef'])
+  resp = helper.Request('textDocument/documentSymbol',
+    {textDocument: {uri: helper.URI}})
+  assert_equal(['F'], resp.result->mapnew((_, s) => s.name))
+enddef
+
+# Without a channel the server says why on stderr, which the client shows.
+def g:Test_no_channel()
+  var err: list<string> = []
+  var job = job_start([v:progpath, '--clean', '-es',
+      '--cmd', 'set rtp^=' .. fnamemodify(helper.HERE, ':h'),
+      '-c', 'call vim9ls#Start()', '-c', 'qall!'], {
+    in_io: 'null',
+    out_io: 'null',
+    err_cb: (_, msg) => add(err, msg),
+  })
+  helper.WaitFor(() => job_status(job) != 'run')
+  helper.WaitFor(() => ch_status(job) == 'closed')
+  assert_notequal(0, job_info(job).exitval)
+  assert_match('^vim9ls: E1582:', err->get(-1, ''), string(err))
+enddef
+
 def g:Test_hover()
   helper.StartServer()
   helper.Initialize()

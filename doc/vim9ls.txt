@@ -291,9 +291,13 @@ a mapping or an autocommand.  A Vim without |:source-dryrun| leaves this out.
 ==============================================================================
 6. Environment					*vim9ls-environment*
 
-$VIM9LS_LOG	When set, the server appends its channel log to this file.
+$VIM9LS_LOG	When not empty, the server appends its channel log to
+		"vim9ls_{pid}.log", {pid} being the process ID of the server,
+		in $TEMP on MS-Windows and in $TMPDIR or "/tmp" elsewhere.
 		See |ch_logfile()|.  Requests, responses and the errors the
-		server ran into end up there.
+		server ran into end up there.  The client is told where the
+		log is with a log message, or, when the file cannot be
+		opened, with a warning; the server still runs then.
 
 $VIM9LS_VIM	The Vim that bin/vim9ls starts.  Default: "vim" from $PATH.
 

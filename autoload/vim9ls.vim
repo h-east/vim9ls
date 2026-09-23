@@ -56,6 +56,9 @@ var encoding = 'utf-16'
 # of them.
 var docs: dict<dict<any>> = {}
 var conn: channel
+# Where the log goes, or why it cannot, told to the client once it listens.
+var log_file = ''
+var log_failure = ''
 
 def Reply(id: any, result: any)
   ch_sendexpr(conn, {id: id, result: result})
@@ -1310,6 +1313,13 @@ enddef
 def Notification(method: string, params: dict<any>)
   if method == 'exit'
     qall!
+  elseif method == 'initialized'
+    if log_failure != ''
+      Notify('window/showMessage', {type: 2, message: log_failure})
+    elseif log_file != ''
+      Notify('window/logMessage', {type: 4,
+        message: $'vim9ls: logging to "{log_file}"'})
+    endif
   elseif method == 'textDocument/didOpen'
     SetDoc(params.textDocument.uri, params.textDocument.text,
       params.textDocument->get('version', v:null))
@@ -1356,14 +1366,35 @@ def OnClose(ch: channel)
   qall!
 enddef
 
+# Nothing is displayed with --stdio-channel, but with 'verbose' set an error
+# still goes to stderr, where the client can show it.
+def Die(msg: string)
+  &verbose = 1
+  echoerr 'vim9ls: ' .. msg
+  cquit
+enddef
+
 export def Start()
+  # The log only helps to debug; not a reason to stop serving.
   if $VIM9LS_LOG != ''
-    ch_logfile($VIM9LS_LOG, 'a')
+    var dir = has('win32') ? $TEMP : $TMPDIR != '' ? $TMPDIR : '/tmp'
+    var file = $'{substitute(dir, '[/\\]$', '', '')}/vim9ls_{getpid()}.log'
+    try
+      ch_logfile(file, 'a')
+      log_file = file
+    catch
+      log_failure = $'vim9ls: cannot open the log file "{file}": '
+        .. substitute(v:exception, '^Vim\%((\a\+)\)\=:', '', '')
+    endtry
   endif
-  conn = ch_open('stdio', {mode: 'lsp', callback: OnMessage,
-    close_cb: OnClose})
+  try
+    conn = ch_open('stdio', {mode: 'lsp', callback: OnMessage,
+      close_cb: OnClose})
+  catch
+    Die(substitute(v:exception, '^Vim\%((\a\+)\)\=:', '', ''))
+  endtry
   if ch_status(conn) != 'open'
-    cquit
+    Die('cannot open the stdio channel')
   endif
 enddef
 

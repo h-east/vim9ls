@@ -23,9 +23,10 @@ matters, since that is where the answers come from: a function or option that
 this Vim does not have is not known to the server either.  `:version` names
 it.
 
-With `$VIM9LS_LOG` set, the server appends its channel log to that file: the
-requests, the responses, and the errors the server ran into.  That log is the
-most useful thing a report can carry.
+With `$VIM9LS_LOG` set, the server appends its channel log to
+`vim9ls_{pid}.log` in the temporary directory, which `:LspLog` of lsp.vim
+names: the requests, the responses, and the errors the server ran into.  That
+log is the most useful thing a report can carry.
 
 ## Patches
 

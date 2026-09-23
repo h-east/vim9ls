@@ -101,7 +101,7 @@ See `:help vim9ls` for the details.
 ## Protocol coverage
 
 What this server does with each of the 95 requests and notifications in the
-LSP 3.18 meta model: 31 are answered and 64 are left out for the reason
+LSP 3.18 meta model: 33 are answered and 62 are left out for the reason
 given.
 
 <details>
@@ -112,14 +112,14 @@ given.
 | Method | State | Note |
 | --- | --- | --- |
 | `initialize` | yes | position encoding "utf-8" when the client offers it, "utf-16" otherwise |
-| `initialized` | yes | nothing to do |
+| `initialized` | yes | tells what went wrong while starting, if anything |
 | `shutdown` | yes |  |
 | `exit` | yes |  |
 | `client/registerCapability` | no | every capability is announced at `initialize` |
 | `client/unregisterCapability` | no |  |
 | `$/cancelRequest` | no | a request is answered before the next one is read |
 | `$/progress` | no | nothing takes long enough to report on |
-| `$/setTrace` | no | `$VIM9LS_LOG` holds the channel log anyway |
+| `$/setTrace` | no | `$VIM9LS_LOG` has the channel log written anyway |
 | `$/logTrace` | no |  |
 
 ### Keeping the server in step with the buffer
@@ -219,9 +219,9 @@ given.
 
 | Method | State | Note |
 | --- | --- | --- |
-| `window/showMessage` | no | nothing here needs the user's attention |
+| `window/showMessage` | yes | a warning when the log of `$VIM9LS_LOG` cannot be opened |
 | `window/showMessageRequest` | no |  |
-| `window/logMessage` | no | what goes wrong goes to `$VIM9LS_LOG`, with the messages around it |
+| `window/logMessage` | yes | where the log of `$VIM9LS_LOG` is; what goes wrong goes to that log |
 | `window/showDocument` | no | nothing here opens a document |
 | `window/workDoneProgress/create` | no |  |
 | `window/workDoneProgress/cancel` | no |  |

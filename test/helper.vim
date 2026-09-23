@@ -3,7 +3,11 @@ vim9script
 
 export const HERE = expand('<sfile>:p:h')
 export const SERVER = fnamemodify(HERE, ':h') .. '/autoload/vim9ls.vim'
-export const LOG = HERE .. '/Xserver.log'
+# The temporary directory of the servers, where they log, a file each;
+# emptied for every run.
+export const LOG = HERE .. '/Xlog'
+delete(LOG, 'rf')
+mkdir(LOG, 'p')
 # The document the tests open; the server never reads it from disk.
 export const URI = 'file:///tmp/Xvim9ls_test.vim'
 
@@ -44,11 +48,11 @@ enddef
 
 # Starts the server as this Vim would as a client; the channel is in "lsp"
 # mode on both ends.  "cmd" is what to start instead of this Vim, the
-# launcher; it is told to use this Vim.
-export def StartServer(cmd: list<string> = null_list): job
+# launcher; it is told to use this Vim.  "tmp" is the temporary directory
+# of the server.
+export def StartServer(cmd: list<string> = null_list, tmp = LOG): job
   notifications = []
   stderr = []
-  delete(LOG)
   job = job_start(cmd == null_list
       ? [v:progpath, '--clean', '--stdio-channel', '-S', SERVER] : cmd, {
     in_mode: 'lsp',
@@ -56,7 +60,7 @@ export def StartServer(cmd: list<string> = null_list): job
     err_mode: 'nl',
     out_cb: (_, msg) => add(notifications, msg),
     err_cb: (_, msg) => add(stderr, msg),
-    env: {VIM9LS_LOG: LOG, VIM9LS_VIM: v:progpath},
+    env: {VIM9LS_LOG: '1', TMPDIR: tmp, TEMP: tmp, VIM9LS_VIM: v:progpath},
   })
   if job_status(job) != 'run'
     add(v:errors, 'the server did not start')
