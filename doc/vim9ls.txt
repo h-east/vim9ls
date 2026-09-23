@@ -251,17 +251,21 @@ show as "{argN}", nor one of a builtin named after its type, "{string}" of
 strlen().
 
 Code actions ~
-A quick fix for what the parser reports, offered for the diagnostics in the
-range asked about: ":let" under Vim9 rules becomes "var" when it declares the
-variable and goes when the variable is there already or has a scope; the end
-a block lacks, "endif" for one, is put in where the indentation of the block
-stops; an end without a start is removed.
+A quick fix for a diagnostic the client sends along with the request, one of
+the parser or one Vim reported: ":let" under Vim9 rules becomes "var" when it
+declares the variable and goes when the variable is there already or has a
+scope; the end a block lacks, "endif" for one, is put in where the
+indentation of the block stops; an end without a start is removed.
 
 Diagnostics ~
 Reported when a document is opened and after its changes pause:
 - a block that is not closed ("if" without "endif", "def" without "enddef",
-  and so on) and an end without a start, with the error Vim would give;
-- ":let" where Vim9 rules apply, in a |vim9script| file or inside a ":def";
+  and so on) and an end without a start, with the error Vim would give; an
+  "endif", "endwhile", "endfor", "endtry", "else", "elseif", "catch" or
+  "finally" out of place under Vim9 rules is left to Vim, see below;
+- ":let" after |:vim9cmd| in legacy script; elsewhere under Vim9 rules Vim
+  reports it, see below.  A statement after |:legacy| or |:vim9cmd| follows
+  the rules these name;
 - in legacy script, a word at the start of a statement that is not a command,
   as a warning; an assignment, a call or a user command does not count.  Under
   Vim9 rules a statement may start with any expression, so nothing is reported

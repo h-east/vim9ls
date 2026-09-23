@@ -10,6 +10,7 @@ vim9script
 
 import autoload './util.vim'
 import autoload './parse.vim'
+import autoload './diag.vim'
 
 const CHECKER = expand('<sfile>:p:h') .. '/checker.vim'
 
@@ -96,13 +97,18 @@ export def Diagnostics(errors: list<dict<any>>, lines: list<string>,
     if e.line >= len(lines)
       continue
     endif
-    add(out, {
+    var item: dict<any> = {
       range: util.Range(lines, e.line, 0, e.line, strlen(lines[e.line]),
         encoding),
       severity: parse.SEVERITY_ERROR,
       source: 'vim9ls',
       message: e.message,
-    })
+    }
+    var data = diag.FixData(e.message, lines[e.line], -1)
+    if data != null_dict
+      item.data = data
+    endif
+    add(out, item)
   endfor
   return out
 enddef

@@ -830,11 +830,16 @@ def g:Test_code_action()
     '    echo x',
     'enddef',
   ])
+  # A client sends back the diagnostics it has on the lines asked about,
+  # those of the parser and those Vim reported alike.
+  var published = helper.WaitNotification('textDocument/publishDiagnostics')
+    .params.diagnostics
   var Ask = (first: number, last: number) => helper.Request(
     'textDocument/codeAction', {textDocument: {uri: helper.URI},
       range: {start: {line: first, character: 0},
         end: {line: last, character: 0}},
-      context: {diagnostics: []}}).result
+      context: {diagnostics: published->copy()->filter((_, d) =>
+        d.range.start.line >= first && d.range.start.line <= last)}}).result
   var actions = Ask(0, 8)
   assert_equal([
     [1, 'Replace :let with :var'],
@@ -863,6 +868,25 @@ def g:Test_code_action()
   # Only the diagnostics in the range asked about.
   assert_equal(['Replace :let with :var'],
     Ask(1, 1)->mapnew((_, a) => a.title))
+  # Nothing without the diagnostics.
+  assert_equal([], helper.Request('textDocument/codeAction',
+    {textDocument: {uri: helper.URI}, range: {start: {line: 0, character: 0},
+      end: {line: 8, character: 0}}, context: {diagnostics: []}}).result)
+
+  # Vim reports the missing endif where the block stops; only the parser's,
+  # on the "if", has a fix.  An endif Vim reports twice has one.
+  helper.ChangeDoc(['vim9script', 'if 1', '  echo 1', 'endif', 'endif'])
+  published = helper.WaitNotification('textDocument/publishDiagnostics')
+    .params.diagnostics
+  assert_equal([[4, 'Remove the endif without a start']],
+    Ask(0, 4)->mapnew((_, a) => [a.diagnostics[0].range.start.line, a.title]))
+  helper.ChangeDoc(['vim9script', 'if 1', '  echo 1'], helper.URI, 3)
+  published = helper.WaitNotification('textDocument/publishDiagnostics')
+    .params.diagnostics
+  assert_true(published->indexof((_, d) => d.range.start.line > 1
+    && d.message =~ 'E171:') >= 0, string(published))
+  assert_equal([[1, 'Insert endif']],
+    Ask(0, 2)->mapnew((_, a) => [a.diagnostics[0].range.start.line, a.title]))
 enddef
 
 def g:Test_diagnostics()
@@ -941,6 +965,9 @@ def g:Test_compile_diagnostics()
   assert_equal([[1, 'E1126: Cannot use :let in Vim9 script']],
     After(['vim9script', 'let x = 1', 'def Fine(): number', '  return 1',
       'enddef'], 2))
+  # Nor ":let" after "legacy", which Vim accepts.
+  assert_equal([], After(['vim9script', 'legacy let $X = 1', 'def Fine()',
+    '  legacy let x = 1', 'enddef'], 3))
 
   # A "const" is left alone, what comes after "finish" is read as well, and
   # every line with an error is reported, in a function and at the script

@@ -88,8 +88,8 @@ See `:help vim9ls` for the details.
 - Signature help for builtin functions and the script's own; with a Vim
   that has `getinfo()` the arguments of a builtin come with their names
   and types as Vim reports them, and the return type.
-- Code actions: a quick fix for what the parser reports, `:let` to `var`,
-  the `endif` a block lacks, an `endif` without an `if`.
+- Code actions: a quick fix for a diagnostic, of the parser or of Vim,
+  `:let` to `var`, the `endif` a block lacks, an `endif` without an `if`.
 - Inlay hints: the type of a `var` that leaves it to the initializer, as
   the Vim9 compiler infers it, and the parameter names at a call.
 - Diagnostics: blocks that do not add up, `:let` under Vim9 rules, in legacy

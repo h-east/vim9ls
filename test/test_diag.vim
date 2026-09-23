@@ -41,14 +41,30 @@ def g:Test_diag_end_without_start()
     Messages(['if 1', 'endwhile']))
 enddef
 
+# What Vim reports on the same line in code it compiles is left to the
+# checker; the rest the parser reports there as well.
+def g:Test_diag_left_to_vim()
+  assert_equal([], Messages(['vim9script', 'endif', 'else', 'endfor',
+    'endtry', 'catch', 'def F()', '  endwhile', 'enddef']))
+  assert_equal(['E193: :enddef not inside a function',
+    'E1057: Missing :enddef'], Messages(['vim9script', 'enddef', 'def F()']))
+  assert_equal(['E580: :endif without :if'], Messages(['endif']))
+  assert_equal(['E580: :endif without :if'],
+    Messages(['vim9script', 'function F()', '  endif', 'endfunction']))
+enddef
+
+# The checker has Vim report ":let" in a Vim9 script and in a :def; the
+# parser reports it where Vim does not compile, after "vim9cmd".
 def g:Test_diag_let_in_vim9()
-  var diags = parse.Parse(['vim9script', 'let x = 1']).diags
+  var diags = parse.Parse(["echo 'x'", 'vim9cmd let x = 1']).diags
   assert_equal(['E1126: Cannot use :let in Vim9 script'],
     diags->mapnew((_, d) => d.message))
   assert_equal(1, diags[0].line)
-  # Inside a :def in a legacy script as well.
-  assert_equal(['E1126: Cannot use :let in Vim9 script'],
-    Messages(['def Foo()', '  let x = 1', 'enddef']))
+  assert_equal([], Messages(['vim9script', 'let x = 1']))
+  assert_equal([], Messages(['def Foo()', '  let x = 1', 'enddef']))
+  # "legacy" reads the command the legacy way.
+  assert_equal([], Messages(['vim9script', 'legacy let $X = 1',
+    'def Foo()', '  legacy let x = 1', 'enddef']))
   # A legacy function in a Vim9 script is legacy.
   assert_equal([], Messages(['vim9script', 'function Foo()', '  let x = 1',
     'endfunction']))
@@ -64,6 +80,10 @@ def g:Test_diag_unknown_command()
   assert_equal(['E492: Not an editor command: foobar'],
     Messages(['silent! foobar']))
   assert_equal([], Messages(['sil! ec 1', 'norm! dd', 'exe "q"']))
+  # "legacy" and "vim9cmd" decide which way the command is read.
+  assert_equal(['E492: Not an editor command: foobar'],
+    Messages(['vim9script', 'legacy foobar']))
+  assert_equal([], Messages(['vim9cmd foobar']))
 enddef
 
 # What looks like a command but is not one must not be reported.

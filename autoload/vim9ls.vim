@@ -1061,10 +1061,8 @@ def CodeActions(params: dict<any>): any
   if d == null_dict
     return v:null
   endif
-  var range = params->get('range', {})
   return fix.Actions(Parsed(d), d.lines, uri,
-    range->get('start', {})->get('line', 0),
-    range->get('end', {})->get('line', len(d.lines)), encoding)
+    params->get('context', {})->get('diagnostics', []), encoding)
 enddef
 
 def InlayHints(params: dict<any>): any

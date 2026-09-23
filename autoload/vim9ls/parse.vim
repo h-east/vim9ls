@@ -60,6 +60,10 @@ const CLOSES = {
   endinterface: 'interface',
 }
 const CONTINUES = {else: 'if', elseif: 'if', catch: 'try', finally: 'try'}
+# What Vim itself reports, on the same line, when it is out of place in code
+# it compiles: the checker has it reported there.
+const VIM_REPORTS = {endif: 1, endwhile: 1, endfor: 1, endtry: 1, else: 1,
+  elseif: 1, catch: 1, finally: 1}
 const OPENS = {if: 1, while: 1, for: 1, try: 1}
 const DECLARES = {var: 1, const: 1, final: 1, let: 1}
 # Commands that take a script in another language as a heredoc.
@@ -171,10 +175,10 @@ def Open(st: dict<any>, kind: string, symbol: dict<any>, lnum: number)
   add(st.stack, {kind: kind, symbol: symbol, line: lnum, vars: []})
 enddef
 
-# A variable declared under Vim9 rules inside a block or a function is seen
-# from its line to the end of that block.
-def Declared(st: dict<any>, symbol: dict<any>, lnum: number)
-  if !st.stack->empty() && InVim9(st)
+# A variable declared under Vim9 rules ("vim9") inside a block or a function
+# is seen from its line to the end of that block.
+def Declared(st: dict<any>, symbol: dict<any>, lnum: number, vim9: bool)
+  if !st.stack->empty() && vim9
     symbol.scope_start = lnum
     add(st.stack[-1].vars, symbol)
   endif
@@ -187,11 +191,14 @@ def EndScope(entry: dict<any>, lnum: number)
   entry.vars = []
 enddef
 
+# "report" is false to leave the error to the checker.
 def Close(st: dict<any>, closer: string, lnum: number, col: number,
-    end_col: number)
+    end_col: number, report: bool)
   var kind = CLOSES[closer]
   if st.stack->empty() || st.stack[-1].kind != kind
-    add(st.diags, Diag(lnum, col, end_col, END_WITHOUT_START[closer]))
+    if report
+      add(st.diags, Diag(lnum, col, end_col, END_WITHOUT_START[closer]))
+    endif
     return
   endif
   var entry = remove(st.stack, -1)
@@ -327,8 +334,13 @@ def Statement(st: dict<any>, lnum: number, text: string, col: number,
 
   # Kept for the "def" below, which an "abstract" leaves without a body.
   var abstract = false
+  # Whether the statement is read the Vim9 way; "legacy" and "vim9cmd" switch.
+  var is_vim9 = InVim9(st)
   while MODIFIERS->has_key(cmd)
     abstract = abstract || cmd == 'abstract'
+    if cmd == 'legacy' || cmd == 'vim9cmd'
+      is_vim9 = cmd == 'vim9cmd'
+    endif
     offset += strlen(rest) - strlen(arg_text)
     rest = arg_text
     word = matchstr(rest, '^\h\w*')
@@ -342,7 +354,7 @@ def Statement(st: dict<any>, lnum: number, text: string, col: number,
 
   if cmd == ''
     # A word after a modifier that is not a command.
-    if is_first && word[0] >= 'a' && word[0] <= 'z' && !InVim9(st)
+    if is_first && word[0] >= 'a' && word[0] <= 'z' && !is_vim9
         && (arg_text == '' || stridx(EXPRESSION_CHARS, arg_text[0]) < 0)
       add(st.diags, Diag(lnum, offset, offset + strlen(word),
         'E492: Not an editor command: ' .. word, SEVERITY_WARNING))
@@ -351,7 +363,8 @@ def Statement(st: dict<any>, lnum: number, text: string, col: number,
   endif
 
   if DECLARES->has_key(cmd)
-    if cmd == 'let' && InVim9(st)
+    # In a Vim9 script the checker has Vim report it.
+    if cmd == 'let' && is_vim9 && !InVim9(st)
       add(st.diags, Diag(lnum, offset, offset + strlen(word),
         'E1126: Cannot use :let in Vim9 script'))
     endif
@@ -387,7 +400,7 @@ def Statement(st: dict<any>, lnum: number, text: string, col: number,
         name_col + stridx(arg_text, name), detail)
       add(container, symbol)
       if !in_class
-        Declared(st, symbol, lnum)
+        Declared(st, symbol, lnum, is_vim9)
       endif
     endfor
   elseif cmd == 'def' || cmd == 'function'
@@ -417,11 +430,14 @@ def Statement(st: dict<any>, lnum: number, text: string, col: number,
       Open(st, cmd, symbol, lnum)
     endif
   elseif CLOSES->has_key(cmd)
-    Close(st, cmd, lnum, offset, offset + strlen(word))
+    Close(st, cmd, lnum, offset, offset + strlen(word),
+      !is_vim9 || !VIM_REPORTS->has_key(cmd))
   elseif CONTINUES->has_key(cmd)
     if !InKind(st, CONTINUES[cmd])
-      add(st.diags, Diag(lnum, offset, offset + strlen(word),
-        END_WITHOUT_START[cmd]))
+      if !is_vim9
+        add(st.diags, Diag(lnum, offset, offset + strlen(word),
+          END_WITHOUT_START[cmd]))
+      endif
     else
       # The other branch is a block of its own.
       EndScope(st.stack[-1], lnum)
@@ -436,7 +452,7 @@ def Statement(st: dict<any>, lnum: number, text: string, col: number,
         var symbol = NewSymbol(name, KIND_VARIABLE, lnum, col,
           name_col + stridx(arg_text, name))
         add(container, symbol)
-        Declared(st, symbol, lnum)
+        Declared(st, symbol, lnum, is_vim9)
       endfor
     endif
   elseif TYPES->has_key(cmd)
