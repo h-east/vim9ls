@@ -43,6 +43,31 @@ def Reset()
   redir END
 enddef
 
+# The file of each script read so far, with its time and size when it was
+# read.
+var read_as: dict<string> = {}
+
+def Stamp(file: string): string
+  return getftime(file) .. ':' .. getfsize(file)
+enddef
+
+# Has the scripts read before that changed since then read again, but for
+# the one at "path": Vim does not read a script again for an import, so the
+# import would find what it was.  A script not seen yet is only noted.
+def Refresh(path: string)
+  for info in getscriptinfo()
+    var file = FullPath(info.name)
+    if file == path || file == FullPath(SELF) || !filereadable(file)
+      continue
+    endif
+    var stamp = Stamp(file)
+    if read_as->has_key(file) && read_as[file] != stamp
+      silent! execute 'source ++dryrun' fnameescape(file)
+    endif
+    read_as[file] = stamp
+  endfor
+enddef
+
 # Reads the buffer with "cmd" and returns what Vim reported.
 def Source(cmd: string): string
   var messages = ''
@@ -167,9 +192,11 @@ def Check(path_arg: string, lines: list<string>, wrapped: any): list<dict<any>>
   endif
   var text = type(wrapped) != v:t_list ? lines
     : lines + ['def ScriptLevel()'] + wrapped + ['enddef']
+  Refresh(path)
   Load(path, text)
   # The range needs the colon: ":execute" from a ":def" reads the Vim9 way.
   var errors = Errors(Source(':%source ++dryrun'), path)
+  Refresh(path)
   for e in errors
     if e.line > len(lines)
       e.line -= len(lines) + 1

@@ -1068,6 +1068,34 @@ def g:Test_compile_diagnostics()
   assert_equal([], note.params.diagnostics)
 enddef
 
+# A script that is imported is read again once it has changed, since Vim
+# keeps what it read before for the import.
+def g:Test_compile_import_changed()
+  var root = helper.HERE .. '/Xchanged'
+  mkdir(root, 'p')
+  writefile(['vim9script', 'export const N: number = 1'], root .. '/xlib.vim')
+  var user = ['vim9script', "import './xlib.vim'", 'def F(): number',
+    '  return xlib.N', 'enddef']
+  var uri = util.PathToUri(root .. '/user.vim')
+  try
+    writefile(user, root .. '/user.vim')
+    helper.StartServer()
+    helper.Initialize()
+    helper.OpenDoc(user, uri)
+    assert_equal([], helper.WaitNotification('textDocument/publishDiagnostics')
+      .params.diagnostics)
+    writefile(['vim9script', 'export const N: string = "s"'],
+      root .. '/xlib.vim')
+    helper.ChangeDoc(user + [''], uri, 2)
+    assert_equal(['E1012: Type mismatch; expected number but got string'],
+      helper.WaitNotification('textDocument/publishDiagnostics')
+        .params.diagnostics->mapnew((_, d) => d.message))
+  finally
+    helper.StopServer()
+    delete(root, 'rf')
+  endtry
+enddef
+
 # Two plugins with an import file of the same name: each script is checked
 # against its own, also when the other plugin was checked in between, and a
 # file only the other one has is not found.
