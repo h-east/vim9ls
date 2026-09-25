@@ -61,6 +61,35 @@ def g:Test_workspace_folders()
     {textDocument: {uri: 'file:///tmp/Xvim9ls_two/b.vim'}}).result)
 enddef
 
+# Asked for the diagnostics of a document, the server answers with what it
+# sends, for the text as it is: what the checker reported on an earlier
+# text is left out.
+def g:Test_document_diagnostic()
+  helper.StartServer()
+  helper.Initialize()
+  var text = ['vim9script', 'def F(): number', '  var left = 1',
+    '  return "x"', 'enddef']
+  var both = ['Unused variable: left',
+    'E1012: Type mismatch; expected number but got string']
+  helper.OpenDoc(text)
+  assert_equal(both, helper.WaitNotification('textDocument/publishDiagnostics')
+    .params.diagnostics->mapnew((_, d) => d.message))
+  var Pulled = () => helper.Request('textDocument/diagnostic',
+    {textDocument: {uri: helper.URI}}).result
+  assert_equal('full', Pulled().kind)
+  assert_equal(both, Pulled().items->mapnew((_, d) => d.message))
+
+  helper.ChangeDoc(text + [''])
+  assert_equal(['Unused variable: left'],
+    Pulled().items->mapnew((_, d) => d.message))
+  helper.WaitNotification('textDocument/publishDiagnostics')
+  assert_equal(both, Pulled().items->mapnew((_, d) => d.message))
+
+  assert_equal({kind: 'full', items: []},
+    helper.Request('textDocument/diagnostic',
+      {textDocument: {uri: 'file:///tmp/Xvim9ls_not_open.vim'}}).result)
+enddef
+
 def g:Test_initialize_utf16()
   helper.StartServer()
   var resp = helper.Initialize(['utf-16'])

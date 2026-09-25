@@ -105,7 +105,7 @@ See `:help vim9ls` for the details.
 ## Protocol coverage
 
 What this server does with each of the 95 requests and notifications in the
-LSP 3.18 meta model: 37 are answered and 58 are left out for the reason
+LSP 3.18 meta model: 38 are answered and 57 are left out for the reason
 given.
 
 <details>
@@ -176,7 +176,7 @@ given.
 | `textDocument/inlayHint` | yes | the type of a `var` that leaves it to the initializer, and the parameter names at a call |
 | `inlayHint/resolve` | no | a hint comes complete |
 | `textDocument/publishDiagnostics` | yes | after the changes pause |
-| `textDocument/diagnostic` | no | diagnostics are sent, not asked for |
+| `textDocument/diagnostic` | yes | the same as those sent, for the text as it is |
 | `textDocument/formatting` | yes | Vim's own indent script, run in the server; for editors other than Vim |
 | `textDocument/rangeFormatting` | yes | the lines of the range, taken whole |
 | `textDocument/rangesFormatting` | no |  |

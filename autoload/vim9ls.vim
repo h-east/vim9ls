@@ -132,6 +132,18 @@ def Parsed(d: dict<any>, fresh = true): dict<any>
   return d.parsed
 enddef
 
+# textDocument/diagnostic: what the parser finds in the text as it is, and
+# what the checker reported when it has read this text.
+def DocumentDiagnostics(params: dict<any>): dict<any>
+  var uri = params.textDocument.uri
+  var d = docs->get(uri, null_dict)
+  if d == null_dict
+    return {kind: 'full', items: []}
+  endif
+  var items = StaticItems(d, util.UriToPath(uri))
+  return {kind: 'full', items: d.compiled_now ? WithCompiled(d, items) : items}
+enddef
+
 # workspace/diagnostic is kept open.  What is found in the scripts of the
 # workspace folders goes to the client as partial results: what the parser
 # finds, then that with what the checker reports.  A client that gave no
@@ -323,13 +335,17 @@ def EndPull(cancelled: bool)
 enddef
 
 # What the parser finds in the document "d" at "path": blocks that do not add
-# up, names that are not defined and variables that are not used.
+# up, names that are not defined and variables that are not used.  Kept with
+# the parse, since the diagnostics are sent and asked for as well.
 def StaticItems(d: dict<any>, path: string): list<dict<any>>
   var parsed = Parsed(d)
-  var undefined = names.Undefined(parsed, d.lines,
-    (name: string): number => AutoloadDefined(path, name))
-  return diag.Diagnostics(parsed.diags + undefined
-    + unused.Unused(parsed, d.lines), d.lines, encoding)
+  if !parsed->has_key('items')
+    var undefined = names.Undefined(parsed, d.lines,
+      (name: string): number => AutoloadDefined(path, name))
+    parsed.items = diag.Diagnostics(parsed.diags + undefined
+      + unused.Unused(parsed, d.lines), d.lines, encoding)
+  endif
+  return parsed.items
 enddef
 
 # "items" and what the checker reported last for the document "d".  The two
@@ -375,6 +391,7 @@ def Publish(uri: string, version: any, items: list<dict<any>>, errors: any)
   endif
   if errors != null
     d.compiled = errors
+    d.compiled_now = true
   endif
   Notify('textDocument/publishDiagnostics', {
     uri: uri,
@@ -395,7 +412,7 @@ enddef
 
 def SetDoc(uri: string, text: string, version: any)
   docs[uri] = {lines: SplitText(text), version: version, parsed: null_dict,
-    stale: true, timer: -1, compiled: []}
+    stale: true, timer: -1, compiled: [], compiled_now: false}
   ScheduleDiagnostics(uri)
 enddef
 
@@ -430,6 +447,7 @@ def ChangeDoc(uri: string, changes: list<dict<any>>, version: any)
   endfor
   d.version = version
   d.stale = true
+  d.compiled_now = false
   ScheduleDiagnostics(uri)
 enddef
 
@@ -1480,6 +1498,8 @@ def Request(method: string, params: dict<any>): any
     return v:null
   elseif method == 'textDocument/hover'
     return Hover(params)
+  elseif method == 'textDocument/diagnostic'
+    return DocumentDiagnostics(params)
   elseif method == 'textDocument/completion'
     return Completion(params)
   elseif method == 'completionItem/resolve'
