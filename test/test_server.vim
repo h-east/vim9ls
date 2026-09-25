@@ -975,6 +975,7 @@ def g:Test_compile_diagnostics()
   assert_equal([
     [1, 'E1012: Type mismatch; expected number but got string'],
     [4, 'E1012: Type mismatch; expected number but got string'],
+    [6, 'Unused variable: s'],
     [6, 'E1012: Type mismatch; expected string but got number'],
     [7, 'E1001: Variable not found: undefined_name'],
   ], After(['vim9script', 'var n: number = "t"', 'const LIMIT = 10', 'finish',
@@ -999,7 +1000,8 @@ def g:Test_compile_diagnostics()
 
   # An error in a method is put on its line, and a static method is called
   # by its bare name inside the class.
-  assert_equal([[8, 'E117: Unknown function: _Helper']],
+  assert_equal([[8, 'E117: Unknown function: _Helper'],
+    [9, 'Unused variable: n']],
     After(['vim9script', 'class C', '  def _Helper()', '  enddef',
       '  static def S(): number', '    return 1', '  enddef', '  def Run()',
       '    _Helper()', '    var n = S()', '  enddef', 'endclass'], 7))

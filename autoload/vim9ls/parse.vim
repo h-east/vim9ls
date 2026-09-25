@@ -25,6 +25,9 @@ export const KIND_ENUM_MEMBER = 22
 # LSP DiagnosticSeverity values.
 export const SEVERITY_ERROR = 1
 export const SEVERITY_WARNING = 2
+export const SEVERITY_HINT = 4
+# LSP DiagnosticTag value.
+export const TAG_UNNECESSARY = 1
 
 # Commands that only qualify the command after them.
 const MODIFIERS = {
@@ -211,6 +214,41 @@ def Close(st: dict<any>, closer: string, lnum: number, col: number,
   EndScope(entry, lnum)
 enddef
 
+# Where the type and the default of a parameter end, from byte "pos" of
+# "text": the "," that is not inside brackets or a string, or the end of
+# "text".  In the type "<" and ">" are brackets too, "tuple<number, string>";
+# in the default they compare.
+def ParamEnd(text: string, pos: number): number
+  var depth = 0
+  var in_type = true
+  var quote = ''
+  var escaped = false
+  var byte = pos
+  for c in split(strpart(text, pos), '\zs')
+    if quote != ''
+      if escaped
+        escaped = false
+      elseif quote == '"' && c == '\'
+        escaped = true
+      elseif c == quote
+        quote = ''
+      endif
+    elseif c == '"' || c == "'"
+      quote = c
+    elseif c == '=' && depth == 0
+      in_type = false
+    elseif c == '(' || c == '[' || c == '{' || (in_type && c == '<')
+      depth += 1
+    elseif c == ')' || c == ']' || c == '}' || (in_type && c == '>')
+      depth -= 1
+    elseif c == ',' && depth == 0
+      return byte
+    endif
+    byte += strlen(c)
+  endfor
+  return strlen(text)
+enddef
+
 # The parameters in "text", at "col" of line "lnum", as variables of the
 # function; a legacy script refers to them with "a:".  A header may go on
 # over several lines, "text" is what one line has of it.
@@ -223,7 +261,7 @@ def AddParams(symbol: dict<any>, text: string, lnum: number, col: number,
       break
     endif
     # Skip a type and a default: what follows ":" or "=" up to ",".
-    pos = m[2] + strlen(matchstr(text, '^\s*[:=][^,]*', m[2]))
+    pos = strpart(text, m[2]) =~ '^\s*[:=]' ? ParamEnd(text, m[2]) : m[2]
     var param = NewSymbol((legacy ? 'a:' : '') .. m[0], KIND_VARIABLE, lnum,
       col + m[1], col + m[1])
     param.param = true
@@ -533,6 +571,12 @@ export def Parse(lines: list<string>): dict<any>
     endif
     var word = m[0]
     var col = m[1]
+    # A heredoc assigned to a variable that is there already, "x =<< END",
+    # holds text as well.
+    if line =~ '^\s*[[:alnum:]_:.]\+\s*=<<'
+      st.heredoc = matchstr(line, '=<<\s*\%(\%(trim\|eval\)\s\+\)*\zs\S\+$')
+      continue
+    endif
     # "end: 1" in a dictionary that goes over lines is a key, not ":endif".
     if line[m[2]] == ':'
       continue

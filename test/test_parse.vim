@@ -189,4 +189,35 @@ def g:Test_parse_bar_after_multibyte()
   assert_equal(31, after[0].name_end)
 enddef
 
+# A comma inside the type or the default of a parameter does not start
+# another one.
+def g:Test_parse_parameter_types()
+  var parsed = parse.Parse(['vim9script',
+    "def F(Cb: func(number, string): bool, t: tuple<number, string>,",
+    "    d: string = 'a, b', e: list<number> = [1, 2], f = 1 > 0, g = 2)",
+    'enddef'])
+  assert_equal(['Cb', 't', 'd', 'e', 'f', 'g'],
+    Names(parsed.symbols[0].children))
+enddef
+
+# The text of a heredoc assigned to a variable that is there already is not
+# read as statements.
+def g:Test_parse_assigned_heredoc()
+  var lines =<< trim END
+    vim9script
+    var text: list<string>
+    text =<< trim eval EOT
+      var inside = 1
+    EOT
+    g:text =<< EOT
+      def Inside()
+    EOT
+    var after = 1
+  END
+  var parsed = parse.Parse(lines)
+  assert_equal(['text', 'after'], Names(parsed.symbols))
+  assert_equal([3, 4, 6, 7], parsed.heredoc_lines)
+  assert_equal([], parsed.diags)
+enddef
+
 # vim: ts=2 sw=0 et

@@ -275,7 +275,13 @@ Reported when a document is opened and after its changes pause:
   its file does not have, and under Vim9 rules a name the script does not
   define.  A global function may be defined anywhere and is left alone, and so
   is a call in a pattern, in keys or in the value of an option;
-- a "v:" variable Vim does not have.
+- a "v:" variable Vim does not have;
+- a variable or a parameter of a ":def" function whose name does not come up
+  again after it is declared, as a hint with the "unnecessary" tag, which an
+  editor may show faded.  An assignment counts as a use, and so does the name
+  in an expression of an interpolated string or of a heredoc that evaluates.
+  "_" is left alone, and so are a variable of the script, which another
+  script may use, and what a legacy "function" declares.
 The reading is line by line and does not run the script.
 
 At the same time Vim itself reads the document.  The checker, a Vim of its

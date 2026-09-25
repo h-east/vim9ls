@@ -94,8 +94,9 @@ See `:help vim9ls` for the details.
   the Vim9 compiler infers it, and the parameter names at a call.
 - Diagnostics: blocks that do not add up, `:let` under Vim9 rules, in legacy
   script words that are not commands, calls of functions that are not
-  defined, and `v:` variables Vim does not have.  And from Vim itself: a type
-  mismatch, a name that is not found, an argument too many, in a `:def`
+  defined, `v:` variables Vim does not have, and, as hints, the variables and
+  parameters of a `:def` function that are not used.  And from Vim itself: a
+  type mismatch, a name that is not found, an argument too many, in a `:def`
   function and, in a Vim9 script, at the script level.
 
 ## Protocol coverage

@@ -186,7 +186,7 @@ def OnMessage(ch: channel, msg: any)
   endif
 enddef
 
-def OnClose(ch: channel)
+def OnClose(_: channel)
   qall!
 enddef
 

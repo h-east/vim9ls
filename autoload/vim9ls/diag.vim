@@ -35,6 +35,9 @@ export def Diagnostics(diags: list<dict<any>>, lines: list<string>,
       source: 'vim9ls',
       message: d.message,
     }
+    if d->has_key('tags')
+      item.tags = d.tags
+    endif
     var data = FixData(d.message, lines[d.line], d.col)
     if data != null_dict
       item.data = data

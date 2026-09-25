@@ -25,6 +25,7 @@ import autoload './vim9ls/format.vim'
 import autoload './vim9ls/hints.vim'
 import autoload './vim9ls/infer.vim'
 import autoload './vim9ls/selection.vim'
+import autoload './vim9ls/unused.vim'
 
 export const VERSION = '0.1.001'
 
@@ -134,7 +135,8 @@ def PublishDiagnostics(uri: string)
   var path = util.UriToPath(uri)
   var undefined = names.Undefined(parsed, d.lines,
     (name: string): number => AutoloadDefined(path, name))
-  var items = diag.Diagnostics(parsed.diags + undefined, d.lines, encoding)
+  var items = diag.Diagnostics(parsed.diags + undefined
+    + unused.Unused(parsed, d.lines), d.lines, encoding)
   var version = d.version
   if path == '' || !compile.Check(path, d.lines,
       parsed.vim9 ? wrap.Lines(parsed, d.lines) : null,
