@@ -63,6 +63,13 @@ export def Request(method: string, params: any = null): dict<any>
   return ch_evalexpr(job, req, {timeout: 5000})
 enddef
 
+# Sends a request without waiting: "Answered" gets the response.  Returns
+# the id of the request.
+export def Send(method: string, params: any, Answered: func(dict<any>)): any
+  return ch_sendexpr(job, {method: method, params: params},
+    {callback: (_, resp) => Answered(resp)}).id
+enddef
+
 export def Notify(method: string, params: any = null)
   var msg: dict<any> = {method: method}
   if params != null

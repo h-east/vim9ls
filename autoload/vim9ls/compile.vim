@@ -24,6 +24,9 @@ var job: job
 var current: dict<any> = null_dict
 # The checks that wait for it, {path, lines, wrapped, Done}, oldest first.
 var waiting: list<dict<any>> = []
+# The same for the checks made in the background, which wait until nothing
+# else does.
+var background: list<dict<any>> = []
 
 def Running(): bool
   return job != null_job && job_status(job) == 'run'
@@ -57,8 +60,9 @@ enddef
 # Ends the checker; what it was asked, and what waits, is answered with null.
 export def Stop()
   Kill()
-  var asked = waiting
+  var asked = waiting + background
   waiting = []
+  background = []
   for w in asked
     w.Done(null)
   endfor
@@ -66,7 +70,7 @@ enddef
 
 # Hands the checker the oldest check that waits, when it has none.
 def Next()
-  while current == null_dict && !waiting->empty()
+  while current == null_dict && !(waiting->empty() && background->empty())
     if !Running()
       Start()
       if !Running()
@@ -74,7 +78,7 @@ def Next()
         return
       endif
     endif
-    var w = remove(waiting, 0)
+    var w = waiting->empty() ? remove(background, 0) : remove(waiting, 0)
     var sent = ch_sendexpr(job, {method: 'check',
       params: {path: w.path, lines: w.lines, wrapped: w.wrapped}},
       {callback: OnReply})
@@ -91,9 +95,10 @@ enddef
 # with "wrapped" the script level as a function (see wrap.vim) or null.
 # "Done" gets the {line, message} items, or null when the checker gave no
 # answer.  A check of the same script that still waits gives way to this
-# one.  Returns false when there is no checker to ask.
+# one.  A check made "in_background" waits until no other one does.  Returns
+# false when there is no checker to ask.
 export def Check(path: string, lines: list<string>, wrapped: any,
-    Done: func(any)): bool
+    Done: func(any), in_background = false): bool
   if !Running()
     Start()
     if !Running()
@@ -101,11 +106,12 @@ export def Check(path: string, lines: list<string>, wrapped: any,
     endif
   endif
   var check = {path: path, lines: lines, wrapped: wrapped, Done: Done}
-  var at = waiting->indexof((_, w) => w.path == path)
+  var queue = in_background ? background : waiting
+  var at = queue->indexof((_, w) => w.path == path)
   if at >= 0
-    waiting[at] = check
+    queue[at] = check
   else
-    add(waiting, check)
+    add(queue, check)
   endif
   Next()
   return true

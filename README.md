@@ -98,11 +98,14 @@ See `:help vim9ls` for the details.
   parameters of a `:def` function that are not used.  And from Vim itself: a
   type mismatch, a name that is not found, an argument too many, in a `:def`
   function and, in a Vim9 script, at the script level.
+- Workspace diagnostics: the same for the scripts of the workspace folders
+  that are not open, at most 256, sent as they are read and again when they
+  may have changed.
 
 ## Protocol coverage
 
 What this server does with each of the 95 requests and notifications in the
-LSP 3.18 meta model: 34 are answered and 61 are left out for the reason
+LSP 3.18 meta model: 37 are answered and 58 are left out for the reason
 given.
 
 <details>
@@ -118,8 +121,8 @@ given.
 | `exit` | yes |  |
 | `client/registerCapability` | no | every capability is announced at `initialize` |
 | `client/unregisterCapability` | no |  |
-| `$/cancelRequest` | no | a request is answered before the next one is read |
-| `$/progress` | no | nothing takes long enough to report on |
+| `$/cancelRequest` | yes | for `workspace/diagnostic`, which is kept open; any other request is answered before the next one is read |
+| `$/progress` | yes | the partial results of `workspace/diagnostic` |
 | `$/setTrace` | no | the log of `$VIM9LS_LOG` has more |
 | `$/logTrace` | no |  |
 
@@ -200,7 +203,7 @@ given.
 | `workspace/didChangeWatchedFiles` | no |  |
 | `workspace/executeCommand` | no | nothing here runs a command |
 | `workspace/applyEdit` | no | the edits of a rename go back as its answer |
-| `workspace/diagnostic` | no | diagnostics are sent per document |
+| `workspace/diagnostic` | yes | the scripts of the workspace folders that are not open, at most 256; kept open |
 | `workspace/willCreateFiles` | no | nothing here depends on a file being made, moved or deleted |
 | `workspace/didCreateFiles` | no |  |
 | `workspace/willRenameFiles` | no |  |

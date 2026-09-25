@@ -80,6 +80,12 @@ def Initialize(params: dict<any>): dict<any>
   var offered = params->get('capabilities', {})->get('general', {})
     ->get('positionEncodings', [])
   encoding = index(offered, 'utf-8') >= 0 ? 'utf-8' : 'utf-16'
+  var given = params->get('workspaceFolders', null)
+  if type(given) == v:t_list
+    AddFolders(given)
+  elseif type(params->get('rootUri', null)) == v:t_string
+    AddFolders([{uri: params.rootUri}])
+  endif
   return {
     capabilities: {
       positionEncoding: encoding,
@@ -103,6 +109,8 @@ def Initialize(params: dict<any>): dict<any>
       signatureHelpProvider: {triggerCharacters: ['(', ',']},
       codeActionProvider: {codeActionKinds: ['quickfix']},
       inlayHintProvider: true,
+      diagnosticProvider: {interFileDependencies: true,
+        workspaceDiagnostics: true},
       workspace: {workspaceFolders: {supported: true,
         changeNotifications: true}},
     },
@@ -124,6 +132,219 @@ def Parsed(d: dict<any>, fresh = true): dict<any>
   return d.parsed
 enddef
 
+# workspace/diagnostic is kept open.  What is found in the scripts of the
+# workspace folders goes to the client as partial results: what the parser
+# finds, then that with what the checker reports.  A client that gave no
+# token for them is answered once nothing is left to read or check, and asks
+# again.
+
+# The workspace folders, as paths.
+var folders: list<string> = []
+# The request kept open, {id, token, streaming}, or null_dict.
+var pull: dict<any> = null_dict
+# What is kept for the answer to a request without a token.
+var held: list<dict<any>> = []
+# The scripts reported, by path, with the time and size they had then.
+var reported: dict<string> = {}
+# The scripts to read, and the timer that reads them.
+var to_read: list<string> = []
+var read_timer = -1
+# The checks of the scripts that the checker has yet to answer.
+var checking = 0
+# The most scripts read; a folder may be a home directory.
+const MAX_SCRIPTS = 256
+var told_count = 0
+
+def AddFolders(list: list<any>)
+  for f in list
+    var path = type(f) == v:t_dict ? util.UriToPath(f->get('uri', '')) : ''
+    if path != '' && index(folders, path) < 0
+      add(folders, path)
+    endif
+  endfor
+enddef
+
+# The scripts in the workspace folders that are not open, the first
+# MAX_SCRIPTS of them.
+def WorkspaceScripts(): list<string>
+  var open = docs->keys()->map((_, uri) => util.UriToPath(uri))
+  var paths: list<string> = []
+  for f in folders
+    paths += glob(f .. '/**/*.vim', true, true)
+      ->map((_, p) => util.FullPath(p))
+  endfor
+  paths = paths->sort()->uniq()->filter((_, p) => index(open, p) < 0)
+  if len(paths) > MAX_SCRIPTS
+    if told_count != len(paths)
+      told_count = len(paths)
+      Notify('window/logMessage', {type: 2, message: printf(
+        'vim9ls: the workspace has %d scripts, the first %d are read',
+        len(paths), MAX_SCRIPTS)})
+    endif
+    paths = paths[: MAX_SCRIPTS - 1]
+  endif
+  return paths
+enddef
+
+# Sends what was found in the script at "path".
+def Report(path: string, items: list<dict<any>>)
+  var report = {uri: util.PathToUri(path), version: v:null, kind: 'full',
+    items: items}
+  if pull.streaming
+    Notify('$/progress', {token: pull.token, value: {items: [report]}})
+  else
+    held = held->filter((_, r) => r.uri != report.uri) + [report]
+  endif
+enddef
+
+def AnswerHeld()
+  if pull == null_dict || pull.streaming || held->empty()
+      || !to_read->empty() || checking > 0
+    return
+  endif
+  Reply(pull.id, {items: held})
+  held = []
+  pull = null_dict
+enddef
+
+# Has the scripts read again that changed since they were reported, and
+# those in "again"; one that is gone is reported with nothing.
+def ScanWorkspace(again: list<string> = [])
+  for path in again
+    if reported->has_key(path)
+      remove(reported, path)
+    endif
+  endfor
+  if pull == null_dict
+    return
+  endif
+  var scripts = WorkspaceScripts()
+  for path in keys(reported)
+    if index(scripts, path) < 0
+      remove(reported, path)
+      Report(path, [])
+    endif
+  endfor
+  for path in scripts
+    if reported->get(path, '') != Stamp(path) && index(to_read, path) < 0
+      add(to_read, path)
+    endif
+  endfor
+  if read_timer < 0 && !to_read->empty()
+    read_timer = timer_start(0, (_) => ReadScripts())
+  endif
+  AnswerHeld()
+enddef
+
+# Reads scripts for a while, then lets the client be answered before going
+# on.
+def ReadScripts()
+  read_timer = -1
+  if pull == null_dict
+    return
+  endif
+  var start = reltime()
+  while !to_read->empty() && reltimefloat(reltime(start)) < 0.05
+    ReadScript(remove(to_read, 0))
+  endwhile
+  if !to_read->empty()
+    read_timer = timer_start(10, (_) => ReadScripts())
+  endif
+  AnswerHeld()
+enddef
+
+def Stamp(path: string): string
+  return getftime(path) .. ':' .. getfsize(path)
+enddef
+
+def ReadScript(path: string)
+  if !filereadable(path)
+    return
+  endif
+  var stamp = Stamp(path)
+  var d = {lines: readfile(path), parsed: null_dict, stale: true,
+    compiled: []}
+  var items = StaticItems(d, path)
+  reported[path] = stamp
+  Report(path, items)
+  var parsed = Parsed(d)
+  if compile.Check(path, d.lines, parsed.vim9 ? wrap.Lines(parsed, d.lines)
+      : null, (errors: any) => Checked(path, d, items, errors), true)
+    checking += 1
+  endif
+enddef
+
+def Checked(path: string, d: dict<any>, items: list<dict<any>>, errors: any)
+  checking -= 1
+  if pull == null_dict
+    # Not sent; read it again for the next request.
+    if reported->has_key(path)
+      remove(reported, path)
+    endif
+    return
+  endif
+  if errors != null
+    d.compiled = errors
+    Report(path, WithCompiled(d, items))
+  endif
+  AnswerHeld()
+enddef
+
+# The scripts reported that name the one at "path", which may import it.
+def Mentioning(path: string): list<string>
+  var name = fnamemodify(path, ':t:r')
+  return keys(reported)->filter((_, p) => p != path && filereadable(p)
+    && readfile(p)->indexof((_, line) => stridx(line, name) >= 0) >= 0)
+enddef
+
+def WorkspacePull(id: any, params: dict<any>)
+  if pull != null_dict
+    ReplyError(pull.id, -32800, 'a newer request took its place')
+  endif
+  var token = params->get('partialResultToken', null)
+  pull = {id: id, token: token,
+    streaming: type(token) == v:t_string || type(token) == v:t_number}
+  held = []
+  ScanWorkspace()
+enddef
+
+# Ends the request kept open: with what is held, or as cancelled.
+def EndPull(cancelled: bool)
+  if pull == null_dict
+    return
+  endif
+  if cancelled
+    ReplyError(pull.id, -32800, 'cancelled')
+  else
+    Reply(pull.id, {items: held})
+  endif
+  held = []
+  pull = null_dict
+enddef
+
+# What the parser finds in the document "d" at "path": blocks that do not add
+# up, names that are not defined and variables that are not used.
+def StaticItems(d: dict<any>, path: string): list<dict<any>>
+  var parsed = Parsed(d)
+  var undefined = names.Undefined(parsed, d.lines,
+    (name: string): number => AutoloadDefined(path, name))
+  return diag.Diagnostics(parsed.diags + undefined
+    + unused.Unused(parsed, d.lines), d.lines, encoding)
+enddef
+
+# "items" and what the checker reported last for the document "d".  The two
+# may name the same error; it is there once.
+def WithCompiled(d: dict<any>, items: list<dict<any>>): list<dict<any>>
+  var all = copy(items)
+  for item in compile.Diagnostics(d.compiled, d.lines, encoding)
+    if all->indexof((_, i) => i.message == item.message
+        && i.range.start.line == item.range.start.line) < 0
+      add(all, item)
+    endif
+  endfor
+  return all
+enddef
+
 # What the parser found, and what Vim reports when the checker reads the
 # document.  The checker is asked and answers later; the diagnostics go out
 # when it has.
@@ -133,12 +354,9 @@ def PublishDiagnostics(uri: string)
     return
   endif
   d.timer = -1
-  var parsed = Parsed(d)
   var path = util.UriToPath(uri)
-  var undefined = names.Undefined(parsed, d.lines,
-    (name: string): number => AutoloadDefined(path, name))
-  var items = diag.Diagnostics(parsed.diags + undefined
-    + unused.Unused(parsed, d.lines), d.lines, encoding)
+  var items = StaticItems(d, path)
+  var parsed = Parsed(d)
   var version = d.version
   if path == '' || !compile.Check(path, d.lines,
       parsed.vim9 ? wrap.Lines(parsed, d.lines) : null,
@@ -148,9 +366,8 @@ def PublishDiagnostics(uri: string)
 enddef
 
 # Sends "items" and what the checker reported, "errors", for the document at
-# "uri" while it is still at "version".  The two may name the same error; it
-# is sent once.  When the checker gave no answer, what it reported last time
-# stays.
+# "uri" while it is still at "version".  When the checker gave no answer,
+# what it reported last time stays.
 def Publish(uri: string, version: any, items: list<dict<any>>, errors: any)
   var d = docs->get(uri, null_dict)
   if d == null_dict || d.version != version
@@ -159,17 +376,10 @@ def Publish(uri: string, version: any, items: list<dict<any>>, errors: any)
   if errors != null
     d.compiled = errors
   endif
-  var all = copy(items)
-  for item in compile.Diagnostics(d.compiled, d.lines, encoding)
-    if all->indexof((_, i) => i.message == item.message
-        && i.range.start.line == item.range.start.line) < 0
-      add(all, item)
-    endif
-  endfor
   Notify('textDocument/publishDiagnostics', {
     uri: uri,
     version: d.version,
-    diagnostics: all,
+    diagnostics: WithCompiled(d, items),
   })
 enddef
 
@@ -1265,6 +1475,7 @@ def Request(method: string, params: dict<any>): any
   if method == 'initialize'
     return Initialize(params)
   elseif method == 'shutdown'
+    EndPull(false)
     compile.Stop()
     return v:null
   elseif method == 'textDocument/hover'
@@ -1328,17 +1539,30 @@ def Notification(method: string, params: dict<any>)
   elseif method == 'textDocument/didOpen'
     SetDoc(params.textDocument.uri, params.textDocument.text,
       params.textDocument->get('version', v:null))
+    ScanWorkspace([util.UriToPath(params.textDocument.uri)])
   elseif method == 'textDocument/didChange'
     ChangeDoc(params.textDocument.uri, params.contentChanges,
       params.textDocument->get('version', v:null))
   elseif method == 'textDocument/didSave'
     PublishDiagnostics(params.textDocument.uri)
+    ScanWorkspace(Mentioning(util.UriToPath(params.textDocument.uri)))
   elseif method == 'textDocument/didClose'
     if docs->has_key(params.textDocument.uri)
       remove(docs, params.textDocument.uri)
     endif
+    ScanWorkspace()
   elseif method == 'workspace/didChangeWorkspaceFolders'
-    # Nothing to keep: what is read is worked out from each document.
+    var event = params->get('event', {})
+    for f in event->get('removed', [])
+      var path = util.UriToPath(f->get('uri', ''))
+      filter(folders, (_, p) => p != path)
+    endfor
+    AddFolders(event->get('added', []))
+    ScanWorkspace()
+  elseif method == '$/cancelRequest'
+    if pull != null_dict && string(params->get('id', '')) == string(pull.id)
+      EndPull(true)
+    endif
   endif
 enddef
 
@@ -1350,6 +1574,10 @@ def OnMessage(ch: channel, msg: dict<any>)
   endif
   var given: any = msg->get('params', {})
   var params: dict<any> = type(given) == v:t_dict ? given : {}
+  if method == 'workspace/diagnostic' && msg->has_key('id')
+    WorkspacePull(msg.id, params)
+    return
+  endif
   try
     if msg->has_key('id')
       Reply(msg.id, Request(method, params))
