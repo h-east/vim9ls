@@ -1044,6 +1044,56 @@ def g:Test_compile_diagnostics()
   assert_equal([], note.params.diagnostics)
 enddef
 
+# Two plugins with an import file of the same name: each script is checked
+# against its own, also when the other plugin was checked in between, and a
+# file only the other one has is not found.
+def g:Test_compile_import_of_own_plugin()
+  var root = helper.HERE .. '/Xplugins'
+  for [name, text] in [
+      ['one', ['vim9script', 'export const N: number = 1', 'export class Shape',
+        'endclass']],
+      ['two', ['vim9script', 'export const N: string = "s"']]]
+    mkdir(root .. '/' .. name .. '/import', 'p')
+    mkdir(root .. '/' .. name .. '/plugin', 'p')
+    writefile(text, root .. '/' .. name .. '/import/xi.vim')
+  endfor
+  writefile(['vim9script'], root .. '/two/import/xtwo.vim')
+  var one = ['vim9script', "import 'xi.vim'", 'def A(): number',
+    '  return xi.N', 'enddef', 'def B(s: xi.Shape): xi.Shape', '  return s',
+    'enddef']
+  var two = ['vim9script', "import 'xi.vim'", 'def A(): string',
+    '  return xi.N', 'enddef']
+  var one_uri = util.PathToUri(root .. '/one/plugin/use.vim')
+  var two_uri = util.PathToUri(root .. '/two/plugin/use.vim')
+  try
+    writefile(one, root .. '/one/plugin/use.vim')
+    writefile(two + ['var s: xi.Shape'], root .. '/two/plugin/use.vim')
+    helper.StartServer()
+    helper.Initialize()
+    helper.OpenDoc(one, one_uri)
+    assert_equal([], helper.WaitNotification('textDocument/publishDiagnostics')
+      .params.diagnostics)
+    # The other plugin has no Shape, which shows its own file is read.
+    helper.OpenDoc(two + ['var s: xi.Shape'], two_uri)
+    assert_equal(['E1010: Type not recognized: xi.Shape'],
+      helper.WaitNotification('textDocument/publishDiagnostics')
+        .params.diagnostics->mapnew((_, d) => d.message))
+    helper.ChangeDoc(one + [''], one_uri, 2)
+    assert_equal([], helper.WaitNotification('textDocument/publishDiagnostics')
+      .params.diagnostics)
+    var other = ['vim9script', "import 'xtwo.vim'"]
+    var other_uri = util.PathToUri(root .. '/one/plugin/other.vim')
+    writefile(other, root .. '/one/plugin/other.vim')
+    helper.OpenDoc(other, other_uri)
+    assert_match('^E1053: ',
+      helper.WaitNotification('textDocument/publishDiagnostics')
+        .params.diagnostics->get(0, {message: ''}).message)
+  finally
+    helper.StopServer()
+    delete(root, 'rf')
+  endtry
+enddef
+
 def g:Test_definition()
   helper.StartServer()
   helper.Initialize()

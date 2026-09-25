@@ -14,17 +14,17 @@ vim9script
 var conn: channel
 
 const SELF = expand('<sfile>:p')
+const RUNTIMEPATH = &runtimepath
 
 # The buffer for "path" with "lines" as its text.  The same buffer serves
 # the same path again, so that Vim sees one script sourced once more and
 # lets it redefine its functions.  A script in a plugin directory has the
-# plugin put on 'runtimepath', for what it imports by name.
+# plugin put on 'runtimepath', for what it imports by name, and no plugin
+# checked before, so that what is found does not depend on what came first.
 def Load(path: string, lines: list<string>)
   var root = matchstr(path,
     '.*\ze[/\\]\%(autoload\|plugin\|ftplugin\|import\|syntax\|indent\)[/\\]')
-  if root != '' && index(split(&runtimepath, ','), root) < 0
-    &runtimepath = root .. ',' .. &runtimepath
-  endif
+  &runtimepath = root == '' ? RUNTIMEPATH : root .. ',' .. RUNTIMEPATH
   if bufexists(path)
     execute 'silent! keepalt buffer!' bufnr(path)
   else
