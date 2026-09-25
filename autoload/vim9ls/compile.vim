@@ -5,19 +5,25 @@ vim9script
 #
 # The script is read by the checker, a Vim of its own (checker.vim), started
 # once and kept.  The server never waits for it: the answer comes back
-# through a callback.  A script that hangs the checker goes unanswered, and
-# the next check starts a new one.
+# through a callback.  The checker is handed one script at a time and the
+# others wait here, so that the time a check is given starts when the
+# checker takes it.  A script that hangs the checker goes unanswered, and a
+# new checker takes the ones that wait.
 
 import autoload './util.vim'
 import autoload './parse.vim'
 import autoload './diag.vim'
 
-const CHECKER = expand('<sfile>:p:h') .. '/checker.vim'
+# What the checker runs, and how long it is given for a check; the tests
+# change them.
+export var checker_script = expand('<sfile>:p:h') .. '/checker.vim'
+export var check_msecs = 5000
 
 var job: job
-# The checks that were asked and not answered yet, by request id:
-# {Done, timer, path}.
-var pending: dict<dict<any>> = {}
+# The check the checker has, {id, Done, timer, path}, or null_dict.
+var current: dict<any> = null_dict
+# The checks that wait for it, {path, lines, wrapped, Done}, oldest first.
+var waiting: list<dict<any>> = []
 
 def Running(): bool
   return job != null_job && job_status(job) == 'run'
@@ -26,7 +32,7 @@ enddef
 # The checker runs the Vim the server runs in.
 def Start()
   job = job_start([v:progpath, '--clean', '--stdio-channel', '-i', 'NONE',
-    '-n', '-S', CHECKER], {
+    '-n', '-S', checker_script], {
     in_mode: 'lsp',
     out_mode: 'lsp',
     err_mode: 'nl',
@@ -34,24 +40,58 @@ def Start()
   })
 enddef
 
-# Ends the checker; what it was asked is answered with null.
-export def Stop()
+# Ends the checker; the check it has is answered with null.
+def Kill()
   if job != null_job
     job_stop(job, 'kill')
     job = null_job
   endif
-  var asked = pending
-  pending = {}
-  for p in values(asked)
+  if current != null_dict
+    var p = current
+    current = null_dict
     timer_stop(p.timer)
     p.Done(null)
+  endif
+enddef
+
+# Ends the checker; what it was asked, and what waits, is answered with null.
+export def Stop()
+  Kill()
+  var asked = waiting
+  waiting = []
+  for w in asked
+    w.Done(null)
   endfor
+enddef
+
+# Hands the checker the oldest check that waits, when it has none.
+def Next()
+  while current == null_dict && !waiting->empty()
+    if !Running()
+      Start()
+      if !Running()
+        Stop()
+        return
+      endif
+    endif
+    var w = remove(waiting, 0)
+    var sent = ch_sendexpr(job, {method: 'check',
+      params: {path: w.path, lines: w.lines, wrapped: w.wrapped}},
+      {callback: OnReply})
+    if type(sent) != v:t_dict || !sent->has_key('id')
+      w.Done(null)
+      continue
+    endif
+    current = {id: sent.id, Done: w.Done, path: w.path,
+      timer: timer_start(check_msecs, (_) => Unanswered(sent.id))}
+  endwhile
 enddef
 
 # Asks the checker what Vim reports for "lines" as the script at "path",
 # with "wrapped" the script level as a function (see wrap.vim) or null.
 # "Done" gets the {line, message} items, or null when the checker gave no
-# answer.  Returns false when there is no checker to ask.
+# answer.  A check of the same script that still waits gives way to this
+# one.  Returns false when there is no checker to ask.
 export def Check(path: string, lines: list<string>, wrapped: any,
     Done: func(any)): bool
   if !Running()
@@ -60,32 +100,34 @@ export def Check(path: string, lines: list<string>, wrapped: any,
       return false
     endif
   endif
-  var sent = ch_sendexpr(job, {method: 'check',
-    params: {path: path, lines: lines, wrapped: wrapped}}, {callback: OnReply})
-  if type(sent) != v:t_dict || !sent->has_key('id')
-    return false
+  var check = {path: path, lines: lines, wrapped: wrapped, Done: Done}
+  var at = waiting->indexof((_, w) => w.path == path)
+  if at >= 0
+    waiting[at] = check
+  else
+    add(waiting, check)
   endif
-  pending[string(sent.id)] = {Done: Done, path: path,
-    timer: timer_start(5000, (_) => Unanswered(sent.id))}
+  Next()
   return true
 enddef
 
-def OnReply(ch: channel, resp: dict<any>)
-  var id = string(resp->get('id', -1))
-  if !pending->has_key(id)
+def OnReply(_: channel, resp: dict<any>)
+  if current == null_dict || resp->get('id', -1) != current.id
     return
   endif
-  var p = remove(pending, id)
+  var p = current
+  current = null_dict
   timer_stop(p.timer)
   var result = resp->get('result', null_dict)
   p.Done(result == null_dict ? null : result.errors)
+  Next()
 enddef
 
-def Unanswered(nr: number)
-  var id = string(nr)
-  if pending->has_key(id)
-    util.Log('the checker did not answer for ' .. pending[id].path)
-    Stop()
+def Unanswered(id: number)
+  if current != null_dict && current.id == id
+    util.Log('the checker did not answer for ' .. current.path)
+    Kill()
+    Next()
   endif
 enddef
 
