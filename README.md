@@ -102,7 +102,7 @@ See `:help vim9ls` for the details.
 ## Protocol coverage
 
 What this server does with each of the 95 requests and notifications in the
-LSP 3.18 meta model: 33 are answered and 62 are left out for the reason
+LSP 3.18 meta model: 34 are answered and 61 are left out for the reason
 given.
 
 <details>
@@ -196,7 +196,7 @@ given.
 | `workspace/configuration` | no | nothing to configure |
 | `workspace/didChangeConfiguration` | no |  |
 | `workspace/workspaceFolders` | no | the files a search reads are worked out from the open documents and 'runtimepath' |
-| `workspace/didChangeWorkspaceFolders` | no |  |
+| `workspace/didChangeWorkspaceFolders` | yes | one server serves every folder: the files are worked out from the documents |
 | `workspace/didChangeWatchedFiles` | no |  |
 | `workspace/executeCommand` | no | nothing here runs a command |
 | `workspace/applyEdit` | no | the edits of a rename go back as its answer |

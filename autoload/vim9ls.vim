@@ -103,6 +103,8 @@ def Initialize(params: dict<any>): dict<any>
       signatureHelpProvider: {triggerCharacters: ['(', ',']},
       codeActionProvider: {codeActionKinds: ['quickfix']},
       inlayHintProvider: true,
+      workspace: {workspaceFolders: {supported: true,
+        changeNotifications: true}},
     },
     serverInfo: {name: 'vim9ls', version: VERSION},
   }
@@ -1335,6 +1337,8 @@ def Notification(method: string, params: dict<any>)
     if docs->has_key(params.textDocument.uri)
       remove(docs, params.textDocument.uri)
     endif
+  elseif method == 'workspace/didChangeWorkspaceFolders'
+    # Nothing to keep: what is read is worked out from each document.
   endif
 enddef
 

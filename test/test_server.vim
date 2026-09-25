@@ -37,6 +37,30 @@ def g:Test_initialize()
   assert_equal('vim9ls', resp.result.serverInfo.name)
 enddef
 
+# The server takes the folders a client adds and removes, and serves the
+# documents of each.
+def g:Test_workspace_folders()
+  helper.StartServer()
+  var caps = helper.Initialize().result.capabilities
+  assert_equal({supported: true, changeNotifications: true},
+    caps.workspace.workspaceFolders)
+  helper.Notify('workspace/didChangeWorkspaceFolders', {event: {
+    added: [{uri: 'file:///tmp/Xvim9ls_two', name: 'Xvim9ls_two'}],
+    removed: []}})
+  for [uri, text] in [['file:///tmp/Xvim9ls_one/a.vim', 'endif'],
+      ['file:///tmp/Xvim9ls_two/b.vim', 'endwhile']]
+    helper.OpenDoc([text], uri)
+    var note = helper.WaitNotification('textDocument/publishDiagnostics')
+    assert_equal(uri, note.params.uri)
+    assert_match(':' .. text .. ' without ',
+      note.params.diagnostics->get(0, {message: ''}).message)
+  endfor
+  helper.Notify('workspace/didChangeWorkspaceFolders', {event: {added: [],
+    removed: [{uri: 'file:///tmp/Xvim9ls_two', name: 'Xvim9ls_two'}]}})
+  assert_equal([], helper.Request('textDocument/documentSymbol',
+    {textDocument: {uri: 'file:///tmp/Xvim9ls_two/b.vim'}}).result)
+enddef
+
 def g:Test_initialize_utf16()
   helper.StartServer()
   var resp = helper.Initialize(['utf-16'])

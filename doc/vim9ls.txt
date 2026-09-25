@@ -71,6 +71,9 @@ Install it the same way and add an entry for "vim" files to
 	{name: 'vim9ls', filetypes: ['vim'], cmd: function('vim9ls#Command')}
 lsp.vim calls the Funcref when the server starts, so vim9ls does not have to
 be in 'runtimepath' yet when the vimrc is read.
+The server takes on every workspace folder the client adds, so lsp.vim starts
+one server, and the server one checker, however many projects the files come
+from.
 
 						*vim9ls#Command()*
 vim9ls#Command() returns the command that starts the server with the Vim it is
