@@ -1040,6 +1040,9 @@ def g:Test_compile_diagnostics()
   assert_equal([], After(['vim9script', "Plug 'x/y'", 'command! Log echo 1',
     'Log', "if has('iconv')", "  var enc = 'euc-jp'", "  enc = 'eucjp-ms'",
     'endif'], 8))
+  # Nor is one in a function, while a builtin command spelled wrong is.
+  assert_equal([[3, 'E476: Invalid command: echoo 1']],
+    After(['vim9script', 'def F()', '  LspHover', '  echoo 1', 'enddef'], 9))
   # A legacy script defines its functions and nothing is compiled.
   assert_equal([], After(['function Legacy()', '  return undefined_a',
     'endfunction', 'echo undefined_b'], 4))

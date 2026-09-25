@@ -167,8 +167,9 @@ def Errors(messages: string, path: string): list<dict<any>>
       continue
     endif
     # The summary of a failed compilation, after the error that caused it.
-    # It is only reported with ":silent!".
-    if line =~ '^E1028:'
+    # It is only reported with ":silent!".  A user command, capitalized, may
+    # be defined by a plugin, and this Vim loads none.
+    if line =~ '^E1028:' || line =~ '^E476: Invalid command: \u'
       continue
     endif
     var at = Where(context, lnum, path)
