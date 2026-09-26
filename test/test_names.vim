@@ -96,15 +96,18 @@ def g:Test_names_vim9()
     def WithType(Cb: func(string)): func
       return Cb
     enddef
+    def Last()
+      foo#bar#Present()
+      foo#bar#Missing()
+    enddef
   END
+  # Under Vim9 rules Vim reports what is not defined when it compiles the
+  # code; left here are an autoload function, which it looks up only when
+  # called, and the body of a legacy function.
   assert_equal([
-    [4, 'E117: Unknown function: Missing'],
-    [6, 'E117: Unknown function: nosuch'],
-    [17, 'E117: Unknown function: Missing'],
     [24, 'E117: Unknown function: s:Missing'],
-    [26, 'E1001: Variable not found: nosuch'],
-    [36, 'E117: Unknown function: Other'],
-  ], Undefined(lines))
+    [45, 'E117: Unknown function: foo#bar#Missing'],
+  ], Undefined(lines, {'foo#bar#Present': 1, 'foo#bar#Missing': 0}))
 enddef
 
 # vim: ts=2 sw=0 et

@@ -275,12 +275,14 @@ Reported when a document is opened and after its changes pause:
   as a warning; an assignment, a call or a user command does not count.  Under
   Vim9 rules a statement may start with any expression, so nothing is reported
   there;
-- a call of a function that is not defined: a builtin Vim does not have, a
-  script-local function the script does not define, a legacy autoload function
-  its file does not have, and under Vim9 rules a name the script does not
-  define.  A global function may be defined anywhere and is left alone, and so
-  is a call in a pattern, in keys or in the value of an option;
-- a "v:" variable Vim does not have;
+- in legacy script, a call of a function that is not defined: a builtin Vim
+  does not have, a script-local function the script does not define, a
+  legacy autoload function its file does not have.  A global function may be
+  defined anywhere and is left alone, and so is a call in a pattern, in keys
+  or in the value of an option.  Under Vim9 rules Vim reports these itself,
+  see below, all but an autoload function, which it looks up only when it is
+  called: that one is reported here as well;
+- in legacy script, a "v:" variable Vim does not have;
 - a variable or a parameter of a ":def" function whose name does not come up
   again after it is declared, as a hint with the "unnecessary" tag, which an
   editor may show faded.  An assignment counts as a use, and so does the name

@@ -7,6 +7,9 @@ vim9script
 # have.  Only what is certain is reported: a builtin is asked of Vim, a
 # function of the script is looked for in the script, an autoload function
 # in its file.  A global function may be defined anywhere and is left alone.
+# Under Vim9 rules Vim reports these itself when the checker compiles the
+# code, see checker.vim; what is left here is an autoload function, which Vim
+# looks up only when it is called.
 
 import autoload './parse.vim'
 import autoload './refs.vim'
@@ -32,23 +35,9 @@ def FirstCommand(line: string): string
   return ''
 enddef
 
-# The parameters of the lambdas on "line": "(a, b) =>" and "{a, b -> ...}".
+# The parameters of the legacy lambdas on "line": "{a, b -> ...}".
 def LambdaParams(line: string): list<string>
   var names: list<string> = []
-  var pos = 0
-  while true
-    var m = matchstrpos(line, '(\([^()]*\))\%(:\s*[^=]*\)\=\s*=>', pos)
-    if m[1] < 0
-      break
-    endif
-    for param in split(matchstr(m[0], '(\zs[^()]*\ze)'), ',')
-      var name = matchstr(param, '^\s*\zs\h\w*')
-      if name != ''
-        add(names, name)
-      endif
-    endfor
-    pos = m[2]
-  endwhile
   for arglist in line->matchstrpos('{\s*\zs\h[^{}-]*\ze->')[0]->split(',')
     var name = matchstr(arglist, '^\s*\zs\h\w*')
     if name != ''
@@ -98,25 +87,6 @@ export def Undefined(parsed: dict<any>, lines: list<string>,
     heredoc[lnum] = true
   endfor
   var builtin: dict<bool> = {}
-  # The parameters of the block lambdas that are open.
-  var blocks: list<list<string>> = []
-  # Inside a class its own methods are called by their bare name; Vim itself
-  # reports an object method called that way.
-  var classes = copy(parsed.symbols)
-    ->filter((_, s) => s.kind == parse.KIND_CLASS)
-    ->map((_, s) => ({first: s.line, last: s.end_line,
-      methods: s.children->copy()
-        ->filter((_, c) => c.kind == parse.KIND_METHOD)
-        ->map((_, c) => c.name)}))
-
-  def OwnMethod(lnum: number, name: string): bool
-    for c in classes
-      if c.first <= lnum && lnum <= c.last && index(c.methods, name) >= 0
-        return true
-      endif
-    endfor
-    return false
-  enddef
 
   def Report(lnum: number, token: dict<any>, message: string)
     add(out, {line: lnum, col: token.col, end_col: token.end,
@@ -125,13 +95,6 @@ export def Undefined(parsed: dict<any>, lines: list<string>,
 
   for lnum in range(len(lines))
     var line = lines[lnum]
-    if !blocks->empty() && line =~ '^\s*}'
-      remove(blocks, -1)
-    endif
-    var lambda = stridx(line, '=>') >= 0 || stridx(line, '->') >= 0
-    if lambda && line =~ '=>\s*{\s*$'
-      add(blocks, LambdaParams(line))
-    endif
     # Only a call or a "v:" name is looked at, most lines have neither.
     if heredoc->has_key(lnum)
         || (stridx(line, '(') < 0 && stridx(line, 'v:') < 0)
@@ -141,15 +104,17 @@ export def Undefined(parsed: dict<any>, lines: list<string>,
     var vim9 = vim9_at[lnum]
     # Under Vim9 rules "s:Name" and "Name" are the same, see refs.Resolve().
     var same = parsed.vim9 || vim9
-    var params = (lambda ? LambdaParams(line) : []) + flattennew(blocks)
+    var params = !vim9 && stridx(line, '->') >= 0 ? LambdaParams(line) : []
     for token in Candidates(line, vim9)
       var name = token.text
+      # Vim reports the rest when it compiles the code.
+      if vim9 && name !~ '#'
+        continue
+      endif
       if name =~ '^v:'
         # "v:val" and "v:key" exist while map() and filter() run.
         if !exists(name) && name != 'v:val' && name != 'v:key'
-          Report(lnum, token, vim9
-            ? 'E1001: Variable not found: ' .. name[2 :]
-            : 'E121: Undefined variable: ' .. name)
+          Report(lnum, token, 'E121: Undefined variable: ' .. name)
         endif
         continue
       endif
@@ -172,9 +137,6 @@ export def Undefined(parsed: dict<any>, lines: list<string>,
             || doc.HasTag(name .. '()')
         endif
         unknown = !builtin[name]
-      elseif vim9
-        unknown = refs.Find(index, token, lnum, same) == null_dict
-          && !OwnMethod(lnum, name)
       endif
       if unknown
         Report(lnum, token, 'E117: Unknown function: ' .. name)
