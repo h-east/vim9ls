@@ -22,13 +22,13 @@ const SKIPPED = {syntax: 1, highlight: 1, match: 1, '2match': 1, '3match': 1,
   substitute: 1, smagic: 1, snomagic: 1, global: 1, vglobal: 1, sort: 1,
   vimgrep: 1, vimgrepadd: 1, lvimgrep: 1, lvimgrepadd: 1}
 
-# The command a line starts with, past the colons and modifiers.
-def FirstCommand(line: string): string
+# The word a line starts with, past the colons and modifiers.
+def FirstWord(line: string): string
   var rest = substitute(line, '^\s*\%(:\s*\)*', '', '')
   while true
     var word = matchstr(rest, '^\h\w*')
     if word == '' || !parse.IsModifier(word)
-      return parse.CommandOf(word)
+      return word
     endif
     rest = substitute(rest, '^\h\w*!\=\s*', '', '')
   endwhile
@@ -93,12 +93,21 @@ export def Undefined(parsed: dict<any>, lines: list<string>,
       message: message, severity: parse.SEVERITY_ERROR})
   enddef
 
+  # Whether the statement the line is part of is left alone.
+  var skipping = false
   for lnum in range(len(lines))
     var line = lines[lnum]
+    # A continuation line goes with the statement before it.  The arguments
+    # of a user command need not be an expression either; in legacy script
+    # a statement cannot start with a call, a capitalized word there is one.
+    if line !~ '^\s*\\'
+      var word = FirstWord(line)
+      skipping = SKIPPED->has_key(parse.CommandOf(word))
+        || (!vim9_at[lnum] && word =~ '^\u')
+    endif
     # Only a call or a "v:" name is looked at, most lines have neither.
-    if heredoc->has_key(lnum)
+    if skipping || heredoc->has_key(lnum)
         || (stridx(line, '(') < 0 && stridx(line, 'v:') < 0)
-        || SKIPPED->has_key(FirstCommand(line))
       continue
     endif
     var vim9 = vim9_at[lnum]

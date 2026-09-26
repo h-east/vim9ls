@@ -51,6 +51,24 @@ def g:Test_names_legacy()
     [diags[0].col, diags[0].end_col, diags[0].severity])
 enddef
 
+# The arguments of a user command and of the commands whose arguments are
+# not code are left alone, their continuation lines with them.
+def g:Test_names_skipped_commands()
+  var lines =<< trim END
+    CompilerSet errorformat+=%f(%l\\,%v):\ %m,
+          \%g(%l):\ %m
+    set errorformat+=%f(%l)
+          \,%h(%l)
+    silent Cmd nosuch()
+    call nosuch()
+          \ + other()
+  END
+  assert_equal([
+    [5, 'E117: Unknown function: nosuch'],
+    [6, 'E117: Unknown function: other'],
+  ], Undefined(lines))
+enddef
+
 def g:Test_names_vim9()
   var lines =<< trim END
     vim9script
