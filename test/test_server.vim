@@ -1441,6 +1441,53 @@ def g:Test_document_highlight_of_a_name_vim_knows()
   assert_equal(null, resp.result)
 enddef
 
+# On the line that declares a name the name itself is found, whether a type
+# follows it or it is a member, which a use has after a ".".  References and
+# rename work from there too, the type left in place.
+def g:Test_definition_on_the_declaring_line()
+  helper.StartServer()
+  helper.Initialize()
+  var text = ['vim9script',
+    'var typed: number = 1',
+    'def Foo(arg: number): number',
+    '  var local: string = "x"',
+    '  return arg + typed',
+    'enddef',
+    'class Shape',
+    '  var width: number',
+    '  def Area(): number',
+    '    return this.width',
+    '  enddef',
+    'endclass',
+    'enum Color',
+    '  Red',
+    'endenum']
+  helper.OpenDoc(text)
+  var At = (lnum: number, name: string) => {
+    var r = helper.Request('textDocument/definition',
+      helper.Params(lnum, stridx(text[lnum], name) + 1)).result
+    return r == null ? [] : r->mapnew((_, l) => [l.range.start.line,
+      l.range.start.character])
+  }
+  assert_equal([[1, 4]], At(1, 'typed'))
+  assert_equal([[2, 8]], At(2, 'arg'))
+  assert_equal([[3, 6]], At(3, 'local'))
+  assert_equal([[7, 6]], At(7, 'width'))
+  assert_equal([[8, 6]], At(8, 'Area'))
+  assert_equal([[13, 2]], At(13, 'Red'))
+
+  var refs = helper.Request('textDocument/references',
+    extend(helper.Params(7, 7), {context: {includeDeclaration: true}})).result
+  assert_equal([[7, 6], [9, 16]], refs->mapnew((_, l) => [l.range.start.line,
+    l.range.start.character]))
+
+  var edits = helper.Request('textDocument/rename',
+    extend(helper.Params(1, 5), {newName: 'count'})).result
+    .changes[helper.URI]
+  assert_equal([[1, 4, 9], [4, 15, 20]], edits->mapnew((_, e) =>
+    [e.range.start.line, e.range.start.character, e.range.end.character]))
+enddef
+
 def g:Test_rename()
   helper.StartServer()
   helper.Initialize()

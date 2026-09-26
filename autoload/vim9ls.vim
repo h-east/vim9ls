@@ -849,6 +849,14 @@ enddef
 def Lookup(w: dict<any>, token: dict<any>): dict<any>
   var parsed = w.parsed
 
+  # The name on the line that declares it: that one, whether a type follows
+  # it, "count: number", or it is a member, which a use has after a ".".
+  var declared = SymbolAt(parsed.symbols, w.lnum, token.col)
+  if declared != null_dict
+    return {path: w.path, uri: w.uri, lines: w.doc.lines, parsed: parsed,
+      symbol: declared}
+  endif
+
   # "alias.Name": a name from an imported script.
   if token.prev == '.' && token.col >= 2
     var alias = matchstr(w.line[: token.col - 2], refs.NAME .. '\+$')
@@ -1178,12 +1186,9 @@ def Implementation(params: dict<any>): any
   if w == null_dict
     return v:null
   endif
-  # The question is asked from the line that declares the name, an interface
-  # method for one, and not from a use of it, which is what Lookup() finds.
-  var found = SymbolAt(w.parsed.symbols, w.lnum, w.col)
-  var hit = found != null_dict
-    ? {uri: w.uri, lines: w.doc.lines, parsed: w.parsed, symbol: found}
-    : Lookup(w, w.token)
+  # Asked from the line that declares the name, an interface method for one,
+  # or from a use of it.
+  var hit = Lookup(w, w.token)
   if hit == null_dict
     return v:null
   endif
@@ -1255,10 +1260,7 @@ def PrepareTypeHierarchy(params: dict<any>): any
   if w == null_dict
     return v:null
   endif
-  var found = SymbolAt(w.parsed.symbols, w.lnum, w.col)
-  var hit = found != null_dict
-    ? {uri: w.uri, lines: w.doc.lines, parsed: w.parsed, symbol: found}
-    : Lookup(w, w.token)
+  var hit = Lookup(w, w.token)
   if hit == null_dict || index(TYPE_KINDS, hit.symbol.kind) < 0
     return v:null
   endif

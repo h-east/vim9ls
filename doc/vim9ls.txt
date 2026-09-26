@@ -154,8 +154,7 @@ declares, or the one its initializer comes to.  A type inside another, the
 "Shape" of "list<Shape>", counts as well, and the name of a class leads to the
 class itself.  The type of another script is followed through the alias of the
 import it comes from.  A type of Vim's own, "string" or "list<number>", has
-nothing to go to.  As with the definition of a name, ask from where the name
-is used rather than from the line that declares it.
+nothing to go to.
 
 Implementation ~
 From an interface to the classes that "implements" it, and from a class to
@@ -194,7 +193,9 @@ and their members, enum values, imports and user commands.  A name is looked
 up from where it is used: the innermost function that declares it wins, so a
 local hides a script variable of the same name.  A member counts only after a
 ".", and a function named in a string ("function('Name')") counts as a use; a
-variable named in a string does not.
+variable named in a string does not.  On the line that declares a name, with
+a type after it or not, a member as well, the name itself is found, so all of
+these work from there too.
 Under Vim9 rules "s:Name" and "Name" are the same script-local name; in legacy
 script they are two different functions.
 Definition also follows an import: "alias.Name" goes to the exported name in
