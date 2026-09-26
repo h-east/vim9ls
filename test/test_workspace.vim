@@ -123,7 +123,7 @@ enddef
 # is told.
 def g:Test_workspace_diagnostic_limit()
   mkdir(ROOT, 'p')
-  for i in range(257)
+  for i in range(513)
     writefile(['vim9script'], printf('%s/s%03d.vim', ROOT, i))
   endfor
   reports = {}
@@ -134,16 +134,16 @@ def g:Test_workspace_diagnostic_limit()
       })
     # The first message is where the log is.
     helper.WaitNotification('window/logMessage')
-    assert_equal('vim9ls: the workspace has 257 scripts, the first 256 are read',
+    assert_equal('vim9ls: the workspace has 513 scripts, the first 512 are read',
       helper.WaitNotification('window/logMessage').params.message)
     helper.WaitFor(() => {
       Take('many')
-      return len(reports) >= 256
+      return len(reports) >= 512
     }, 10000)
     sleep 100m
     Take('many')
-    assert_equal(256, len(reports))
-    assert_false(reports->has_key('s256.vim'))
+    assert_equal(512, len(reports))
+    assert_false(reports->has_key('s512.vim'))
   finally
     helper.StopServer()
     delete(ROOT, 'rf')

@@ -168,7 +168,7 @@ var checking = 0
 # counts once when read and once when checked.  Or null_dict.
 var work: dict<any> = null_dict
 # The most scripts read; a folder may be a home directory.
-const MAX_SCRIPTS = 256
+const MAX_SCRIPTS = 512
 var told_count = 0
 
 def AddFolders(list: list<any>)
