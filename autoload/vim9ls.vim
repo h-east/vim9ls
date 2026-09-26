@@ -401,14 +401,25 @@ def StaticItems(d: dict<any>, path: string): list<dict<any>>
   return parsed.items
 enddef
 
+# Whether "a" and "b" name the same error: Vim may add what the command was,
+# ":endif without :if: endif", which the parser and Vim's other report leave
+# out.
+def SameError(a: string, b: string): bool
+  return a == b || stridx(a, b .. ': ') == 0 || stridx(b, a .. ': ') == 0
+enddef
+
 # "items" and what the checker reported last for the document "d".  The two
-# may name the same error; it is there once.
+# may name the same error, and Vim may report one twice; it is there once, in
+# the shorter words.
 def WithCompiled(d: dict<any>, items: list<dict<any>>): list<dict<any>>
   var all = copy(items)
   for item in compile.Diagnostics(d.compiled, d.lines, encoding)
-    if all->indexof((_, i) => i.message == item.message
-        && i.range.start.line == item.range.start.line) < 0
+    var at = all->indexof((_, i) => i.range.start.line
+      == item.range.start.line && SameError(i.message, item.message))
+    if at < 0
       add(all, item)
+    elseif strlen(item.message) < strlen(all[at].message)
+      all[at] = item
     endif
   endfor
   return all
