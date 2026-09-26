@@ -313,8 +313,9 @@ the checker reports, which reads them after the open documents.  With a
 token for the work done in the request, the client is told how far the first
 reading has got, every tenth of it, until what the checker reports is in.  A
 script is read again when a document whose name it contains is saved, when it
-was open and is closed, and when the folders change; a change made outside
-the editor waits for one of these.  With lsp.vim, use |:LspWorkspaceDiag|.
+was open and is closed, when the folders change, and when the client reports
+it changed: the server asks the client to watch every "*.vim" file, where the
+client takes that.  With lsp.vim, use |:LspWorkspaceDiag|.
 
 ==============================================================================
 6. Environment					*vim9ls-environment*

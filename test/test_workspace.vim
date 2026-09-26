@@ -5,12 +5,14 @@ import autoload '../autoload/vim9ls/util.vim'
 
 const ROOT = helper.HERE .. '/Xworkspace'
 
-# The server started with "folders" as the workspace folders; returns its
-# capabilities.
-def Start(folders: list<string>): dict<any>
+# The server started with "folders" as the workspace folders, by a client
+# that takes a registration for the files to watch when "watch" is true;
+# returns its capabilities.
+def Start(folders: list<string>, watch = false): dict<any>
   helper.StartServer()
   var resp = helper.Request('initialize', {processId: getpid(), rootUri: null,
-    capabilities: {general: {positionEncodings: ['utf-8']}},
+    capabilities: {general: {positionEncodings: ['utf-8']},
+      workspace: {didChangeWatchedFiles: {dynamicRegistration: watch}}},
     workspaceFolders: folders->mapnew((_, f) => ({uri: util.PathToUri(f),
       name: fnamemodify(f, ':t')}))})
   helper.Notify('initialized', {})
@@ -197,6 +199,56 @@ def g:Test_workspace_diagnostic_progress()
     assert_equal(['E1012: Type mismatch; expected number but got string'],
       reports->get('zbad.vim', []))
     assert_equal(13, len(reports))
+  finally
+    helper.StopServer()
+    delete(ROOT, 'rf')
+  endtry
+enddef
+
+# A client that takes it is asked to watch the "*.vim" files; what it reports
+# changed is read again, and what it reports gone has its report emptied.
+def g:Test_workspace_watched_files()
+  mkdir(ROOT, 'p')
+  writefile(['vim9script'], ROOT .. '/a.vim')
+  writefile(['vim9script', 'def G(): number', '  return "x"', 'enddef'],
+    ROOT .. '/b.vim')
+  reports = {}
+  try
+    Start([ROOT], true)
+    var registered: list<any> = []
+    helper.WaitFor(() => {
+      var i = helper.notifications->indexof((_, n) =>
+        n->get('method', '') == 'client/registerCapability')
+      if i >= 0
+        registered = helper.notifications[i].params.registrations
+      endif
+      return i >= 0
+    })
+    assert_equal([{id: 'vim9ls-watched-files',
+      method: 'workspace/didChangeWatchedFiles',
+      registerOptions: {watchers: [{globPattern: '**/*.vim'}]}}], registered)
+
+    helper.Send('workspace/diagnostic', {previousResultIds: [],
+      partialResultToken: 'tok'}, (_) => {
+      })
+    assert_equal([], WaitReport('tok', 'a.vim', ''))
+    assert_match('E1012', join(WaitReport('tok', 'b.vim', 'E1012')))
+
+    writefile(['vim9script', 'def F(): number', '  return "y"', 'enddef'],
+      ROOT .. '/a.vim')
+    delete(ROOT .. '/b.vim')
+    helper.Notify('workspace/didChangeWatchedFiles', {changes: [
+      {uri: util.PathToUri(ROOT .. '/a.vim'), type: 2},
+      {uri: util.PathToUri(ROOT .. '/b.vim'), type: 3}]})
+    assert_match('E1012', join(WaitReport('tok', 'a.vim', 'E1012')))
+    assert_equal([], WaitReport('tok', 'b.vim', '^$'))
+    helper.StopServer()
+
+    # A client that does not take it is not asked.
+    Start([ROOT])
+    sleep 300m
+    assert_equal(-1, helper.notifications->indexof((_, n) =>
+      n->get('method', '') == 'client/registerCapability'))
   finally
     helper.StopServer()
     delete(ROOT, 'rf')

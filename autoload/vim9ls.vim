@@ -80,6 +80,8 @@ def Initialize(params: dict<any>): dict<any>
   var offered = params->get('capabilities', {})->get('general', {})
     ->get('positionEncodings', [])
   encoding = index(offered, 'utf-8') >= 0 ? 'utf-8' : 'utf-16'
+  watch_files = params->get('capabilities', {})->get('workspace', {})
+    ->get('didChangeWatchedFiles', {})->get('dynamicRegistration', false)
   var given = params->get('workspaceFolders', null)
   if type(given) == v:t_list
     AddFolders(given)
@@ -153,6 +155,8 @@ enddef
 
 # The workspace folders, as paths.
 var folders: list<string> = []
+# Whether the client takes a registration for the files to watch.
+var watch_files = false
 # The request kept open, {id, token, streaming}, or null_dict.
 var pull: dict<any> = null_dict
 # What is kept for the answer to a request without a token.
@@ -1622,6 +1626,15 @@ def Notification(method: string, params: dict<any>)
       Notify('window/logMessage', {type: 4,
         message: $'vim9ls: logging to "{log_file}"'})
     endif
+    # The scripts of the workspace are read again when the client sees one
+    # change; a pattern with no base of its own holds for every folder.
+    if watch_files
+      ch_sendexpr(conn, {method: 'client/registerCapability', params: {
+        registrations: [{id: 'vim9ls-watched-files',
+          method: 'workspace/didChangeWatchedFiles',
+          registerOptions: {watchers: [{globPattern: '**/*.vim'}]}}]}},
+        {callback: (_, _) => 0})
+    endif
   elseif method == 'textDocument/didOpen'
     SetDoc(params.textDocument.uri, params.textDocument.text,
       params.textDocument->get('version', v:null))
@@ -1645,6 +1658,12 @@ def Notification(method: string, params: dict<any>)
     endfor
     AddFolders(event->get('added', []))
     ScanWorkspace()
+  elseif method == 'workspace/didChangeWatchedFiles'
+    # One that is gone is left as it was reported, for ScanWorkspace() to find
+    # it missing.
+    ScanWorkspace(params->get('changes', [])
+      ->mapnew((_, c) => util.UriToPath(c->get('uri', '')))
+      ->filter((_, p) => filereadable(p)))
   elseif method == '$/cancelRequest'
     if pull != null_dict && string(params->get('id', '')) == string(pull.id)
       EndPull(true)

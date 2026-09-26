@@ -106,7 +106,7 @@ See `:help vim9ls` for the details.
 ## Protocol coverage
 
 What this server does with each of the 95 requests and notifications in the
-LSP 3.18 meta model: 38 are answered and 57 are left out for the reason
+LSP 3.18 meta model: 40 are answered and 55 are left out for the reason
 given.
 
 <details>
@@ -120,7 +120,7 @@ given.
 | `initialized` | yes | where the log of `$VIM9LS_LOG` is, or why it cannot be opened |
 | `shutdown` | yes |  |
 | `exit` | yes |  |
-| `client/registerCapability` | no | every capability is announced at `initialize` |
+| `client/registerCapability` | yes | the "*.vim" files to watch, the one thing not announced at `initialize` |
 | `client/unregisterCapability` | no |  |
 | `$/cancelRequest` | yes | for `workspace/diagnostic`, which is kept open; any other request is answered before the next one is read |
 | `$/progress` | yes | the partial results of `workspace/diagnostic`, and how far its first reading has got |
@@ -201,7 +201,7 @@ given.
 | `workspace/didChangeConfiguration` | no |  |
 | `workspace/workspaceFolders` | no | the files a search reads are worked out from the open documents and 'runtimepath' |
 | `workspace/didChangeWorkspaceFolders` | yes | one server serves every folder: the files are worked out from the documents |
-| `workspace/didChangeWatchedFiles` | no |  |
+| `workspace/didChangeWatchedFiles` | yes | the scripts of the workspace that changed are read again |
 | `workspace/executeCommand` | no | nothing here runs a command |
 | `workspace/applyEdit` | no | the edits of a rename go back as its answer |
 | `workspace/diagnostic` | yes | the scripts of the workspace folders that are not open, at most 512; kept open |
