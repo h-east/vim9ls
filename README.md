@@ -122,7 +122,7 @@ given.
 | `client/registerCapability` | no | every capability is announced at `initialize` |
 | `client/unregisterCapability` | no |  |
 | `$/cancelRequest` | yes | for `workspace/diagnostic`, which is kept open; any other request is answered before the next one is read |
-| `$/progress` | yes | the partial results of `workspace/diagnostic` |
+| `$/progress` | yes | the partial results of `workspace/diagnostic`, and how far its first reading has got |
 | `$/setTrace` | no | the log of `$VIM9LS_LOG` has more |
 | `$/logTrace` | no |  |
 

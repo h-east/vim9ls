@@ -148,7 +148,8 @@ enddef
 # workspace folders goes to the client as partial results: what the parser
 # finds, then that with what the checker reports.  A client that gave no
 # token for them is answered once nothing is left to read or check, and asks
-# again.
+# again.  One that gave a token for the work done is told how far the first
+# reading of the request has got.
 
 # The workspace folders, as paths.
 var folders: list<string> = []
@@ -163,6 +164,9 @@ var to_read: list<string> = []
 var read_timer = -1
 # The checks of the scripts that the checker has yet to answer.
 var checking = 0
+# The first reading of the request, {token, total, done, told}: a script
+# counts once when read and once when checked.  Or null_dict.
+var work: dict<any> = null_dict
 # The most scripts read; a folder may be a home directory.
 const MAX_SCRIPTS = 256
 var told_count = 0
@@ -214,6 +218,7 @@ def AnswerHeld()
       || !to_read->empty() || checking > 0
     return
   endif
+  EndWork()
   Reply(pull.id, {items: held})
   held = []
   pull = null_dict
@@ -240,6 +245,9 @@ def ScanWorkspace(again: list<string> = [])
   for path in scripts
     if reported->get(path, '') != Stamp(path) && index(to_read, path) < 0
       add(to_read, path)
+      if work != null_dict
+        work.total += 2
+      endif
     endif
   endfor
   if read_timer < 0 && !to_read->empty()
@@ -269,8 +277,31 @@ def Stamp(path: string): string
   return getftime(path) .. ':' .. getfsize(path)
 enddef
 
+# One step of "w" done; the client hears of every tenth of the whole, and of
+# the end.
+def Step(w: dict<any>)
+  if w == null_dict || work isnot w
+    return
+  endif
+  w.done += 1
+  if w.done >= w.total
+    Notify('$/progress', {token: w.token, value: {kind: 'end'}})
+    work = null_dict
+    return
+  endif
+  var percentage = w.total > 0 ? w.done * 100 / w.total : 100
+  if percentage / 10 > w.told / 10
+    w.told = percentage
+    Notify('$/progress', {token: w.token, value: {kind: 'report',
+      percentage: percentage}})
+  endif
+enddef
+
 def ReadScript(path: string)
+  var w = work
   if !filereadable(path)
+    Step(w)
+    Step(w)
     return
   endif
   var stamp = Stamp(path)
@@ -279,26 +310,32 @@ def ReadScript(path: string)
   var items = StaticItems(d, path)
   reported[path] = stamp
   Report(path, items)
+  Step(w)
   var parsed = Parsed(d)
   if compile.Check(path, d.lines, parsed.vim9 ? wrap.Lines(parsed, d.lines)
-      : null, (errors: any) => Checked(path, d, items, errors), true)
+      : null, (errors: any) => Checked(path, d, items, errors, w), true)
     checking += 1
+  else
+    Step(w)
   endif
 enddef
 
-def Checked(path: string, d: dict<any>, items: list<dict<any>>, errors: any)
+def Checked(path: string, d: dict<any>, items: list<dict<any>>, errors: any,
+    w: dict<any>)
   checking -= 1
   if pull == null_dict
     # Not sent; read it again for the next request.
     if reported->has_key(path)
       remove(reported, path)
     endif
+    Step(w)
     return
   endif
   if errors != null
     d.compiled = errors
     Report(path, WithCompiled(d, items))
   endif
+  Step(w)
   AnswerHeld()
 enddef
 
@@ -311,6 +348,7 @@ enddef
 
 def WorkspacePull(id: any, params: dict<any>)
   if pull != null_dict
+    EndWork()
     ReplyError(pull.id, -32800, 'a newer request took its place')
   endif
   var token = params->get('partialResultToken', null)
@@ -318,6 +356,20 @@ def WorkspacePull(id: any, params: dict<any>)
     streaming: type(token) == v:t_string || type(token) == v:t_number}
   held = []
   ScanWorkspace()
+  var work_token = params->get('workDoneToken', null)
+  if (type(work_token) == v:t_string || type(work_token) == v:t_number)
+      && pull != null_dict && !to_read->empty()
+    work = {token: work_token, total: 2 * len(to_read), done: 0, told: 0}
+    Notify('$/progress', {token: work_token, value: {kind: 'begin',
+      title: 'Reading the workspace', percentage: 0}})
+  endif
+enddef
+
+def EndWork()
+  if work != null_dict
+    Notify('$/progress', {token: work.token, value: {kind: 'end'}})
+    work = null_dict
+  endif
 enddef
 
 # Ends the request kept open: with what is held, or as cancelled.
@@ -325,6 +377,7 @@ def EndPull(cancelled: bool)
   if pull == null_dict
     return
   endif
+  EndWork()
   if cancelled
     ReplyError(pull.id, -32800, 'cancelled')
   else

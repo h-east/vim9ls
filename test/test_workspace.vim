@@ -149,3 +149,56 @@ def g:Test_workspace_diagnostic_limit()
     delete(ROOT, 'rf')
   endtry
 enddef
+
+# With a token for the work done, the first reading goes out as begin, a
+# report for every tenth and end, which comes once what the checker reports
+# is in.
+def g:Test_workspace_diagnostic_progress()
+  mkdir(ROOT, 'p')
+  for i in range(12)
+    writefile(['vim9script'], printf('%s/s%02d.vim', ROOT, i))
+  endfor
+  writefile(['vim9script', 'def G(): number', '  return "x"', 'enddef'],
+    ROOT .. '/zbad.vim')
+  reports = {}
+  try
+    Start([ROOT])
+    helper.Send('workspace/diagnostic', {previousResultIds: [],
+      partialResultToken: 'tok', workDoneToken: 'work'}, (_) => {
+      })
+    # The notifications in the order they came, up to the end.
+    var values: list<dict<any>> = []
+    helper.WaitFor(() => {
+      while !helper.notifications->empty()
+          && (values->empty() || values[-1].kind != 'end')
+        var n = remove(helper.notifications, 0)
+        if n->get('method', '') != '$/progress'
+          continue
+        elseif n.params.token == 'work'
+          add(values, n.params.value)
+        else
+          for r in n.params.value.items
+            reports[fnamemodify(util.UriToPath(r.uri), ':t')] =
+              r.items->mapnew((_, d) => d.message)
+          endfor
+        endif
+      endwhile
+      return !values->empty() && values[-1].kind == 'end'
+    }, 10000)
+    assert_equal({kind: 'begin', title: 'Reading the workspace',
+      percentage: 0}, values[0])
+    assert_equal({kind: 'end'}, values[-1])
+    var percentages = values[1 : -2]->mapnew((_, v) => v.percentage)
+    assert_equal(['report'], values[1 : -2]->mapnew((_, v) => v.kind)
+      ->sort()->uniq())
+    assert_equal(sort(copy(percentages), 'n'), percentages)
+    assert_true(len(percentages) >= 5 && percentages[-1] < 100,
+      string(percentages))
+    assert_equal(['E1012: Type mismatch; expected number but got string'],
+      reports->get('zbad.vim', []))
+    assert_equal(13, len(reports))
+  finally
+    helper.StopServer()
+    delete(ROOT, 'rf')
+  endtry
+enddef
