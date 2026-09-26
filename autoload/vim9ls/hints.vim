@@ -185,7 +185,7 @@ def ScopeOf(symbols: list<dict<any>>, want: dict<any>,
     if !s.children->empty()
       var found = ScopeOf(s.children, want,
         IsFunction(s) ? scope + [s] : scope)
-      if found != null_list
+      if found isnot null_list
         return found
       endif
     endif
@@ -202,7 +202,9 @@ export def VariableType(parsed: dict<any>, lines: list<string>,
   endif
   var scope = ScopeOf(parsed.symbols, s, [])
   var vim9_at = parse.Vim9Lines(parsed, len(lines))
-  if scope == null_list || s.line >= len(vim9_at) || !vim9_at[s.line]
+  # A variable of the script has an empty scope, which "==" takes for
+  # null_list.
+  if scope is null_list || s.line >= len(vim9_at) || !vim9_at[s.line]
     return ''
   endif
   return InferOne(s, scope, {top: parsed.symbols, funcs: FuncTypes(parsed)},

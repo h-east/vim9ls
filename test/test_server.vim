@@ -404,6 +404,8 @@ def g:Test_type_definition()
       '  echo plain',                     # 19
       '  echo drawn',                     # 20
       'enddef',                           # 21
+      'var top = Shape.new()',            # 22
+      'echo top',                         # 23
     ], uri)
     var Ask = (line: number, character: number) => helper.Request(
       'textDocument/typeDefinition',
@@ -429,6 +431,10 @@ def g:Test_type_definition()
 
     # A type of Vim's own has nothing to go to.
     assert_equal(null, Ask(19, 7))
+
+    # A variable of the script, from its declaration and from a use.
+    assert_equal(2, Ask(22, 5)[0].range.start.line)
+    assert_equal(2, Ask(23, 6)[0].range.start.line)
   finally
     delete(root, 'rf')
   endtry
