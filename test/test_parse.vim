@@ -200,6 +200,31 @@ def g:Test_parse_parameter_types()
     Names(parsed.symbols[0].children))
 enddef
 
+# A heredoc is "{name} =<< [trim] [eval] {endmarker}", a type after the name
+# under Vim9 rules; "=<<" in a string is not one, and neither is an end
+# marker that starts with a lower case letter.
+def g:Test_parse_heredoc_form()
+  var lines =<< trim END
+    vim9script
+    const OP: string = '\s=<<\s\@=\%(\s\+\%(trim\|eval\)\)\{,2}'
+    var after_op = 1
+    var s = ' =<< trim END'
+    var after_s = 2
+    var text =<< trim END
+      def NotAFunction()
+    END
+    var typed: list<string> =<< trim eval EOT
+      {after_op}
+    EOT
+    var lower =<< end
+    var after_lower = 3
+  END
+  var parsed = parse.Parse(lines)
+  assert_equal(['OP', 'after_op', 's', 'after_s', 'text', 'typed', 'lower',
+    'after_lower'], Names(parsed.symbols))
+  assert_equal([6, 7, 9, 10], parsed.heredoc_lines)
+enddef
+
 # The text of a heredoc assigned to a variable that is there already is not
 # read as statements.
 def g:Test_parse_assigned_heredoc()

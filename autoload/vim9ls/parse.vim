@@ -79,6 +79,15 @@ const TAKES_REST = {command: 1, autocmd: 1, normal: 1, global: 1, vglobal: 1,
   folddoopen: 1, folddoclosed: 1, help: 1, sign: 1, terminal: 1}
 const TYPES = {class: KIND_CLASS, interface: KIND_INTERFACE, enum: KIND_ENUM}
 
+# A heredoc after the name of the variable, "=<< [trim] [eval] {endmarker}",
+# the end marker as the match: no white space in it, and not starting with a
+# lower case letter.  See ":help :let-heredoc".
+const HEREDOC = '\s*=<<\%(\s\+trim\)\=\%(\s\+eval\)\=\s\+'
+  .. '\zs[^a-z[:space:]]\S*\ze\s*$'
+# The name a declaration gives a heredoc, with a type after it under Vim9
+# rules.  A type has no "=" or quote, which a string holding "=<<" has.
+const HEREDOC_NAME = '^\%([sgbwtlv]:\)\=\h\w*\%(\s*:\s*[^=''"]\{-1,}\)\='
+
 # The commands that shape a script; every other command is left alone.
 const SHAPING = extend({
   def: 1, function: 1, augroup: 1, import: 1, command: 1, vim9script: 1,
@@ -407,9 +416,9 @@ def Statement(st: dict<any>, lnum: number, text: string, col: number,
         'E1126: Cannot use :let in Vim9 script'))
     endif
     # A heredoc holds text, not statements.
-    if arg_text =~ '=<<'
-      st.heredoc = matchstr(arg_text,
-        '=<<\s*\%(\%(trim\|eval\)\s\+\)*\zs\S\+$')
+    var marker = matchstr(arg_text, HEREDOC_NAME .. HEREDOC)
+    if marker != ''
+      st.heredoc = marker
     endif
     var in_class = InKind(st, 'class') || InKind(st, 'enum')
     var kind = in_class ? KIND_FIELD
@@ -573,8 +582,9 @@ export def Parse(lines: list<string>): dict<any>
     var col = m[1]
     # A heredoc assigned to a variable that is there already, "x =<< END",
     # holds text as well.
-    if line =~ '^\s*[[:alnum:]_:.]\+\s*=<<'
-      st.heredoc = matchstr(line, '=<<\s*\%(\%(trim\|eval\)\s\+\)*\zs\S\+$')
+    var assigned = matchstr(line, '^\s*[[:alnum:]_:.]\+' .. HEREDOC)
+    if assigned != ''
+      st.heredoc = assigned
       continue
     endif
     # "end: 1" in a dictionary that goes over lines is a key, not ":endif".
