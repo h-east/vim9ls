@@ -258,7 +258,8 @@ A quick fix for a diagnostic the client sends along with the request, one of
 the parser or one Vim reported: ":let" under Vim9 rules becomes "var" when it
 declares the variable and goes when the variable is there already or has a
 scope; the end a block lacks, "endif" for one, is put in where the
-indentation of the block stops; an end without a start is removed.
+indentation of the block stops; an end without a start is removed; a
+parameter that is not used is named "_".
 
 Diagnostics ~
 Reported when a document is opened and after its changes pause:

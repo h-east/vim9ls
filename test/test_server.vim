@@ -870,6 +870,32 @@ def g:Test_inlay_hint()
   assert_equal([], Ask(2, 3))
 enddef
 
+# A parameter that is not used can be named "_"; a variable that is not used
+# has no fix, taking its declaration away may drop what its value does.
+def g:Test_code_action_unused_parameter()
+  helper.StartServer()
+  helper.Initialize()
+  var text = ['vim9script', 'def F(used: number, unused: string = "a")',
+    '  var left = used', 'enddef']
+  helper.OpenDoc(text)
+  var published = helper.WaitNotification('textDocument/publishDiagnostics')
+    .params.diagnostics
+  var actions = helper.Request('textDocument/codeAction',
+    {textDocument: {uri: helper.URI}, range: {start: {line: 0, character: 0},
+      end: {line: 3, character: 0}}, context: {diagnostics: published}}).result
+  assert_equal(['Name the parameter "_"'], actions->mapnew((_, a) => a.title))
+  assert_equal({range: {start: {line: 1, character: 20},
+    end: {line: 1, character: 26}}, newText: '_'},
+    actions[0].edit.changes[helper.URI][0])
+
+  # Not when the name there is no longer the one reported.
+  helper.ChangeDoc(['vim9script', 'def F(used: number, other: string = "a")',
+    '  var left = used', 'enddef'])
+  assert_equal([], helper.Request('textDocument/codeAction',
+    {textDocument: {uri: helper.URI}, range: {start: {line: 0, character: 0},
+      end: {line: 3, character: 0}}, context: {diagnostics: published}}).result)
+enddef
+
 def g:Test_code_action()
   helper.StartServer()
   helper.Initialize()

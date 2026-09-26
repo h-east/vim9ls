@@ -89,7 +89,8 @@ See `:help vim9ls` for the details.
   that has `getinfo()` the arguments of a builtin come with their names
   and types as Vim reports them, and the return type.
 - Code actions: a quick fix for a diagnostic, of the parser or of Vim,
-  `:let` to `var`, the `endif` a block lacks, an `endif` without an `if`.
+  `:let` to `var`, the `endif` a block lacks, an `endif` without an `if`,
+  `_` for a parameter that is not used.
 - Inlay hints: the type of a `var` that leaves it to the initializer, as
   the Vim9 compiler infers it, and the parameter names at a call.
 - Diagnostics: blocks that do not add up, `:let` under Vim9 rules, in legacy
@@ -156,7 +157,7 @@ given.
 | `textDocument/references` | yes |  |
 | `textDocument/documentHighlight` | yes | the other uses of the name in the document, a declaration or an assignment marked as a write |
 | `textDocument/documentSymbol` | yes |  |
-| `textDocument/codeAction` | yes | a quick fix for what a diagnostic reports: `:let` to `var`, a missing `endif` |
+| `textDocument/codeAction` | yes | a quick fix for what a diagnostic reports: `:let` to `var`, a missing `endif`, `_` for an unused parameter |
 | `codeAction/resolve` | no | an action comes with its edit |
 | `textDocument/codeLens` | no | nothing here has a line to put above the code |
 | `codeLens/resolve` | no |  |

@@ -98,6 +98,13 @@ export def Actions(parsed: dict<any>, lines: list<string>, uri: string,
     elseif kind == 'remove'
       fix = {title: 'Remove the ' .. data.what .. ' without a start',
         edit: {range: LineRange(lines, lnum, encoding), newText: ''}}
+    elseif kind == 'underscore'
+      # "_" is how Vim9 script names what it does not use; any number of
+      # parameters may be named so.
+      if strpart(lines[lnum], data.col, data.end - data.col) == data.name
+        fix = {title: 'Name the parameter "_"', edit: {range: util.Range(
+          lines, lnum, data.col, lnum, data.end, encoding), newText: '_'}}
+      endif
     endif
     # Vim may report the same error twice, worded two ways.
     if fix == null_dict || out->indexof((_, a) => a.title == fix.title

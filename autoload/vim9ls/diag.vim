@@ -19,6 +19,11 @@ export def FixData(message: string, line: string, col: number): dict<any>
     # that starts it, below which the end goes.
     return col < 0 ? null_dict : {fix: 'insert', text: missing}
   endif
+  var unused = matchstr(message, '^Unused parameter: \zs\h\w*$')
+  if unused != ''
+    return col < 0 ? null_dict
+      : {fix: 'underscore', col: col, end: col + strlen(unused), name: unused}
+  endif
   var stray = matchstr(message,
     '^\%(E\d\+: \)\=:\zsend\w*\ze \%(without\|not\)')
   return stray == '' ? null_dict : {fix: 'remove', what: stray}
