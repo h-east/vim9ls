@@ -1075,6 +1075,10 @@ def g:Test_compile_diagnostics()
   # Nor is one in a function, while a builtin command spelled wrong is.
   assert_equal([[3, 'E476: Invalid command: echoo 1']],
     After(['vim9script', 'def F()', '  LspHover', '  echoo 1', 'enddef'], 9))
+  # A continuation line in the first column, which a function would take
+  # for an error.
+  assert_equal([], After(['vim9script', "&l:define = 'a'",
+    "..          'b'"], 12))
   # An error Vim reports twice, once with the command added, is there once,
   # as is one the parser reports too.
   assert_equal([[4, 'E580: :endif without :if']],

@@ -80,6 +80,14 @@ export def Lines(parsed: dict<any>, lines: list<string>): list<string>
     endif
     command = false
   endfor
+  # In a function a continuation line that starts in the first column, with
+  # "..", is an error, which the script level does not give.  The text of a
+  # heredoc stays as it is.
+  for lnum in range(len(out))
+    if !heredoc->has_key(lnum) && out[lnum] =~ '^\S'
+      out[lnum] = ' ' .. out[lnum]
+    endif
+  endfor
   return out
 enddef
 

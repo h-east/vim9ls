@@ -7,6 +7,15 @@ def Wrapped(lines: list<string>): list<string>
   return wrap.Lines(parse.Parse(lines), lines)
 enddef
 
+# "expected" as wrap.Lines() gives it: a line that starts in the first column
+# one space in, but for the text of a heredoc, the lines in "keep".  The
+# trim of a heredoc leaves the indent of a blank line; it is compared
+# without it.
+def Indented(expected: list<string>, keep: list<number> = []): list<string>
+  return expected->mapnew((i, l) => l =~ '^\s*$' ? ''
+    : index(keep, i) < 0 && l =~ '^\S' ? ' ' .. l : l)
+enddef
+
 def g:Test_wrap_script_level()
   var lines =<< trim END
     vim9script
@@ -72,9 +81,7 @@ def g:Test_wrap_script_level()
     return
 
   END
-  # The trim leaves the indent of a blank line as is; compare without it.
-  assert_equal(expected->mapnew((_, l) => l =~ '^\s*$' ? '' : l),
-    Wrapped(lines))
+  assert_equal(Indented(expected, [10, 11]), Wrapped(lines))
 enddef
 
 # A user command is left out, its continuation lines with it: a plugin or a
@@ -125,8 +132,7 @@ def g:Test_wrap_commands_and_blocks()
     endif
     top = 1
   END
-  assert_equal(expected->mapnew((_, l) => l =~ '^\s*$' ? '' : l),
-    Wrapped(lines))
+  assert_equal(Indented(expected), Wrapped(lines))
 enddef
 
 # A legacy function and a command keep their lines out of and in the body.
@@ -138,7 +144,18 @@ def g:Test_wrap_legacy_function()
     endfunction
     Old()
   END
-  assert_equal(['', '', '', '', 'Old()'], Wrapped(lines))
+  assert_equal(['', '', '', '', ' Old()'], Wrapped(lines))
 enddef
 
 # vim: ts=2 sw=0 et
+
+# A continuation line that starts in the first column is an error in a
+# function; the lines go one space in, but for the text of a heredoc.
+def g:Test_wrap_continuation_in_the_first_column()
+  # "=<<" is split up: Vim takes a line of a function that starts with a
+  # quoted string holding "name =<< END" for a heredoc.
+  var lines = ['vim9script', "&l:define = 'a'", "..          'b'",
+    'var text =' .. '<< END', 'kept', 'END']
+  assert_equal(['', " &l:define = 'a'", " ..          'b'",
+    ' text =' .. '<< END', 'kept', 'END'], Wrapped(lines))
+enddef
