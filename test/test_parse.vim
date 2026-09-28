@@ -245,4 +245,19 @@ def g:Test_parse_assigned_heredoc()
   assert_equal([], parsed.diags)
 enddef
 
+# ":loadkeymap" reads the rest of the script as keymap lines, which are not
+# statements.
+def g:Test_parse_loadkeymap()
+  var lines =<< trim END
+    let b:keymap_name = "bg"
+    loadkeymap
+    yi	ы	CYRILLIC SMALL LETTER YERU
+    function Inside()
+  END
+  var parsed = parse.Parse(lines)
+  assert_equal(['b:keymap_name'], Names(parsed.symbols))
+  assert_equal([2, 3], parsed.heredoc_lines)
+  assert_equal([], parsed.diags)
+enddef
+
 # vim: ts=2 sw=0 et

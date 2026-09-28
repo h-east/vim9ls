@@ -593,6 +593,13 @@ export def Parse(lines: list<string>): dict<any>
     endif
     var cmd = CommandOf(word)
 
+    # ":loadkeymap" reads the rest of the script as keymap lines, a heredoc
+    # with a marker that no line has.
+    if cmd == 'loadkeymap'
+      st.heredoc = "\n"
+      continue
+    endif
+
     # A script in another language, up to its end marker.
     if LANGUAGES->has_key(cmd) && line =~ '<<'
       var marker = matchstr(line, '<<\s*\%(trim\s\+\)\=\zs\S*')
