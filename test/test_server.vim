@@ -1141,6 +1141,31 @@ def g:Test_compile_diagnostics()
   assert_equal([], note.params.diagnostics)
 enddef
 
+# A variable of a block at the script level may have the name of a script
+# variable declared further on, as Vim reads the script in order; one
+# declared before is still reported.
+def g:Test_compile_block_variable_declared_later()
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc([
+    'vim9script',
+    'if true',
+    '  var later: list<string> = []',
+    '  later = ["a"]',
+    'endif',
+    'var later: list<string> = ["b"]',
+    'var before = 1',
+    'if true',
+    '  var before = 2',
+    'endif',
+  ])
+  var diags = helper.WaitNotification('textDocument/publishDiagnostics')
+    .params.diagnostics->filter((_, d) => d.message =~ '^E1054')
+  assert_equal([[8, 'E1054: Variable already declared in the script: before']],
+    diags->mapnew((_, d) => [d.range.start.line, d.message]))
+  helper.StopServer()
+enddef
+
 # A call in the keys of a mapping is looked up where the keys find it when
 # typed: after <ScriptCmd> in the script and then everywhere, with <SID> in
 # the script, after ":call" everywhere but the script.  Its arguments are

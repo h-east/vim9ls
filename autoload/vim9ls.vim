@@ -475,9 +475,26 @@ enddef
 # "items" and what the checker reported last for the document "d".  The two
 # may name the same error, and Vim may report one twice; it is there once, in
 # the shorter words.
+# Whether "e" is E1054 for a variable of a block at the script level whose
+# name a later script variable takes; Vim reads in order and gives none.
+def DeclaredLater(parsed: dict<any>, e: dict<any>): bool
+  var name = matchstr(e.message,
+    '^E1054: Variable already declared in the script: \zs\S\+$')
+  if name == ''
+    return false
+  endif
+  var lines = parsed.symbols->copy()->filter((_, s) => s.name == name
+      && (s.kind == parse.KIND_VARIABLE || s.kind == parse.KIND_CONSTANT)
+      && !s->has_key('scope_start'))
+    ->mapnew((_, s) => s.line)
+  return !lines->empty() && min(lines) > e.line
+enddef
+
 def WithCompiled(d: dict<any>, items: list<dict<any>>): list<dict<any>>
   var all = copy(items)
-  for item in compile.Diagnostics(d.compiled, d.lines, encoding)
+  var parsed = Parsed(d)
+  var errors = d.compiled->copy()->filter((_, e) => !DeclaredLater(parsed, e))
+  for item in compile.Diagnostics(errors, d.lines, encoding)
     var at = all->indexof((_, i) => i.range.start.line
       == item.range.start.line && SameError(i.message, item.message))
     if at < 0
