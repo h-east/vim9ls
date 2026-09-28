@@ -15,12 +15,12 @@ import autoload './parse.vim'
 import autoload './refs.vim'
 import autoload './doc.vim'
 
-# Commands whose argument is not code: a pattern, keys, an option value or
-# the name and parameters of a function.
+# Commands whose argument is not code: a pattern, keys, an option value, a
+# menu name or the name and parameters of a function.
 const SKIPPED = {syntax: 1, highlight: 1, match: 1, '2match': 1, '3match': 1,
   normal: 1, set: 1, setlocal: 1, setglobal: 1, def: 1, function: 1,
   substitute: 1, smagic: 1, snomagic: 1, global: 1, vglobal: 1, sort: 1,
-  vimgrep: 1, vimgrepadd: 1, lvimgrep: 1, lvimgrepadd: 1}
+  vimgrep: 1, vimgrepadd: 1, lvimgrep: 1, lvimgrepadd: 1, menutranslate: 1}
 # The mappings, abbreviations and menus, which take keys.
 const KEYS_COMMAND = '^\l.*\%(map\|abbrev\|abbreviate\|menu\)$'
 

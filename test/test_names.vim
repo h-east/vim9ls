@@ -77,13 +77,14 @@ def g:Test_names_skipped_commands()
           \%g(%l):\ %m
     set errorformat+=%f(%l)
           \,%h(%l)
+    menutrans Co&pying	v(&P)
     silent Cmd nosuch()
     call nosuch()
           \ + other()
   END
   assert_equal([
-    [5, 'E117: Unknown function: nosuch'],
-    [6, 'E117: Unknown function: other'],
+    [6, 'E117: Unknown function: nosuch'],
+    [7, 'E117: Unknown function: other'],
   ], Undefined(lines))
 enddef
 
