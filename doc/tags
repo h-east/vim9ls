@@ -5,6 +5,7 @@ vim9ls-environment	vim9ls.txt	/*vim9ls-environment*
 vim9ls-features	vim9ls.txt	/*vim9ls-features*
 vim9ls-installation	vim9ls.txt	/*vim9ls-installation*
 vim9ls-introduction	vim9ls.txt	/*vim9ls-introduction*
+vim9ls-options	vim9ls.txt	/*vim9ls-options*
 vim9ls-requirements	vim9ls.txt	/*vim9ls-requirements*
 vim9ls-setup	vim9ls.txt	/*vim9ls-setup*
 vim9ls.txt	vim9ls.txt	/*vim9ls.txt*
