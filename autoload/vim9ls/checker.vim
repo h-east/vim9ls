@@ -44,20 +44,37 @@ def Reset()
 enddef
 
 # The file of each script read so far, with its time and size when it was
-# read.
+# read, and the highest script ID noted there.
 var read_as: dict<string> = {}
+var noted_sid = 0
+# When the scripts were last looked at.
+var refreshed = reltime()
+const REFRESH_SECONDS = 2.0
+# The script checked last changed, and was not read again for that: the next
+# check looks at the scripts.
+var stale = false
 
 def Stamp(file: string): string
   return getftime(file) .. ':' .. getfsize(file)
 enddef
 
+# The file of "info" when it is one to note, but for the one at "path".
+def FileOf(info: dict<any>, path: string): string
+  var file = FullPath(info.name)
+  return file == path || file == FullPath(SELF) || !filereadable(file)
+    ? '' : file
+enddef
+
 # Has the scripts read before that changed since then read again, but for
 # the one at "path": Vim does not read a script again for an import, so the
-# import would find what it was.  A script not seen yet is only noted.
+# import would find what it was.
 def Refresh(path: string)
+  stale = false
   for info in getscriptinfo()
-    var file = FullPath(info.name)
-    if file == path || file == FullPath(SELF) || !filereadable(file)
+    var file = FileOf(info, path)
+    if file == ''
+      stale = stale || (FullPath(info.name) == path
+        && read_as->get(path, Stamp(path)) != Stamp(path))
       continue
     endif
     var stamp = Stamp(file)
@@ -65,7 +82,25 @@ def Refresh(path: string)
       silent! execute 'source ++dryrun' fnameescape(file)
     endif
     read_as[file] = stamp
+    noted_sid = max([noted_sid, info.sid])
   endfor
+  refreshed = reltime()
+enddef
+
+# Notes the scripts read since the last were noted, but for the one at
+# "path".
+def NoteNew(path: string)
+  while true
+    var found = getscriptinfo({sid: noted_sid + 1})
+    if found->empty()
+      return
+    endif
+    noted_sid += 1
+    var file = FileOf(found[0], path)
+    if file != ''
+      read_as[file] = Stamp(file)
+    endif
+  endwhile
 enddef
 
 # Reads the buffer with "cmd" and returns what Vim reported.
@@ -185,7 +220,11 @@ enddef
 # script level of a Vim9 script as the body of a function, see wrap.vim; it
 # is appended to the script, so that it is compiled along with the rest.
 # An error in it is reported on the line of the script it came from.
-def Check(path_arg: string, lines: list<string>, wrapped: any): list<dict<any>>
+# Looking at every script read is slow when many were, so it is done when
+# "refresh" is true, the server knowing of a change, and every
+# REFRESH_SECONDS for what it does not know of.
+def Check(path_arg: string, lines: list<string>, wrapped: any,
+    refresh: bool): list<dict<any>>
   var path = FullPath(path_arg)
   # This script is running here, its functions cannot be defined again.
   if path == FullPath(SELF)
@@ -193,11 +232,13 @@ def Check(path_arg: string, lines: list<string>, wrapped: any): list<dict<any>>
   endif
   var text = type(wrapped) != v:t_list ? lines
     : lines + ['def ScriptLevel()'] + wrapped + ['enddef']
-  Refresh(path)
+  if refresh || stale || reltimefloat(reltime(refreshed)) >= REFRESH_SECONDS
+    Refresh(path)
+  endif
   Load(path, text)
   # The range needs the colon: ":execute" from a ":def" reads the Vim9 way.
   var errors = Errors(Source(':%source ++dryrun'), path)
-  Refresh(path)
+  NoteNew(path)
   for e in errors
     if e.line > len(lines)
       e.line -= len(lines) + 1
@@ -209,7 +250,8 @@ enddef
 def OnMessage(ch: channel, msg: any)
   if get(msg, 'method', '') == 'check'
     ch_sendexpr(ch, {id: msg.id, result: {
-      errors: Check(msg.params.path, msg.params.lines, msg.params.wrapped),
+      errors: Check(msg.params.path, msg.params.lines, msg.params.wrapped,
+        msg.params->get('refresh', true)),
     }})
   endif
 enddef

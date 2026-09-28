@@ -263,6 +263,9 @@ def ScanWorkspace(again: list<string> = [])
     if reported->get(path, '') == stamp || index(to_read, path) >= 0
       continue
     endif
+    if reported->has_key(path)
+      compile.FilesChanged()
+    endif
     var items = cache.Get(path, stamp)
     if type(items) == v:t_list
       reported[path] = stamp
@@ -1701,9 +1704,11 @@ def Notification(method: string, params: dict<any>)
     ChangeDoc(params.textDocument.uri, params.contentChanges,
       params.textDocument->get('version', v:null))
   elseif method == 'textDocument/didSave'
+    compile.FilesChanged()
     PublishDiagnostics(params.textDocument.uri)
     ScanWorkspace(Mentioning(util.UriToPath(params.textDocument.uri)))
   elseif method == 'textDocument/didClose'
+    compile.FilesChanged()
     if docs->has_key(params.textDocument.uri)
       remove(docs, params.textDocument.uri)
     endif
@@ -1717,6 +1722,7 @@ def Notification(method: string, params: dict<any>)
     AddFolders(event->get('added', []))
     ScanWorkspace()
   elseif method == 'workspace/didChangeWatchedFiles'
+    compile.FilesChanged()
     # One that is gone is left as it was reported, for ScanWorkspace() to find
     # it missing.
     ScanWorkspace(params->get('changes', [])

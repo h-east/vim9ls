@@ -302,7 +302,9 @@ function: the checker's Vim loads no plugins and would not know it.  The
 server does not wait for the checker, it goes on answering the client and
 sends the diagnostics once the checker has answered.  What Vim reports is
 added, each on the line it is about: a type mismatch, a name that is not
-found, an argument too many.
+found, an argument too many.  A script it imports is read again once it has
+changed: at once when it was saved or the client reports the change, otherwise
+at a check two seconds or more after the last look.
 What a legacy "function" does is not read until it is called, and neither is
 a mapping or an autocommand.
 

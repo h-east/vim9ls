@@ -1142,27 +1142,42 @@ def g:Test_compile_diagnostics()
 enddef
 
 # A script that is imported is read again once it has changed, since Vim
-# keeps what it read before for the import.
+# keeps what it read before for the import: at once when the client reports
+# the change, and otherwise when the scripts are next looked at, which is
+# done every two seconds.
 def g:Test_compile_import_changed()
   var root = helper.HERE .. '/Xchanged'
   mkdir(root, 'p')
-  writefile(['vim9script', 'export const N: number = 1'], root .. '/xlib.vim')
   var user = ['vim9script', "import './xlib.vim'", 'def F(): number',
     '  return xlib.N', 'enddef']
   var uri = util.PathToUri(root .. '/user.vim')
+  const E1012 = 'E1012: Type mismatch; expected number but got string'
   try
-    writefile(user, root .. '/user.vim')
-    helper.StartServer()
-    helper.Initialize()
-    helper.OpenDoc(user, uri)
-    assert_equal([], helper.WaitNotification('textDocument/publishDiagnostics')
-      .params.diagnostics)
-    writefile(['vim9script', 'export const N: string = "s"'],
-      root .. '/xlib.vim')
-    helper.ChangeDoc(user + [''], uri, 2)
-    assert_equal(['E1012: Type mismatch; expected number but got string'],
-      helper.WaitNotification('textDocument/publishDiagnostics')
-        .params.diagnostics->mapnew((_, d) => d.message))
+    for reported in [true, false]
+      writefile(['vim9script', 'export const N: number = 1'],
+        root .. '/xlib.vim')
+      writefile(user, root .. '/user.vim')
+      helper.StartServer()
+      helper.Initialize()
+      helper.OpenDoc(user, uri)
+      assert_equal([],
+        helper.WaitNotification('textDocument/publishDiagnostics')
+        .params.diagnostics)
+      writefile(['vim9script', 'export const N: string = "s"'],
+        root .. '/xlib.vim')
+      if reported
+        helper.Notify('workspace/didChangeWatchedFiles', {changes: [
+          {uri: util.PathToUri(root .. '/xlib.vim'), type: 2}]})
+      else
+        sleep 2100m
+      endif
+      helper.ChangeDoc(user + [''], uri, 2)
+      assert_equal([E1012],
+        helper.WaitNotification('textDocument/publishDiagnostics')
+          .params.diagnostics->mapnew((_, d) => d.message),
+        reported ? 'reported' : 'not reported')
+      helper.StopServer()
+    endfor
   finally
     helper.StopServer()
     delete(root, 'rf')

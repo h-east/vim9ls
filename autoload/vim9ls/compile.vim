@@ -22,11 +22,21 @@ export var check_msecs = 5000
 var job: job
 # The check the checker has, {id, Done, timer, path}, or null_dict.
 var current: dict<any> = null_dict
-# The checks that wait for it, {path, lines, wrapped, Done}, oldest first.
-var waiting: list<dict<any>> = []
+# The paths of the checks that wait for it, oldest first, and the checks by
+# path, {path, lines, wrapped, Done}.
+var waiting: list<string> = []
+var waiting_checks: dict<dict<any>> = {}
 # The same for the checks made in the background, which wait until nothing
 # else does.
-var background: list<dict<any>> = []
+var background: list<string> = []
+var background_checks: dict<dict<any>> = {}
+# Whether a file may have changed since the last check was sent: the next
+# one has the checker read again the scripts it has that changed.
+var changed = false
+
+export def FilesChanged()
+  changed = true
+enddef
 
 def Running(): bool
   return job != null_job && job_status(job) == 'run'
@@ -60,9 +70,12 @@ enddef
 # Ends the checker; what it was asked, and what waits, is answered with null.
 export def Stop()
   Kill()
-  var asked = waiting + background
+  var asked = waiting->mapnew((_, p) => waiting_checks[p])
+    + background->mapnew((_, p) => background_checks[p])
   waiting = []
+  waiting_checks = {}
   background = []
+  background_checks = {}
   for w in asked
     w.Done(null)
   endfor
@@ -78,14 +91,18 @@ def Next()
         return
       endif
     endif
-    var w = waiting->empty() ? remove(background, 0) : remove(waiting, 0)
+    var w = waiting->empty()
+      ? remove(background_checks, remove(background, 0))
+      : remove(waiting_checks, remove(waiting, 0))
     var sent = ch_sendexpr(job, {method: 'check',
-      params: {path: w.path, lines: w.lines, wrapped: w.wrapped}},
+      params: {path: w.path, lines: w.lines, wrapped: w.wrapped,
+        refresh: changed}},
       {callback: OnReply})
     if type(sent) != v:t_dict || !sent->has_key('id')
       w.Done(null)
       continue
     endif
+    changed = false
     current = {id: sent.id, Done: w.Done, path: w.path,
       timer: timer_start(check_msecs, (_) => Unanswered(sent.id))}
   endwhile
@@ -106,12 +123,16 @@ export def Check(path: string, lines: list<string>, wrapped: any,
     endif
   endif
   var check = {path: path, lines: lines, wrapped: wrapped, Done: Done}
-  var queue = in_background ? background : waiting
-  var at = queue->indexof((_, w) => w.path == path)
-  if at >= 0
-    queue[at] = check
+  if in_background
+    if !background_checks->has_key(path)
+      add(background, path)
+    endif
+    background_checks[path] = check
   else
-    add(queue, check)
+    if !waiting_checks->has_key(path)
+      add(waiting, path)
+    endif
+    waiting_checks[path] = check
   endif
   Next()
   return true
