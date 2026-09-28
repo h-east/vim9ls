@@ -1166,6 +1166,28 @@ def g:Test_compile_block_variable_declared_later()
   helper.StopServer()
 enddef
 
+# A declaration in a lambda at the script level stays a declaration of the
+# lambda, the dry run declaring no script variable for it, and the script
+# level is still checked.
+def g:Test_compile_declaration_in_lambda()
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc([
+    'vim9script',
+    'var names = ["a", "b"]',
+    'range(1, 2)->foreach((_, n) => {',
+    '  var joined = names->mapnew((_, s) => s .. n)->join()',
+    '  echo joined',
+    '})',
+    'var count: number = "x"',
+  ])
+  var diags = helper.WaitNotification('textDocument/publishDiagnostics')
+    .params.diagnostics->filter((_, d) => d.message =~ '^E')
+  assert_equal([[6, 'E1012: Type mismatch; expected number but got string']],
+    diags->mapnew((_, d) => [d.range.start.line, d.message]))
+  helper.StopServer()
+enddef
+
 # A call in the keys of a mapping is looked up where the keys find it when
 # typed: after <ScriptCmd> in the script and then everywhere, with <SID> in
 # the script, after ":call" everywhere but the script.  Its arguments are

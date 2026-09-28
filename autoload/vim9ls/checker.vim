@@ -275,6 +275,26 @@ def KeyCallErrors(path: string, calls: list<any>): list<dict<any>>
   return errors
 enddef
 
+# "wrapped" with the declarations put back that wrap.vim made assignments,
+# where Vim reports no such variable: they are in a lambda, which the parser
+# does not follow.  "errors" are on the lines of "wrapped".
+def Declarations(lines: list<string>, wrapped: list<string>,
+    errors: list<dict<any>>): list<string>
+  var out = copy(wrapped)
+  for e in errors
+    var i = e.line
+    if i < 0 || i >= len(lines) || i >= len(wrapped)
+        || e.message !~ '^\%(E476: Invalid command\|E1089: Unknown variable\):'
+      continue
+    endif
+    if wrapped[i] =~ '\S' && wrapped[i] != lines[i]
+        && lines[i] =~ '^\s*\%(export\s\+\)\=var\s'
+      out[i] = lines[i]
+    endif
+  endfor
+  return out
+enddef
+
 # What Vim reports for "lines" as the script at "path".  "wrapped" is the
 # script level of a Vim9 script as the body of a function, see wrap.vim; it
 # is appended to the script, so that it is compiled along with the rest.
@@ -298,6 +318,16 @@ def Check(path_arg: string, lines: list<string>, wrapped: any,
   # The range needs the colon: ":execute" from a ":def" reads the Vim9 way.
   var errors = Errors(Source(':%source ++dryrun'), path)
   NoteNew(path)
+  if type(wrapped) == v:t_list
+    var declared = Declarations(lines, wrapped,
+      errors->mapnew((_, e) => e->copy()->extend(
+        {line: e.line - len(lines) - 1})))
+    if declared != wrapped
+      Load(path, lines + ['def ScriptLevel()'] + declared + ['enddef'])
+      errors = Errors(Source(':%source ++dryrun'), path)
+      NoteNew(path)
+    endif
+  endif
   for e in errors
     if e.line > len(lines)
       e.line -= len(lines) + 1
