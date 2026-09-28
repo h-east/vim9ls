@@ -21,6 +21,8 @@ const SKIPPED = {syntax: 1, highlight: 1, match: 1, '2match': 1, '3match': 1,
   normal: 1, set: 1, setlocal: 1, setglobal: 1, def: 1, function: 1,
   substitute: 1, smagic: 1, snomagic: 1, global: 1, vglobal: 1, sort: 1,
   vimgrep: 1, vimgrepadd: 1, lvimgrep: 1, lvimgrepadd: 1}
+# The mappings, abbreviations and menus, which take keys.
+const KEYS_COMMAND = '^\l.*\%(map\|abbrev\|abbreviate\|menu\)$'
 
 # The word a line starts with, past the colons and modifiers.
 def FirstWord(line: string): string
@@ -74,6 +76,79 @@ def Candidates(line: string, vim9: bool): list<dict<any>>
   return out
 enddef
 
+# The number of arguments of the call whose "(" is at byte "open" of "line",
+# -1 when the call does not end in it.
+def ArgCount(line: string, open: number, vim9: bool): number
+  if line[open + 1 :] =~ '^\s*)'
+    return 0
+  endif
+  var depth = 0
+  var commas = 0
+  for [seg_start, seg_end] in refs.CodeSpans(line, vim9).code
+    if seg_end <= open
+      continue
+    endif
+    for pos in range(max([seg_start, open]), seg_end - 1)
+      var c = line[pos]
+      if c == '(' || c == '[' || c == '{'
+        depth += 1
+      elseif c == ')' || c == ']' || c == '}'
+        depth -= 1
+        if depth == 0
+          return commas + 1
+        endif
+      elseif c == ',' && depth == 1
+        commas += 1
+      endif
+    endfor
+  endfor
+  return -1
+enddef
+
+# The calls in the keys of the mappings, abbreviations and menus of Vim9
+# lines that can only be calls, for the checker to look up: {name, line,
+# col, end_col, scope, argc}.  "scope" is where the keys find the name:
+# "sid" the script (<SID>), "script" the script and then everywhere
+# (<ScriptCmd>), "global" everywhere but the script (":call").  "argc" is -1
+# when the arguments are not counted.
+export def KeyCalls(parsed: dict<any>, lines: list<string>): list<dict<any>>
+  var out: list<dict<any>> = []
+  var vim9_at = parse.Vim9Lines(parsed, len(lines))
+  var keys = false
+  for lnum in range(len(lines))
+    var line = lines[lnum]
+    if line !~ '^\s*\\'
+      keys = parse.CommandOf(FirstWord(line)) =~# KEYS_COMMAND
+    endif
+    if !keys || !vim9_at[lnum] || stridx(line, '(') < 0
+      continue
+    endif
+    for token in Candidates(line, true)
+      if line[token.end] != '(' || token.prev == '.' || token.text =~ '[#:]'
+        continue
+      endif
+      var before = strpart(line, 0, token.col)
+      var scope = token.text =~ '^<SID>' ? 'sid'
+        : before =~? '<ScriptCmd>\%(call\s\+\)\=$' ? 'script'
+        : before =~ '\<call\s\+$' ? 'global' : ''
+      if scope != ''
+        # The arguments may go on in the continuation lines.
+        var text = line
+        var argc = ArgCount(text, token.end, true)
+        var next = lnum + 1
+        while argc < 0 && next < len(lines) && lines[next] =~ '^\s*\\'
+          text ..= substitute(lines[next], '^\s*\\', '', '')
+          argc = ArgCount(text, token.end, true)
+          next += 1
+        endwhile
+        add(out, {name: token.text, line: lnum, col: token.col,
+          end_col: token.end, scope: scope, argc: argc})
+      endif
+    endfor
+  endfor
+  return out
+enddef
+
 # The undefined names in "lines", as the parser's diagnostics.  "Autoload"
 # tells whether a legacy autoload function is defined in its file: 1 when it
 # is, 0 when the file is there without it, -1 when there is no file.
@@ -93,8 +168,10 @@ export def Undefined(parsed: dict<any>, lines: list<string>,
       message: message, severity: parse.SEVERITY_ERROR})
   enddef
 
-  # Whether the statement the line is part of is left alone.
+  # Whether the statement the line is part of is left alone, and whether it
+  # takes keys.
   var skipping = false
+  var keys = false
   for lnum in range(len(lines))
     var line = lines[lnum]
     # A continuation line goes with the statement before it.  The arguments
@@ -102,8 +179,9 @@ export def Undefined(parsed: dict<any>, lines: list<string>,
     # a statement cannot start with a call, a capitalized word there is one.
     if line !~ '^\s*\\'
       var word = FirstWord(line)
-      skipping = SKIPPED->has_key(parse.CommandOf(word))
-        || (!vim9_at[lnum] && word =~ '^\u')
+      var cmd = parse.CommandOf(word)
+      skipping = SKIPPED->has_key(cmd) || (!vim9_at[lnum] && word =~ '^\u')
+      keys = cmd =~# KEYS_COMMAND
     endif
     # Only a call or a "v:" name is looked at, most lines have neither.
     if skipping || heredoc->has_key(lnum)
@@ -130,6 +208,11 @@ export def Undefined(parsed: dict<any>, lines: list<string>,
       # "func(" is a type, and after a backslash the name is in a pattern.
       if line[token.end] != '(' || token.prev == '.' || token.prev == '\'
           || name == 'func' || index(params, name) >= 0
+        continue
+      endif
+      # In keys a name followed by "(" is a call only when it can only be one.
+      if keys && name !~ '^<SID>' && name !~ '#'
+          && strpart(line, 0, token.col) !~ '\<call\s\+$'
         continue
       endif
       var unknown = false

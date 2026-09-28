@@ -1141,6 +1141,48 @@ def g:Test_compile_diagnostics()
   assert_equal([], note.params.diagnostics)
 enddef
 
+# A call in the keys of a mapping is looked up where the keys find it when
+# typed: after <ScriptCmd> in the script and then everywhere, with <SID> in
+# the script, after ":call" everywhere but the script.  Its arguments are
+# counted, also in continuation lines.
+def g:Test_compile_calls_in_keys()
+  if !exists('*getinfo')
+    throw 'Skipped: getinfo() is needed to look up a function'
+  endif
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc([
+    'vim9script',
+    'def Local(n: number, m = 0)',
+    'enddef',
+    'nnoremap <F1> <ScriptCmd>Local(1)<CR>',
+    'nnoremap <F2> <ScriptCmd>nosuch()<CR>',
+    'nnoremap <F3> :call <SID>Local(1, 2)<CR>',
+    'nnoremap <F4> :call <SID>Missing()<CR>',
+    'nnoremap <F5> :call Local(1)<CR>',
+    'nnoremap <F6> :call Other()<CR>',
+    'nnoremap <F7> <ScriptCmd>Local()<CR>',
+    'nnoremap <F8> <ScriptCmd>call Local(1, 2, 3)<CR>',
+    'nnoremap <F9> :call strlen("a", "b")<CR>',
+    'inoremap <expr> <F10> nosuch()',
+    'nnoremap <F11> <ScriptCmd>Local(1,',
+    '      \ 2, 3)<CR>',
+  ])
+  var diags = helper.WaitNotification('textDocument/publishDiagnostics')
+    .params.diagnostics->filter((_, d) => d.message =~ '^E')
+  assert_equal([
+    [4, 25, 'E117: Unknown function: nosuch'],
+    [6, 20, 'E117: Unknown function: <SID>Missing'],
+    [7, 20, 'E117: Unknown function: Local'],
+    [9, 25, 'E119: Not enough arguments for function: Local'],
+    [10, 30, 'E118: Too many arguments for function: Local'],
+    [11, 20, 'E118: Too many arguments for function: strlen'],
+    [13, 26, 'E118: Too many arguments for function: Local'],
+  ], diags->mapnew((_, d) =>
+    [d.range.start.line, d.range.start.character, d.message]))
+  helper.StopServer()
+enddef
+
 # A script that is imported is read again once it has changed, since Vim
 # keeps what it read before for the import: at once when the client reports
 # the change, and otherwise when the scripts are next looked at, which is

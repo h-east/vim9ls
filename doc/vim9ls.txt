@@ -305,6 +305,11 @@ added, each on the line it is about: a type mismatch, a name that is not
 found, an argument too many.  A script it imports is read again once it has
 changed: at once when it was saved or the client reports the change, otherwise
 at a check two seconds or more after the last look.
+Vim does not read the keys of a mapping, an abbreviation or a menu.  In a
+|vim9script| file the checker looks up a call there with |getinfo()| where
+the keys find it when typed, and reports a function that is not found and a
+wrong number of arguments.  A capitalized name found nowhere is left alone,
+another script may define it.
 What a legacy "function" does is not read until it is called, and neither is
 a mapping or an autocommand.
 

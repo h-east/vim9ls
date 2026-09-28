@@ -216,6 +216,65 @@ def Errors(messages: string, path: string): list<dict<any>>
   return sort(errors, (a, b) => a.line - b.line)
 enddef
 
+# The script ID of the script at "path", 0 when it was not read.
+def ScriptId(path: string): number
+  for info in getscriptinfo()
+    if FullPath(info.name) == path
+      return info.sid
+    endif
+  endfor
+  return 0
+enddef
+
+# The fewest and the most arguments the function of getinfo() "info" takes,
+# the most -1 when there is no limit.
+def Arity(info: dict<any>): list<number>
+  if info.kind == 'builtin'
+    return [info.minargs, info.maxargs]
+  endif
+  var args: list<dict<any>> = info.args
+  return [args->copy()->filter((_, a) => !a->has_key('default'))->len(),
+    info->has_key('varargs') ? -1 : len(args)]
+enddef
+
+# The errors of the calls in keys that names.KeyCalls() found in the script
+# at "path", looked up where the keys will find them when typed.  Nothing
+# without getinfo().  A capitalized name found nowhere may be a global
+# function of another script and is left alone.
+def KeyCallErrors(path: string, calls: list<any>): list<dict<any>>
+  var errors: list<dict<any>> = []
+  var sid = ScriptId(path)
+  if calls->empty() || sid == 0 || !exists('*getinfo')
+    return errors
+  endif
+  for c in calls
+    var name = substitute(c.name, '^<SID>', '', '')
+    var local = getinfo('function', $'<SNR>{sid}_{name}')
+    var info = c.scope == 'global' ? {} : local
+    if info->empty() && c.scope != 'sid'
+      info = getinfo('function', name)
+    endif
+    var message = ''
+    if info->empty()
+      if c.scope == 'sid' || name =~ '^\l' || !local->empty()
+        message = 'E117: Unknown function: ' .. c.name
+      endif
+    elseif c.argc >= 0
+      var [least, most] = Arity(info)
+      if most >= 0 && c.argc > most
+        message = 'E118: Too many arguments for function: ' .. c.name
+      elseif c.argc < least
+        message = 'E119: Not enough arguments for function: ' .. c.name
+      endif
+    endif
+    if message != ''
+      add(errors, {line: c.line, col: c.col, end_col: c.end_col,
+        message: message})
+    endif
+  endfor
+  return errors
+enddef
+
 # What Vim reports for "lines" as the script at "path".  "wrapped" is the
 # script level of a Vim9 script as the body of a function, see wrap.vim; it
 # is appended to the script, so that it is compiled along with the rest.
@@ -224,7 +283,7 @@ enddef
 # "refresh" is true, the server knowing of a change, and every
 # REFRESH_SECONDS for what it does not know of.
 def Check(path_arg: string, lines: list<string>, wrapped: any,
-    refresh: bool): list<dict<any>>
+    refresh: bool, calls: list<any>): list<dict<any>>
   var path = FullPath(path_arg)
   # This script is running here, its functions cannot be defined again.
   if path == FullPath(SELF)
@@ -244,6 +303,7 @@ def Check(path_arg: string, lines: list<string>, wrapped: any,
       e.line -= len(lines) + 1
     endif
   endfor
+  errors += KeyCallErrors(path, calls)
   return sort(errors, (a, b) => a.line - b.line)
 enddef
 
@@ -251,7 +311,7 @@ def OnMessage(ch: channel, msg: any)
   if get(msg, 'method', '') == 'check'
     ch_sendexpr(ch, {id: msg.id, result: {
       errors: Check(msg.params.path, msg.params.lines, msg.params.wrapped,
-        msg.params->get('refresh', true)),
+        msg.params->get('refresh', true), msg.params->get('calls', [])),
     }})
   endif
 enddef

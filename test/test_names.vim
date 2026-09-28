@@ -51,6 +51,24 @@ def g:Test_names_legacy()
     [diags[0].col, diags[0].end_col, diags[0].severity])
 enddef
 
+# In the keys of a mapping, an abbreviation or a menu only a name that can
+# only be a call is looked at: one with <SID> or "#", or one after "call".
+def g:Test_names_keys()
+  var lines =<< trim END
+    nnoremap <buffer> <Plug>LUncomOn gI(* <End> *)<ESC>
+    iabbrev <buffer> set() x
+    inoremap <expr> <F2> nosuch()
+    nnoremap <F3> :call nosuch()<CR>
+    nnoremap <F4> :call foo#bar#Missing()<CR>
+    anoremenu Foo.Bar :call <SID>Missing()<CR>
+  END
+  assert_equal([
+    [3, 'E117: Unknown function: nosuch'],
+    [4, 'E117: Unknown function: foo#bar#Missing'],
+    [5, 'E117: Unknown function: <SID>Missing'],
+  ], Undefined(lines, {'foo#bar#Missing': 0}))
+enddef
+
 # The arguments of a user command and of the commands whose arguments are
 # not code are left alone, their continuation lines with them.
 def g:Test_names_skipped_commands()

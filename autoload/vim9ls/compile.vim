@@ -96,7 +96,7 @@ def Next()
       : remove(waiting_checks, remove(waiting, 0))
     var sent = ch_sendexpr(job, {method: 'check',
       params: {path: w.path, lines: w.lines, wrapped: w.wrapped,
-        refresh: changed}},
+        refresh: changed, calls: w.calls}},
       {callback: OnReply})
     if type(sent) != v:t_dict || !sent->has_key('id')
       w.Done(null)
@@ -110,19 +110,23 @@ enddef
 
 # Asks the checker what Vim reports for "lines" as the script at "path",
 # with "wrapped" the script level as a function (see wrap.vim) or null.
-# "Done" gets the {line, message} items, or null when the checker gave no
-# answer.  A check of the same script that still waits gives way to this
-# one.  A check made "in_background" waits until no other one does.  Returns
-# false when there is no checker to ask.
+# "Done" gets the {line, message} items, with "col" and "end_col" for one
+# that is not about the whole line, or null when the checker gave no answer.
+# A check of the same script that still waits gives way to this one.  A
+# check made "in_background" waits until no other one does.  "calls" are the
+# calls in keys to look up, see names.KeyCalls().  Returns false when there
+# is no checker to ask.
 export def Check(path: string, lines: list<string>, wrapped: any,
-    Done: func(any), in_background = false): bool
+    Done: func(any), in_background = false,
+    calls: list<dict<any>> = []): bool
   if !Running()
     Start()
     if !Running()
       return false
     endif
   endif
-  var check = {path: path, lines: lines, wrapped: wrapped, Done: Done}
+  var check = {path: path, lines: lines, wrapped: wrapped, Done: Done,
+    calls: calls}
   if in_background
     if !background_checks->has_key(path)
       add(background, path)
@@ -158,7 +162,8 @@ def Unanswered(id: number)
   endif
 enddef
 
-# The errors as LSP Diagnostic items, each over the whole of its line.
+# The errors as LSP Diagnostic items, each over the whole of its line or the
+# columns it names.
 export def Diagnostics(errors: list<dict<any>>, lines: list<string>,
     encoding: string): list<dict<any>>
   var out: list<dict<any>> = []
@@ -167,8 +172,8 @@ export def Diagnostics(errors: list<dict<any>>, lines: list<string>,
       continue
     endif
     var item: dict<any> = {
-      range: util.Range(lines, e.line, 0, e.line, strlen(lines[e.line]),
-        encoding),
+      range: util.Range(lines, e.line, e->get('col', 0), e.line,
+        e->get('end_col', strlen(lines[e.line])), encoding),
       severity: parse.SEVERITY_ERROR,
       source: 'vim9ls',
       message: e.message,

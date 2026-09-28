@@ -340,7 +340,7 @@ def ReadScript(path: string)
   var parsed = Parsed(d)
   if compile.Check(path, d.lines, parsed.vim9 ? wrap.Lines(parsed, d.lines)
       : null, (errors: any) => Checked(path, stamp, d, items, errors, w),
-      true)
+      true, names.KeyCalls(parsed, d.lines))
     checking += 1
   else
     Step(w)
@@ -504,7 +504,8 @@ def PublishDiagnostics(uri: string)
   var version = d.version
   if path == '' || !compile.Check(path, d.lines,
       parsed.vim9 ? wrap.Lines(parsed, d.lines) : null,
-      (errors: any) => Publish(uri, version, items, errors))
+      (errors: any) => Publish(uri, version, items, errors), false,
+      names.KeyCalls(parsed, d.lines))
     Publish(uri, version, items, null)
   endif
 enddef
