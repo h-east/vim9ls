@@ -8,6 +8,9 @@ export const SERVER = fnamemodify(HERE, ':h') .. '/autoload/vim9ls.vim'
 export const LOG = HERE .. '/Xlog'
 delete(LOG, 'rf')
 mkdir(LOG, 'p')
+# Where the servers keep what they found in the workspace, instead of the
+# cache of the user.
+export const CACHE = HERE .. '/Xcache'
 # The document the tests open; the server never reads it from disk.
 export const URI = 'file:///tmp/Xvim9ls_test.vim'
 
@@ -46,7 +49,8 @@ export def StartServer(cmd: list<string> = null_list, tmp = LOG): job
     err_mode: 'nl',
     out_cb: (_, msg) => add(notifications, msg),
     err_cb: (_, msg) => add(stderr, msg),
-    env: {VIM9LS_LOG: '1', TMPDIR: tmp, TEMP: tmp, VIM9LS_VIM: v:progpath},
+    env: {VIM9LS_LOG: '1', TMPDIR: tmp, TEMP: tmp, VIM9LS_VIM: v:progpath,
+      XDG_CACHE_HOME: CACHE, LOCALAPPDATA: CACHE},
   })
   if job_status(job) != 'run'
     add(v:errors, 'the server did not start')
@@ -142,7 +146,8 @@ enddef
 
 # Ends the server the way the protocol has it, and by force when that does
 # not do it.
-export def StopServer()
+# What the server kept on disk goes with it, unless "keep_cache" is true.
+export def StopServer(keep_cache = false)
   if job == null_job
     return
   endif
@@ -153,6 +158,9 @@ export def StopServer()
     job_stop(job)
   endif
   job = null_job
+  if !keep_cache
+    delete(CACHE, 'rf')
+  endif
 enddef
 
 # test/run sets this to have every :def compiled as the script is read.

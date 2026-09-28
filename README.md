@@ -101,12 +101,13 @@ See `:help vim9ls` for the details.
   function and, in a Vim9 script, at the script level.
 - Workspace diagnostics: the same for the scripts of the workspace folders
   that are not open, at most 512, sent as they are read and again when they
-  may have changed.
+  may have changed.  What was found is kept on disk, so that a server started
+  again reads only the scripts that changed.
 
 ## Protocol coverage
 
 What this server does with each of the 95 requests and notifications in the
-LSP 3.18 meta model: 40 are answered and 55 are left out for the reason
+LSP 3.18 meta model: 41 are answered and 54 are left out for the reason
 given.
 
 <details>
@@ -202,7 +203,7 @@ given.
 | `workspace/workspaceFolders` | no | the files a search reads are worked out from the open documents and 'runtimepath' |
 | `workspace/didChangeWorkspaceFolders` | yes | one server serves every folder: the files are worked out from the documents |
 | `workspace/didChangeWatchedFiles` | yes | the scripts of the workspace that changed are read again |
-| `workspace/executeCommand` | no | nothing here runs a command |
+| `workspace/executeCommand` | yes | `vim9ls.reloadWorkspace`, which has the workspace read again |
 | `workspace/applyEdit` | no | the edits of a rename go back as its answer |
 | `workspace/diagnostic` | yes | the scripts of the workspace folders that are not open, at most 512; kept open |
 | `workspace/willCreateFiles` | no | nothing here depends on a file being made, moved or deleted |

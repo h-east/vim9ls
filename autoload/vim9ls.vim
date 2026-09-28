@@ -26,6 +26,7 @@ import autoload './vim9ls/hints.vim'
 import autoload './vim9ls/infer.vim'
 import autoload './vim9ls/selection.vim'
 import autoload './vim9ls/unused.vim'
+import autoload './vim9ls/cache.vim'
 
 export const VERSION = '0.1.001'
 
@@ -113,6 +114,7 @@ def Initialize(params: dict<any>): dict<any>
       inlayHintProvider: true,
       diagnosticProvider: {interFileDependencies: true,
         workspaceDiagnostics: true},
+      executeCommandProvider: {commands: [RELOAD]},
       workspace: {workspaceFolders: {supported: true,
         changeNotifications: true}},
     },
@@ -168,9 +170,14 @@ var to_read: list<string> = []
 var read_timer = -1
 # The checks of the scripts that the checker has yet to answer.
 var checking = 0
-# The first reading of the request, {token, total, done, told}: a script
-# counts once when read and once when checked.  Or null_dict.
+# The first reading of the request, or the reading again that RELOAD asks
+# for, {token, total, done, told[, reply]}: a script counts once when read
+# and once when checked.  "reply" is the id of the RELOAD request, answered
+# at the end.  Or null_dict.
 var work: dict<any> = null_dict
+# The command that has the workspace read again, as if nothing was known of
+# it.
+const RELOAD = 'vim9ls.reloadWorkspace'
 # The most scripts read; a folder may be a home directory.
 const MAX_SCRIPTS = 512
 var told_count = 0
@@ -180,6 +187,9 @@ def AddFolders(list: list<any>)
     var path = type(f) == v:t_dict ? util.UriToPath(f->get('uri', '')) : ''
     if path != '' && index(folders, path) < 0
       add(folders, path)
+      # A Vim built again keeps its version but may report otherwise.
+      cache.Load(path, {vim9ls: VERSION, vim: v:versionlong,
+        vim_time: getftime(v:progpath), encoding: encoding})
     endif
   endfor
 enddef
@@ -235,6 +245,7 @@ def ScanWorkspace(again: list<string> = [])
     if reported->has_key(path)
       remove(reported, path)
     endif
+    cache.Drop(path)
   endfor
   if pull == null_dict
     return
@@ -243,11 +254,20 @@ def ScanWorkspace(again: list<string> = [])
   for path in keys(reported)
     if index(scripts, path) < 0
       remove(reported, path)
+      cache.Drop(path)
       Report(path, [])
     endif
   endfor
   for path in scripts
-    if reported->get(path, '') != Stamp(path) && index(to_read, path) < 0
+    var stamp = Stamp(path)
+    if reported->get(path, '') == stamp || index(to_read, path) >= 0
+      continue
+    endif
+    var items = cache.Get(path, stamp)
+    if type(items) == v:t_list
+      reported[path] = stamp
+      Report(path, items)
+    else
       add(to_read, path)
       if work != null_dict
         work.total += 2
@@ -289,8 +309,7 @@ def Step(w: dict<any>)
   endif
   w.done += 1
   if w.done >= w.total
-    Notify('$/progress', {token: w.token, value: {kind: 'end'}})
-    work = null_dict
+    EndWork()
     return
   endif
   var percentage = w.total > 0 ? w.done * 100 / w.total : 100
@@ -317,15 +336,16 @@ def ReadScript(path: string)
   Step(w)
   var parsed = Parsed(d)
   if compile.Check(path, d.lines, parsed.vim9 ? wrap.Lines(parsed, d.lines)
-      : null, (errors: any) => Checked(path, d, items, errors, w), true)
+      : null, (errors: any) => Checked(path, stamp, d, items, errors, w),
+      true)
     checking += 1
   else
     Step(w)
   endif
 enddef
 
-def Checked(path: string, d: dict<any>, items: list<dict<any>>, errors: any,
-    w: dict<any>)
+def Checked(path: string, stamp: string, d: dict<any>,
+    items: list<dict<any>>, errors: any, w: dict<any>)
   checking -= 1
   if pull == null_dict
     # Not sent; read it again for the next request.
@@ -337,9 +357,14 @@ def Checked(path: string, d: dict<any>, items: list<dict<any>>, errors: any,
   endif
   if errors != null
     d.compiled = errors
-    Report(path, WithCompiled(d, items))
+    var all = WithCompiled(d, items)
+    Report(path, all)
+    cache.Put(path, stamp, all)
   endif
   Step(w)
+  if to_read->empty() && checking == 0
+    cache.Save()
+  endif
   AnswerHeld()
 enddef
 
@@ -372,8 +397,40 @@ enddef
 def EndWork()
   if work != null_dict
     Notify('$/progress', {token: work.token, value: {kind: 'end'}})
+    if work->has_key('reply')
+      Reply(work.reply, v:null)
+    endif
     work = null_dict
   endif
+enddef
+
+# workspace/executeCommand with RELOAD: what is known of the workspace is
+# dropped, and it is read again for the request kept open.
+def Reload(id: any, params: dict<any>)
+  if params->get('command', '') != RELOAD
+    ReplyError(id, -32602, 'Unknown command: '
+      .. string(params->get('command', '')))
+    return
+  endif
+  cache.Clear()
+  reported = {}
+  var token = params->get('workDoneToken', null)
+  if pull == null_dict
+      || (type(token) != v:t_string && type(token) != v:t_number)
+    ScanWorkspace()
+    Reply(id, v:null)
+    return
+  endif
+  EndWork()
+  ScanWorkspace()
+  if to_read->empty()
+    Reply(id, v:null)
+    return
+  endif
+  work = {token: token, total: 2 * len(to_read), done: 0, told: 0,
+    reply: id}
+  Notify('$/progress', {token: token, value: {kind: 'begin',
+    title: 'Reading the workspace', percentage: 0}})
 enddef
 
 # Ends the request kept open: with what is held, or as cancelled.
@@ -1565,6 +1622,7 @@ def Request(method: string, params: dict<any>): any
   elseif method == 'shutdown'
     EndPull(false)
     compile.Stop()
+    cache.Save()
     return v:null
   elseif method == 'textDocument/hover'
     return Hover(params)
@@ -1682,6 +1740,9 @@ def OnMessage(ch: channel, msg: dict<any>)
   if method == 'workspace/diagnostic' && msg->has_key('id')
     WorkspacePull(msg.id, params)
     return
+  elseif method == 'workspace/executeCommand' && msg->has_key('id')
+    Reload(msg.id, params)
+    return
   endif
   try
     if msg->has_key('id')
@@ -1703,6 +1764,7 @@ def OnMessage(ch: channel, msg: dict<any>)
 enddef
 
 def OnClose(ch: channel)
+  cache.Save()
   qall!
 enddef
 

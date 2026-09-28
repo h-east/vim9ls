@@ -319,6 +319,18 @@ was open and is closed, when the folders change, and when the client reports
 it changed: the server asks the client to watch every "*.vim" file, where the
 client takes that.  With lsp.vim, use |:LspWorkspaceDiag|.
 
+What was found in the scripts is kept in a file for each workspace folder, in
+"$XDG_CACHE_HOME/vim9ls", "~/.cache/vim9ls" when that is not set, and in
+"$LOCALAPPDATA/vim9ls" on MS-Windows.  A server started again reports a
+script whose time and size are the same from there, without reading it, even
+when what it imports has changed.  All of a folder is read again when the
+version of vim9ls or Vim, the time of the Vim executable or the position
+encoding is not the one it was kept with.
+
+The command "vim9ls.reloadWorkspace" of "workspace/executeCommand" has every
+script read again, as if nothing was kept.  With lsp.vim: >
+	:LspExecuteCommand vim9ls.reloadWorkspace
+
 ==============================================================================
 6. Environment					*vim9ls-environment*
 

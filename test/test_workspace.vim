@@ -205,6 +205,108 @@ def g:Test_workspace_diagnostic_progress()
   endtry
 enddef
 
+# Whether the request with a token for the work done has the server read a
+# script: only then does it tell of the work beginning.
+def ReadsAny(): bool
+  helper.Send('workspace/diagnostic', {previousResultIds: [],
+    partialResultToken: 'tok', workDoneToken: 'work'}, (_) => {
+    })
+  sleep 300m
+  return helper.notifications->indexof((_, n) =>
+    n->get('method', '') == '$/progress' && n.params.token == 'work') >= 0
+enddef
+
+# What a server found is kept on disk; a server started again reports it
+# without reading the scripts that did not change since.
+def g:Test_workspace_diagnostic_cache()
+  mkdir(ROOT, 'p')
+  writefile(['vim9script'], ROOT .. '/good.vim')
+  writefile(['vim9script', 'def G(): number', '  return "x"', 'enddef'],
+    ROOT .. '/bad.vim')
+  const E1012 = 'E1012: Type mismatch; expected number but got string'
+  try
+    reports = {}
+    Start([ROOT])
+    assert_true(ReadsAny())
+    assert_equal([E1012], WaitReport('tok', 'bad.vim', 'E1012'))
+    helper.StopServer(true)
+    assert_equal(1, len(glob(helper.CACHE .. '/vim9ls/*.json', true, true)))
+
+    reports = {}
+    Start([ROOT])
+    assert_false(ReadsAny(), 'nothing should be read')
+    assert_equal([E1012], WaitReport('tok', 'bad.vim', 'E1012'))
+    assert_equal([], WaitReport('tok', 'good.vim', ''))
+    helper.StopServer(true)
+
+    # A script that changed is read again.
+    writefile(['vim9script', 'def F(): number', '  return "y"', 'enddef'],
+      ROOT .. '/good.vim')
+    reports = {}
+    Start([ROOT])
+    assert_true(ReadsAny())
+    assert_equal([E1012], WaitReport('tok', 'good.vim', 'E1012'))
+    helper.StopServer(true)
+
+    # Saved by another version of the server, all is read again.
+    var file = glob(helper.CACHE .. '/vim9ls/*.json', true, true)[0]
+    var data = json_decode(readfile(file)->join("\n"))
+    data.key.vim9ls = 'other'
+    writefile([json_encode(data)], file)
+    reports = {}
+    Start([ROOT])
+    assert_true(ReadsAny())
+    assert_equal([E1012], WaitReport('tok', 'bad.vim', 'E1012'))
+  finally
+    helper.StopServer()
+    delete(ROOT, 'rf')
+  endtry
+enddef
+
+# The command that has the workspace read again: every script is read and
+# reported again, the work goes out under the token of the command, which
+# is answered at its end.
+def g:Test_workspace_reload()
+  mkdir(ROOT, 'p')
+  writefile(['vim9script', 'def G(): number', '  return "x"', 'enddef'],
+    ROOT .. '/bad.vim')
+  reports = {}
+  try
+    assert_equal({commands: ['vim9ls.reloadWorkspace']},
+      Start([ROOT]).executeCommandProvider)
+    helper.Send('workspace/diagnostic', {previousResultIds: [],
+      partialResultToken: 'tok'}, (_) => {
+      })
+    assert_match('E1012', join(WaitReport('tok', 'bad.vim', 'E1012')))
+
+    reports = {}
+    var answers: list<dict<any>> = []
+    helper.Send('workspace/executeCommand', {command: 'vim9ls.reloadWorkspace',
+      workDoneToken: 'again'}, (resp) => {
+        add(answers, resp)
+      })
+    assert_match('E1012', join(WaitReport('tok', 'bad.vim', 'E1012')))
+    helper.WaitFor(() => !answers->empty(), 5000)
+    assert_equal(v:null, answers[0]->get('result', 0))
+    var kinds = helper.notifications->copy()->filter((_, n) =>
+      n->get('method', '') == '$/progress' && n.params.token == 'again')
+      ->mapnew((_, n) => n.params.value.kind)
+    assert_equal('begin', kinds[0])
+    assert_equal('end', kinds[-1])
+
+    answers = []
+    helper.Send('workspace/executeCommand', {command: 'vim9ls.nothing'},
+      (resp) => {
+        add(answers, resp)
+      })
+    helper.WaitFor(() => !answers->empty())
+    assert_equal(-32602, answers[0]->get('error', {})->get('code', 0))
+  finally
+    helper.StopServer()
+    delete(ROOT, 'rf')
+  endtry
+enddef
+
 # A client that takes it is asked to watch the "*.vim" files; what it reports
 # changed is read again, and what it reports gone has its report emptied.
 def g:Test_workspace_watched_files()
