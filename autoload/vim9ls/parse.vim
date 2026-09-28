@@ -81,9 +81,12 @@ const TYPES = {class: KIND_CLASS, interface: KIND_INTERFACE, enum: KIND_ENUM}
 
 # A heredoc after the name of the variable, "=<< [trim] [eval] {endmarker}",
 # the end marker as the match: no white space in it, and not starting with a
-# lower case letter.  See ":help :let-heredoc".
-const HEREDOC = '\s*=<<\%(\s\+trim\)\=\%(\s\+eval\)\=\s\+'
-  .. '\zs[^a-z[:space:]]\S*\ze\s*$'
+# lower case letter.  See ":help :let-heredoc".  A comment may follow it,
+# with '"' in legacy script and "#" under Vim9 rules.
+const HEREDOC_MARKER = '\s*=<<\%(\s\+trim\)\=\%(\s\+eval\)\=\s\+'
+  .. '\zs[^a-z[:space:]]\S*\ze'
+const HEREDOC = HEREDOC_MARKER .. '\%(\s\+".*\)\=\s*$'
+const HEREDOC_VIM9 = HEREDOC_MARKER .. '\%(\s\+#.*\)\=\s*$'
 # The name a declaration gives a heredoc, with a type after it under Vim9
 # rules.  A type has no "=" or quote, which a string holding "=<<" has.
 const HEREDOC_NAME = '^\%([sgbwtlv]:\)\=\h\w*\%(\s*:\s*[^=''"]\{-1,}\)\='
@@ -416,7 +419,8 @@ def Statement(st: dict<any>, lnum: number, text: string, col: number,
         'E1126: Cannot use :let in Vim9 script'))
     endif
     # A heredoc holds text, not statements.
-    var marker = matchstr(arg_text, HEREDOC_NAME .. HEREDOC)
+    var marker = matchstr(arg_text, HEREDOC_NAME
+      .. (InVim9(st) ? HEREDOC_VIM9 : HEREDOC))
     if marker != ''
       st.heredoc = marker
     endif
@@ -582,7 +586,8 @@ export def Parse(lines: list<string>): dict<any>
     var col = m[1]
     # A heredoc assigned to a variable that is there already, "x =<< END",
     # holds text as well.
-    var assigned = matchstr(line, '^\s*[[:alnum:]_:.]\+' .. HEREDOC)
+    var assigned = matchstr(line, '^\s*[[:alnum:]_:.]\+'
+      .. (InVim9(st) ? HEREDOC_VIM9 : HEREDOC))
     if assigned != ''
       st.heredoc = assigned
       continue

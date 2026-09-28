@@ -225,6 +225,35 @@ def g:Test_parse_heredoc_form()
   assert_equal([6, 7, 9, 10], parsed.heredoc_lines)
 enddef
 
+# A comment may follow the end marker of a heredoc, '"' in legacy script and
+# "#" under Vim9 rules; with the other one it is not a heredoc for Vim.
+def g:Test_parse_heredoc_comment()
+  var lines =<< trim END
+    let s:statements =<< trim EOL " {{{2
+      acceptfiledrop
+    EOL
+    let s:other =<< trim EOL # {{{2
+      allowfullscreen
+    EOL
+  END
+  var parsed = parse.Parse(lines)
+  assert_equal([1, 2], parsed.heredoc_lines)
+  assert_equal(['E492: Not an editor command: allowfullscreen'],
+    parsed.diags->mapnew((_, d) => d.message))
+
+  lines =<< trim END
+    vim9script
+    var statements =<< trim EOL # {{{2
+      acceptfiledrop
+    EOL
+    var other =<< trim EOL " {{{2
+      allowfullscreen
+    EOL
+  END
+  parsed = parse.Parse(lines)
+  assert_equal([2, 3], parsed.heredoc_lines)
+enddef
+
 # The text of a heredoc assigned to a variable that is there already is not
 # read as statements.
 def g:Test_parse_assigned_heredoc()
