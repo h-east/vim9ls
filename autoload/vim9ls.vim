@@ -83,6 +83,17 @@ def Initialize(params: dict<any>): dict<any>
   encoding = index(offered, 'utf-8') >= 0 ? 'utf-8' : 'utf-16'
   watch_files = params->get('capabilities', {})->get('workspace', {})
     ->get('didChangeWatchedFiles', {})->get('dynamicRegistration', false)
+  var options = params->get('initializationOptions', null)
+  var workspace = type(options) == v:t_dict ? options->get('workspace', null)
+    : null
+  var limit = type(workspace) == v:t_dict ? workspace->get('maxFiles', null)
+    : null
+  if type(limit) == v:t_number && limit > 0
+    max_files = limit
+  elseif type(limit) != v:t_none
+    option_warning = 'vim9ls: workspace.maxFiles is not a positive number, '
+      .. $'{MAX_FILES} is used'
+  endif
   var given = params->get('workspaceFolders', null)
   if type(given) == v:t_list
     AddFolders(given)
@@ -178,8 +189,12 @@ var work: dict<any> = null_dict
 # The command that has the workspace read again, as if nothing was known of
 # it.
 const RELOAD = 'vim9ls.reloadWorkspace'
-# The most scripts read; a folder may be a home directory.
-const MAX_SCRIPTS = 512
+# The most scripts read, as "workspace.maxFiles" of the initialization
+# options sets it; a folder may be a home directory.  What is wrong with the
+# options, told to the client once it listens.
+const MAX_FILES = 4096
+var max_files = MAX_FILES
+var option_warning = ''
 var told_count = 0
 
 def AddFolders(list: list<any>)
@@ -195,7 +210,7 @@ def AddFolders(list: list<any>)
 enddef
 
 # The scripts in the workspace folders that are not open, the first
-# MAX_SCRIPTS of them.
+# "max_files" of them.
 def WorkspaceScripts(): list<string>
   var open = docs->keys()->map((_, uri) => util.UriToPath(uri))
   var paths: list<string> = []
@@ -204,14 +219,14 @@ def WorkspaceScripts(): list<string>
       ->map((_, p) => util.FullPath(p))
   endfor
   paths = paths->sort()->uniq()->filter((_, p) => index(open, p) < 0)
-  if len(paths) > MAX_SCRIPTS
+  if len(paths) > max_files
     if told_count != len(paths)
       told_count = len(paths)
       Notify('window/logMessage', {type: 2, message: printf(
         'vim9ls: the workspace has %d scripts, the first %d are read',
-        len(paths), MAX_SCRIPTS)})
+        len(paths), max_files)})
     endif
-    paths = paths[: MAX_SCRIPTS - 1]
+    paths = paths[: max_files - 1]
   endif
   return paths
 enddef
@@ -1704,6 +1719,9 @@ def Notification(method: string, params: dict<any>)
     elseif log_file != ''
       Notify('window/logMessage', {type: 4,
         message: $'vim9ls: logging to "{log_file}"'})
+    endif
+    if option_warning != ''
+      Notify('window/logMessage', {type: 2, message: option_warning})
     endif
     # The scripts of the workspace are read again when the client sees one
     # change; a pattern with no base of its own holds for every folder.

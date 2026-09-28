@@ -89,6 +89,17 @@ it runs is >
 and the server talks to the client on stdin and stdout, which every client
 supports.  See |--stdio-channel|.
 
+Initialization options ~
+						*vim9ls-options*
+The client can give these in "initializationOptions" of "initialize":
+	workspace.maxFiles	The most "*.vim" files of the workspace
+				folders that workspace diagnostics read, at
+				least 1.  Another value is told about with a
+				log message and the default is used.
+				Default: 4096.
+With lsp.vim they go in the entry of |g:lsp_server_list|: >
+	initializationOptions: {workspace: {maxFiles: 8192}}
+<
 ==============================================================================
 5. What it does					*vim9ls-features*
 
@@ -314,17 +325,18 @@ What a legacy "function" does is not read until it is called, and neither is
 a mapping or an autocommand.
 
 Workspace diagnostics ~
-A client that asks with "workspace/diagnostic" is told about the "*.vim"
-files under the workspace folders that are not open, at most 512; with more
-it is told how many there are.  The request is kept open and each script
-goes out as a partial result: what the parser finds, then that with what
-the checker reports, which reads them after the open documents.  With a
-token for the work done in the request, the client is told how far the first
-reading has got, every tenth of it, until what the checker reports is in.  A
-script is read again when a document whose name it contains is saved, when it
-was open and is closed, when the folders change, and when the client reports
-it changed: the server asks the client to watch every "*.vim" file, where the
-client takes that.  With lsp.vim, use |:LspWorkspaceDiag|.
+A client that asks with "workspace/diagnostic" is told about the "*.vim" files
+under the workspace folders that are not open, at most as many as
+"workspace.maxFiles" of |vim9ls-options|; with more it is told how many there
+are.  The request is kept open and each script goes out as a partial result:
+what the parser finds, then that with what the checker reports, which reads
+them after the open documents.  With a token for the work done in the request,
+the client is told how far the first reading has got, every tenth of it, until
+what the checker reports is in.  A script is read again when a document whose
+name it contains is saved, when it was open and is closed, when the folders
+change, and when the client reports it changed: the server asks the client to
+watch every "*.vim" file, where the client takes that.  With lsp.vim, use
+|:LspWorkspaceDiag|.
 
 What was found in the scripts is kept in a file for each workspace folder, in
 "$XDG_CACHE_HOME/vim9ls", "~/.cache/vim9ls" when that is not set, and in

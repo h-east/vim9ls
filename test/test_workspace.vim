@@ -6,13 +6,15 @@ import autoload '../autoload/vim9ls/util.vim'
 const ROOT = helper.HERE .. '/Xworkspace'
 
 # The server started with "folders" as the workspace folders, by a client
-# that takes a registration for the files to watch when "watch" is true;
-# returns its capabilities.
-def Start(folders: list<string>, watch = false): dict<any>
+# that takes a registration for the files to watch when "watch" is true and
+# gives "options" as the initialization options; returns its capabilities.
+def Start(folders: list<string>, watch = false,
+    options: any = null): dict<any>
   helper.StartServer()
   var resp = helper.Request('initialize', {processId: getpid(), rootUri: null,
     capabilities: {general: {positionEncodings: ['utf-8']},
       workspace: {didChangeWatchedFiles: {dynamicRegistration: watch}}},
+    initializationOptions: options,
     workspaceFolders: folders->mapnew((_, f) => ({uri: util.PathToUri(f),
       name: fnamemodify(f, ':t')}))})
   helper.Notify('initialized', {})
@@ -121,31 +123,50 @@ def g:Test_workspace_diagnostic()
   endtry
 enddef
 
-# A folder with too many scripts has the first of them read, and the client
-# is told.
+# A folder with more scripts than "workspace.maxFiles" of the initialization
+# options has the first of them read, and the client is told.  A value that
+# is not a positive number is told about, and the default is used.
 def g:Test_workspace_diagnostic_limit()
   mkdir(ROOT, 'p')
-  for i in range(513)
-    writefile(['vim9script'], printf('%s/s%03d.vim', ROOT, i))
+  for i in range(4)
+    writefile(['vim9script'], printf('%s/s%d.vim', ROOT, i))
   endfor
   reports = {}
   try
-    Start([ROOT])
+    Start([ROOT], false, {workspace: {maxFiles: 3}})
     helper.Send('workspace/diagnostic',
       {previousResultIds: [], partialResultToken: 'many'}, (_) => {
       })
     # The first message is where the log is.
     helper.WaitNotification('window/logMessage')
-    assert_equal('vim9ls: the workspace has 513 scripts, the first 512 are read',
+    assert_equal('vim9ls: the workspace has 4 scripts, the first 3 are read',
       helper.WaitNotification('window/logMessage').params.message)
     helper.WaitFor(() => {
       Take('many')
-      return len(reports) >= 512
-    }, 10000)
+      return len(reports) >= 3
+    })
     sleep 100m
     Take('many')
-    assert_equal(512, len(reports))
-    assert_false(reports->has_key('s512.vim'))
+    assert_equal(['s0.vim', 's1.vim', 's2.vim'], keys(reports)->sort())
+    helper.StopServer()
+
+    for bad in [0, 'many']
+      reports = {}
+      Start([ROOT], false, {workspace: {maxFiles: bad}})
+      helper.WaitNotification('window/logMessage')
+      assert_equal('vim9ls: workspace.maxFiles is not a positive number, '
+        .. '4096 is used',
+        helper.WaitNotification('window/logMessage').params.message)
+      helper.Send('workspace/diagnostic',
+        {previousResultIds: [], partialResultToken: 'all'}, (_) => {
+        })
+      helper.WaitFor(() => {
+        Take('all')
+        return len(reports) >= 4
+      })
+      assert_equal(4, len(reports))
+      helper.StopServer()
+    endfor
   finally
     helper.StopServer()
     delete(ROOT, 'rf')

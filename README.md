@@ -102,9 +102,9 @@ See `:help vim9ls` for the details.
   a call in the keys of a mapping that is not defined where the keys find it,
   or takes another number of arguments.
 - Workspace diagnostics: the same for the scripts of the workspace folders
-  that are not open, at most 512, sent as they are read and again when they
-  may have changed.  What was found is kept on disk, so that a server started
-  again reads only the scripts that changed.
+  that are not open, at most 4096 by default, sent as they are read and
+  again when they may have changed.  What was found is kept on disk, so that
+  a server started again reads only the scripts that changed.
 
 ## Protocol coverage
 
@@ -207,7 +207,7 @@ given.
 | `workspace/didChangeWatchedFiles` | yes | the scripts of the workspace that changed are read again |
 | `workspace/executeCommand` | yes | `vim9ls.reloadWorkspace`, which has the workspace read again |
 | `workspace/applyEdit` | no | the edits of a rename go back as its answer |
-| `workspace/diagnostic` | yes | the scripts of the workspace folders that are not open, at most 512; kept open |
+| `workspace/diagnostic` | yes | the scripts of the workspace folders that are not open, at most 4096 by default; kept open |
 | `workspace/willCreateFiles` | no | nothing here depends on a file being made, moved or deleted |
 | `workspace/didCreateFiles` | no |  |
 | `workspace/willRenameFiles` | no |  |
