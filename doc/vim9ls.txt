@@ -138,7 +138,7 @@ The same names, searched by the text the client asks with, without regard to
 case.  Looked in are the open documents, the scripts of the plugin each open
 document belongs to, and the autoload and plugin files on 'runtimepath' of the
 Vim the server runs in.  A name inside a class or an enum comes with the name
-around it.  The search answers with at most 200 names; an empty search text
+around it.  The search answers with at most 256 names; an empty search text
 with the names of the open documents alone, since every script on
 'runtimepath' would be read for it.
 
@@ -241,7 +241,7 @@ Inside a call, the signature of the function with the argument the cursor is
 in marked: for a builtin the first line of its help entry, with the rest of
 the entry as documentation, for a function of the script or an imported one
 its "def" or "function" line.  After "->" the value in front counts as the
-first argument.  A call that started up to 30 lines above the cursor is found.
+first argument.  A call that started up to 32 lines above the cursor is found.
 With a Vim that has |getinfo()| the signature of a builtin is built from
 what that reports: the names of the arguments, how many there are and which
 are optional, the types each accepts, "{expr}: string | list<any>", the

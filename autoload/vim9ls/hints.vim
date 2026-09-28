@@ -9,7 +9,7 @@ import './refs.vim'
 import './infer.vim'
 
 # How many lines an initializer or a call may go on for.
-const MORE_LINES = 30
+const MORE_LINES = 32
 
 # The kinds of the protocol.
 export const KIND_TYPE = 1

@@ -1027,7 +1027,7 @@ def UsersOf(path: string): list<string>
 enddef
 
 # How many symbols a workspace search answers with.
-const WORKSPACE_LIMIT = 200
+const WORKSPACE_LIMIT = 256
 
 # The scripts a workspace search reads: the open documents, the plugin each
 # one belongs to, and the autoload and plugin files on 'runtimepath'.

@@ -6,7 +6,7 @@ vim9script
 import autoload './refs.vim'
 
 # How far up a call may have started.
-const LOOKBACK = 30
+const LOOKBACK = 32
 
 # The innermost call still open at byte "col" of line "lnum": the name of
 # the function, its line and column, the character in front of the name,
