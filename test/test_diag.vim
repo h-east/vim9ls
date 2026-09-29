@@ -67,6 +67,25 @@ def g:Test_diag_end_without_start()
     Messages(['if 1', 'endwhile']))
 enddef
 
+# An :endwhile or :endfor in an :if inside a loop is "Missing :endif" on its
+# line, as Vim reports it, with no more reports after it; with a :try in
+# between it is not.  In code Vim compiles the report is left to the checker.
+def g:Test_diag_end_of_loop_in_if()
+  var diags = parse.Parse(['func F()', '  while 1', '    if 1', '  endwhile',
+    'endfunc']).diags
+  assert_equal([[3, 'E171: Missing :endif']],
+    diags->mapnew((_, d) => [d.line, d.message]))
+  assert_equal(['E171: Missing :endif'],
+    Messages(['for x in []', '  if 1', '    if 2', 'endfor']))
+  assert_equal(['E588: :endwhile without :while', 'E170: Missing :endwhile',
+    'E600: Missing :endtry', 'E171: Missing :endif'],
+    Messages(['while 1', '  try', '    if 1', 'endwhile']))
+  assert_equal(['E171: Missing :endif', 'E170: Missing :endwhile'],
+    Messages(['while 1', '  if 1', 'endfor']))
+  assert_equal([], Messages(['vim9script', 'def F()', '  while 1',
+    '    if 1', '  endwhile', 'enddef']))
+enddef
+
 # What Vim reports on the same line in code it compiles is left to the
 # checker; the rest the parser reports there as well.
 def g:Test_diag_left_to_vim()

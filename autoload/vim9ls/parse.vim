@@ -211,12 +211,53 @@ def Close(st: dict<any>, closer: string, lnum: number, col: number,
     end_col: number, report: bool)
   var kind = CLOSES[closer]
   if st.stack->empty() || st.stack[-1].kind != kind
-    if report
-      add(st.diags, Diag(lnum, col, end_col, END_WITHOUT_START[closer]))
+    # An :endwhile or :endfor in an :if inside a loop is "Missing :endif",
+    # as Vim reports it, and ends the blocks up to its loop, or the :if
+    # blocks when the loop is of the other kind.  Vim gives up at a :try in
+    # between.
+    var loop = st.stack->empty() || st.stack[-1].kind != 'if'
+      || (kind != 'while' && kind != 'for') ? -2 : LoopAt(st, kind)
+    if loop == -2
+      if report
+        add(st.diags, Diag(lnum, col, end_col, END_WITHOUT_START[closer]))
+      endif
+      return
     endif
-    return
+    if report
+      add(st.diags, Diag(lnum, col, end_col, MISSING_END.if))
+    endif
+    while !st.stack->empty() && (loop >= 0
+        ? len(st.stack) > loop + 1 : st.stack[-1].kind == 'if')
+      CloseEntry(st, remove(st.stack, -1), lnum)
+    endwhile
+    if loop < 0
+      return
+    endif
   endif
-  var entry = remove(st.stack, -1)
+  CloseEntry(st, remove(st.stack, -1), lnum)
+enddef
+
+# The index in the stack of the loop of "kind" around the blocks on top, -1
+# when there is only a loop of the other kind, -2 when there is no loop or
+# a :try comes first.  A function or the like ends the search.
+def LoopAt(st: dict<any>, kind: string): number
+  var other = false
+  for i in range(len(st.stack) - 1, 0, -1)
+    var k = st.stack[i].kind
+    if k == kind
+      return i
+    elseif k == 'try'
+      return -2
+    elseif k == 'while' || k == 'for'
+      other = true
+    elseif k != 'if'
+      break
+    endif
+  endfor
+  return other ? -1 : -2
+enddef
+
+def CloseEntry(st: dict<any>, entry: dict<any>, lnum: number)
   if entry.symbol != null_dict
     entry.symbol.end_line = lnum
   else
