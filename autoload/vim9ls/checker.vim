@@ -334,7 +334,23 @@ def Check(path_arg: string, lines: list<string>, wrapped: any,
     endif
   endfor
   errors += KeyCallErrors(path, calls)
+  ForgetGlobalFunctions(path)
   return sort(errors, (a, b) => a.line - b.line)
+enddef
+
+# Deletes the global functions the script at "path" defined: a script checked
+# later may define a class of the same name, which Vim refuses while the
+# function is there.
+def ForgetGlobalFunctions(path: string)
+  var sid = ScriptId(path)
+  if sid == 0
+    return
+  endif
+  for name in getscriptinfo({sid: sid})[0].functions
+    if name !~ '^<SNR>'
+      silent! execute 'delfunction g:' .. name
+    endif
+  endfor
 enddef
 
 def OnMessage(ch: channel, msg: any)

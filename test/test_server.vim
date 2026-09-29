@@ -1186,6 +1186,20 @@ def g:Test_compile_declaration_in_lambda()
   helper.StopServer()
 enddef
 
+# A global function of a script checked before is gone when the next one is
+# checked: a class of the same name is not reported as E1041.
+def g:Test_compile_global_function_of_another_script()
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc(['def Xglobal()', 'enddef'], 'file:///tmp/Xvim9ls_global.vim')
+  helper.WaitNotification('textDocument/publishDiagnostics')
+  helper.OpenDoc(['vim9script', 'class Xglobal', 'endclass'])
+  var diags = helper.WaitNotification('textDocument/publishDiagnostics')
+  assert_equal(helper.URI, diags.params.uri)
+  assert_equal([], diags.params.diagnostics)
+  helper.StopServer()
+enddef
+
 # A call in the keys of a mapping is looked up where the keys find it when
 # typed: after <ScriptCmd> in the script and then everywhere, with <SID> in
 # the script, after ":call" everywhere but the script.  Its arguments are
