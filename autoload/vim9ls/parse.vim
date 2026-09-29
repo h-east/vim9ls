@@ -78,6 +78,10 @@ const TAKES_REST = {command: 1, autocmd: 1, normal: 1, global: 1, vglobal: 1,
   windo: 1, bufdo: 1, argdo: 1, tabdo: 1, cdo: 1, cfdo: 1, ldo: 1, lfdo: 1,
   folddoopen: 1, folddoclosed: 1, help: 1, sign: 1, terminal: 1}
 const TYPES = {class: KIND_CLASS, interface: KIND_INTERFACE, enum: KIND_ENUM}
+# A line of ":append", ":change" or ":insert", after a range of numbers,
+# marks and the like.
+const APPEND = '^\s*\%(:\s*\)*\%([-+0-9.$%,;]\|''.\)*\s*'
+  .. '\%(a\%[ppend]\|c\%[hange]\|i\%[nsert]\)!\=\%(\s\||\|$\)'
 
 # A heredoc after the name of the variable, "=<< [trim] [eval] {endmarker}",
 # the end marker as the match: no white space in it, and not starting with a
@@ -88,8 +92,10 @@ const HEREDOC_MARKER = '\s*=<<\%(\s\+trim\)\=\%(\s\+eval\)\=\s\+'
 const HEREDOC = HEREDOC_MARKER .. '\%(\s\+".*\)\=\s*$'
 const HEREDOC_VIM9 = HEREDOC_MARKER .. '\%(\s\+#.*\)\=\s*$'
 # The name a declaration gives a heredoc, with a type after it under Vim9
-# rules.  A type has no "=" or quote, which a string holding "=<<" has.
-const HEREDOC_NAME = '^\%([sgbwtlv]:\)\=\h\w*\%(\s*:\s*[^=''"]\{-1,}\)\='
+# rules, or the option, environment variable or register ":let" assigns it
+# to.  A type has no "=" or quote, which a string holding "=<<" has.
+const HEREDOC_NAME = '^\%(\%([sgbwtlv]:\)\=\h\w*\|&\%([lg]:\)\=\h\w*\|\$\h\w*'
+  .. '\|@.\)\%(\s*:\s*[^=''"]\{-1,}\)\='
 
 # The commands that shape a script; every other command is left alone.
 const SHAPING = extend({
@@ -631,6 +637,12 @@ export def Parse(lines: list<string>): dict<any>
         st.params = null_dict
       endif
       st.params_depth = depth
+      continue
+    endif
+    # ":append", ":change" and ":insert" read the lines up to "." as text;
+    # Vim9 rules have none of them.
+    if line =~ APPEND && !InVim9(st)
+      st.heredoc = '.'
       continue
     endif
     # Only a line that starts with a name can be a statement of interest;

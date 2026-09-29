@@ -299,6 +299,39 @@ def g:Test_parse_heredoc_of_execute()
     parsed.diags->mapnew((_, d) => d.message))
 enddef
 
+# The text of ":append", ":change" and ":insert", up to ".", is not read as
+# statements, with a range before the command or not; under Vim9 rules there
+# is no such command.
+def g:Test_parse_append_text()
+  var lines =<< trim END
+    func F()
+      a
+    	cmd;
+    .
+      0insert!
+    if 1
+    .
+      'a,'bc
+    endfunc
+    .
+    endfunc
+    if 1
+  END
+  var parsed = parse.Parse(lines)
+  assert_equal([2, 3, 5, 6, 8, 9], parsed.heredoc_lines)
+  assert_equal(['E171: Missing :endif'],
+    parsed.diags->mapnew((_, d) => d.message))
+  parsed = parse.Parse(['vim9script', 'def F()', '  a', 'enddef'])
+  assert_equal([], parsed.heredoc_lines)
+  # A heredoc assigned to an option or an environment variable holds text,
+  # not ":change".
+  parsed = parse.Parse(['let &commentstring =<< trim TEXT', '  change',
+    'TEXT', 'let $SOME_VAR =<< TEXT', 'insert', 'TEXT', 'if 1'])
+  assert_equal([1, 2, 4, 5], parsed.heredoc_lines)
+  assert_equal(['E171: Missing :endif'],
+    parsed.diags->mapnew((_, d) => d.message))
+enddef
+
 # ":loadkeymap" reads the rest of the script as keymap lines, which are not
 # statements.
 def g:Test_parse_loadkeymap()
