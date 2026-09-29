@@ -305,7 +305,7 @@ enddef
 
 # The commands of "text", each with its offset: a bar separates them, but
 # not "||", not "\|" and not one inside a string.  A legacy comment counts as
-# a string that does not end.
+# a string that does not end.  A quote after a backslash, "\"", starts none.
 def Parts(text: string): list<list<any>>
   var parts: list<list<any>> = []
   # The characters of the line, and the byte the current one starts at: the
@@ -330,7 +330,7 @@ def Parts(text: string): list<list<any>>
       elseif quote == '"' && c == '\'
         pair = true
       endif
-    elseif c == "'" || c == '"'
+    elseif (c == "'" || c == '"') && (i == 0 || chars[i - 1] != '\')
       quote = c
     elseif c == '|'
       if i + 1 < len && chars[i + 1] == '|'
@@ -358,12 +358,28 @@ def TakesRest(text: string): bool
   while true
     var word = matchstr(rest, '^\h\w*')
     var cmd = CommandOf(word)
+    if cmd == 'autocmd'
+      return AutocmdHasPattern(ArgText(rest, 0, word))
+    endif
     if word == '' || !MODIFIERS->has_key(cmd)
       return TAKES_REST->has_key(cmd)
     endif
     rest = ArgText(rest, 0, word)
   endwhile
   return false
+enddef
+
+# Whether the arguments "arg" of ":autocmd" reach the pattern: a bar before
+# it separates a command, as in "autocmd! | augroup END".  The first word is
+# a group unless it names events.
+def AutocmdHasPattern(arg: string): bool
+  var words = split(arg)
+  if words->empty()
+    return false
+  endif
+  var events = words[0] == '*' || split(words[0], ',')
+    ->indexof((_, e) => !exists('##' .. e)) < 0 ? 0 : 1
+  return len(words) > events + 1
 enddef
 
 # The text of "line" after the word at "col": past a "!" and the blanks.
@@ -529,7 +545,7 @@ def Statement(st: dict<any>, lnum: number, text: string, col: number,
         var entry = remove(st.stack, -1)
         entry.symbol.end_line = lnum
       endif
-    elseif arg_text =~ '^\S'
+    elseif arg_text =~ '^\S' && arg_text[0] != (is_vim9 ? '#' : '"')
       var name = matchstr(arg_text, '^\S\+')
       var symbol = NewSymbol(name, KIND_NAMESPACE, lnum, col, name_col)
       add(Container(st), symbol)

@@ -23,6 +23,32 @@ def g:Test_diag_missing_end()
   assert_equal(['Missing :augroup END'], Messages(['augroup X']))
 enddef
 
+# A bar after ":autocmd" separates a command when no pattern comes before
+# it; after the pattern it is part of the command.
+def g:Test_diag_bar_after_autocmd()
+  assert_equal([], Messages(['augroup X | autocmd! | augroup END']))
+  assert_equal([], Messages(['augroup X | au! | augroup END']))
+  assert_equal([], Messages(['augroup X | autocmd! X BufRead | augroup END']))
+  assert_equal([],
+    Messages(['augroup X | autocmd! BufRead,BufNewFile | augroup END']))
+  assert_equal(['Missing :augroup END'],
+    Messages(['augroup X', 'autocmd BufRead * echo 1 | augroup END']))
+  assert_equal(['Missing :augroup END'],
+    Messages(['augroup X', 'autocmd! X BufRead * echo 1 | augroup END']))
+enddef
+
+# A quote after a backslash starts no string, the bar after it separates a
+# command.  A comment after ":augroup" opens no group: '"' in a legacy
+# script, '#' in a Vim9 script, where '"' is part of the name.
+def g:Test_diag_augroup_name_and_comment()
+  assert_equal([], Messages(['augroup no\"echo | autocmd! | augroup END']))
+  assert_equal([], Messages(['augroup \|\" | autocmd! | augroup END']))
+  assert_equal([], Messages(['augroup " comment']))
+  assert_equal([], Messages(['vim9script', 'augroup # comment']))
+  assert_equal(['Missing :augroup END'],
+    Messages(['vim9script', 'augroup " comment']))
+enddef
+
 def g:Test_diag_end_without_start()
   var diags = parse.Parse(["echo 'x'", '  endif']).diags
   assert_equal(1, len(diags))
