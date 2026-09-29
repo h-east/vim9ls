@@ -274,6 +274,31 @@ def g:Test_parse_assigned_heredoc()
   assert_equal([], parsed.diags)
 enddef
 
+# The script of another language that ":execute" runs, 'execute py "<< EOF"'
+# or 'execute "python3 << trim EOF"', is not read as statements; "<<" of
+# another command, 'execute "normal <<"', does not start one.
+def g:Test_parse_heredoc_of_execute()
+  var lines =<< trim END
+    func F()
+      let py = 'python3'
+      execute py "<< EOF"
+    def do_something():
+      return 1
+    EOF
+      execute "python3 << trim EOF"
+        def other():
+          pass
+        EOF
+      execute "normal <<"
+    endfunc
+    if 1
+  END
+  var parsed = parse.Parse(lines)
+  assert_equal([3, 4, 5, 7, 8, 9], parsed.heredoc_lines)
+  assert_equal(['E171: Missing :endif'],
+    parsed.diags->mapnew((_, d) => d.message))
+enddef
+
 # ":loadkeymap" reads the rest of the script as keymap lines, which are not
 # statements.
 def g:Test_parse_loadkeymap()

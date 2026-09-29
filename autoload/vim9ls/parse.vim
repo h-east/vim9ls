@@ -627,6 +627,16 @@ export def Parse(lines: list<string>): dict<any>
       st.heredoc = marker == '' ? '.' : marker
       continue
     endif
+    # Or one that ":execute" runs, 'execute py "<< EOF"': the string ends
+    # with "<<" and the marker, after a command of those, if any.
+    if cmd == 'execute'
+      var ex = matchlist(line,
+        '\(["'']\)\s*\(\h\w*\)\=\s*<<\s*\%(trim\s\+\)\=\(\S*\)\s*\1\s*$')
+      if !ex->empty() && (ex[2] == '' || LANGUAGES->has_key(CommandOf(ex[2])))
+        st.heredoc = ex[3] == '' ? '.' : ex[3]
+        continue
+      endif
+    endif
 
     # Most lines are expressions or commands that do not shape the script;
     # they matter only inside an enum, and in legacy script as a typo.
