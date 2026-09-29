@@ -242,11 +242,10 @@ in marked: for a builtin the first line of its help entry, with the rest of
 the entry as documentation, for a function of the script or an imported one
 its "def" or "function" line.  After "->" the value in front counts as the
 first argument.  A call that started up to 32 lines above the cursor is found.
-With a Vim that has |getinfo()| the signature of a builtin is built from
-what that reports: the names of the arguments, how many there are and which
-are optional, the types each accepts, "{expr}: string | list<any>", the
-return type after the ")", and the argument the value before "->" fills,
-which for append() is the second.  An argument Vim does not name, the second
+The signature of a builtin is built from what |getinfo()| reports: the names
+of the arguments, how many there are and which are optional, the types each
+accepts, "{expr}: string | list<any>", the return type after the ")", and the
+argument the value before "->" fills, which for append() is the second.  An argument Vim does not name, the second
 of getreg(), or that accepts several types and is named after one of them,
 "{list}" of get(), is shown as "{argN}", N being its number.
 
@@ -255,9 +254,8 @@ The type of a "var" that leaves it to the initializer, shown after the name
 as the Vim9 compiler infers it: from the literals, operators, indexing and
 lambdas of the initializer, the declared types of the variables and
 parameters in scope, the "def" lines of the script's functions, and for a
-builtin what |getinfo()| reports; without that function a builtin gives
-no type.  An initializer that goes on over lines is read to its end.  A type
-that cannot be told gives no hint.
+builtin what |getinfo()| reports.  An initializer that goes on over lines is
+read to its end.  A type that cannot be told gives no hint.
 And the name of the parameter in front of each argument of a call, "start:",
 from what signature help knows: the help entry of a builtin, the definition
 of a function of the script.  The argument the value before "->" fills gets

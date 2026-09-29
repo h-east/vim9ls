@@ -44,6 +44,9 @@ export def Command(): list<string>
   if !has('patch-' .. PATCH)
     throw $'vim9ls: this Vim needs {PATCH} or later to run the server'
   endif
+  if !exists('*getinfo')
+    throw 'vim9ls: this Vim needs getinfo() to run the server'
+  endif
   var vim = v:progpath
   # gvim.exe would open a window; vim.exe next to it does not.
   if has('win32') && vim =~? 'gvim\.exe$'
@@ -1428,8 +1431,7 @@ def SignatureHelp(params: dict<any>): any
     var documentation = nl < 0 ? '' : text[nl + 1 :]
     # With getinfo() the label gets the types, and the argument the value
     # before "->" fills is known: it is not always the first.
-    var info = exists('*getinfo')
-      ? call('getinfo', ['function', hit.name]) : {}
+    var info = getinfo('function', hit.name)
     if info->empty()
       return sig.Help(label, active, documentation)
     endif
@@ -1488,8 +1490,7 @@ def ParamNames(parsed: dict<any>, name: string): dict<any>
   if doc.HasTag(name .. '()')
     var text = doc.HelpText(name .. '()')
     var nl = stridx(text, "\n")
-    var info = exists('*getinfo')
-      ? call('getinfo', ['function', name]) : {}
+    var info = getinfo('function', name)
     var args: list<dict<any>> = info->get('args', [])
     var params = sig.Names(nl < 0 ? text : text[: nl - 1], info)
       ->map((i, n) => n =~ '^{arg\d\+}$'
@@ -1822,6 +1823,9 @@ export def Start()
   # A client other than Vim starts the server without Command().
   if !has('patch-' .. PATCH)
     Die($'this Vim needs {PATCH} or later to run the server')
+  endif
+  if !exists('*getinfo')
+    Die('this Vim needs getinfo() to run the server')
   endif
   # The log only helps to debug; not a reason to stop serving.
   if $VIM9LS_LOG != ''

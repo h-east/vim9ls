@@ -85,9 +85,9 @@ See `:help vim9ls` for the details.
   follows imports and legacy autoload functions into other files, and
   references and rename follow an exported name or an autoload function into
   the other files of the plugin and the open documents.
-- Signature help for builtin functions and the script's own; with a Vim
-  that has `getinfo()` the arguments of a builtin come with their names
-  and types as Vim reports them, and the return type.
+- Signature help for builtin functions and the script's own; the arguments
+  of a builtin come with their names and types as `getinfo()` reports them,
+  and the return type.
 - Code actions: a quick fix for a diagnostic, of the parser or of Vim,
   `:let` to `var`, the `endif` a block lacks, an `endif` without an `if`,
   `_` for a parameter that is not used.

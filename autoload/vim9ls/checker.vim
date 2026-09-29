@@ -238,13 +238,13 @@ def Arity(info: dict<any>): list<number>
 enddef
 
 # The errors of the calls in keys that names.KeyCalls() found in the script
-# at "path", looked up where the keys will find them when typed.  Nothing
-# without getinfo().  A capitalized name found nowhere may be a global
-# function of another script and is left alone.
+# at "path", looked up where the keys will find them when typed.  A
+# capitalized name found nowhere may be a global function of another script
+# and is left alone.
 def KeyCallErrors(path: string, calls: list<any>): list<dict<any>>
   var errors: list<dict<any>> = []
   var sid = ScriptId(path)
-  if calls->empty() || sid == 0 || !exists('*getinfo')
+  if calls->empty() || sid == 0
     return errors
   endif
   for c in calls

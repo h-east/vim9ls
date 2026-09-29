@@ -176,11 +176,7 @@ enddef
 
 def g:Test_infer_calls()
   Check(CALLS)
-  if exists('*getinfo')
-    Check(BUILTINS)
-  else
-    assert_equal('any', infer.TypeOf('len(l)', CTX))
-  endif
+  Check(BUILTINS)
 enddef
 
 # What the compiler infers for "expr" with the variables of CTX declared: the
@@ -210,9 +206,6 @@ enddef
 
 # The tables above hold what the compiler gave once; this Vim may differ.
 def g:Test_infer_against_compiler()
-  if !exists('*getinfo')
-    throw 'Skipped: getinfo() is needed for the builtins'
-  endif
   var lang = v:lang
   language messages C
   for [expected, expr] in LITERALS + CONTAINERS + OPERATORS + INDEXING

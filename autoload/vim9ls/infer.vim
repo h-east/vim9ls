@@ -115,14 +115,10 @@ export def Member(t: string): string
   return m == '' ? 'any' : m
 enddef
 
-# What getinfo() reports, an empty Dict without that function or when the
-# name is not known.
+# What getinfo() reports, an empty Dict when the name is not known.
 export def Info(kind: string, name: string, opts: dict<any> = {}): dict<any>
-  if !exists('*getinfo')
-    return {}
-  endif
   try
-    return call('getinfo', opts->empty() ? [kind, name] : [kind, name, opts])
+    return getinfo(kind, name, opts)
   catch
     return {}
   endtry
@@ -524,8 +520,7 @@ enddef
 # The type of "expr" in Vim9 script, "any" when it cannot be told.  "ctx" may
 # give "vars", the types of the variables by name, and "funcs", the types of
 # the functions of the script by name, "func(number): string".  Builtin
-# functions are asked of Vim with getinfo(); without that function their
-# result is "any".
+# functions are asked of Vim with getinfo().
 export def TypeOf(expr: string, ctx: dict<any> = {}): string
   var tokens = Tokenize(expr)
   if tokens->empty()

@@ -857,9 +857,8 @@ def g:Test_inlay_hint()
     'textDocument/inlayHint', {textDocument: {uri: helper.URI},
       range: {start: {line: first, character: 0},
         end: {line: last, character: 0}}}).result
-  # With getinfo() the argument of strlen() is known to be named after
-  # its type, "{string}", and gets no hint.
-  var typed = exists('*getinfo')
+  # The argument of strlen() is named after its type, "{string}", and gets
+  # no hint.
   assert_equal([
     [{line: 1, character: 5}, ': number', 1, false],
     [{line: 4, character: 11}, ': string', 1, false],
@@ -867,7 +866,6 @@ def g:Test_inlay_hint()
     [{line: 8, character: 7}, 'a:', 2, true],
     [{line: 8, character: 19}, 'start:', 2, true],
     [{line: 8, character: 22}, 'len:', 2, true],
-  ] + (typed ? [] : [[{line: 9, character: 12}, 'string:', 2, true]]) + [
     [{line: 9, character: 24}, 'expr:', 2, true],
     [{line: 9, character: 27}, 'count:', 2, true],
   ], Ask(0, 10)->mapnew((_, h) => [h.position, h.label, h.kind,
@@ -1193,9 +1191,6 @@ enddef
 # the script, after ":call" everywhere but the script.  Its arguments are
 # counted, also in continuation lines.
 def g:Test_compile_calls_in_keys()
-  if !exists('*getinfo')
-    throw 'Skipped: getinfo() is needed to look up a function'
-  endif
   helper.StartServer()
   helper.Initialize()
   helper.OpenDoc([
@@ -1524,9 +1519,6 @@ def g:Test_document_highlight()
 enddef
 
 def g:Test_document_highlight_of_a_name_vim_knows()
-  if !exists('*getinfo')
-    throw 'Skipped: getinfo() is needed to tell a builtin from a typo'
-  endif
   helper.StartServer()
   helper.Initialize()
   helper.OpenDoc([
@@ -1655,16 +1647,14 @@ def g:Test_signature_help()
     'echo 1->append(',
     'echo get(',
   ])
-  # With getinfo() the label carries the types.
-  var typed = exists('*getinfo')
+  # The label carries the types.
   var resp = helper.Request('textDocument/signatureHelp',
     helper.Params(4, 26))
   var help = resp.result
   assert_equal(2, help.activeParameter)
-  assert_equal(typed
-    ? 'matchstr({expr}: string | list<any>, {pat}: string [, {start}: number'
-      .. ' [, {count}: number]]): string'
-    : 'matchstr({expr}, {pat} [, {start} [, {count}]])',
+  assert_equal(
+    'matchstr({expr}: string | list<any>, {pat}: string [, {start}: number'
+      .. ' [, {count}: number]]): string',
     help.signatures[0].label)
   assert_equal(4, len(help.signatures[0].parameters))
   assert_match('^Same as', help.signatures[0].documentation.value)
@@ -1696,18 +1686,16 @@ def g:Test_signature_help()
   assert_equal(1, resp.result.activeParameter)
 
   # The value before "->" fills the second argument of append(), so the
-  # argument typed is the first, {lnum}.  Without getinfo() the value is
-  # taken for the first argument.
+  # argument typed is the first, {lnum}.
   resp = helper.Request('textDocument/signatureHelp', helper.Params(15, 16))
-  assert_equal(typed ? 0 : 1, resp.result.activeParameter)
+  assert_equal(0, resp.result.activeParameter)
 
   # The help names the first argument of get() "{list}" while it accepts more
   # types than a list: the name becomes the number of the argument.
   resp = helper.Request('textDocument/signatureHelp', helper.Params(16, 9))
-  assert_equal(typed
-    ? 'get({arg1}: blob | list<any> | tuple<any> | dict<any> | func,'
-      .. ' {idx}: string | number [, {default}: any])'
-    : 'get({list}, {idx} [, {default}])',
+  assert_equal(
+    'get({arg1}: blob | list<any> | tuple<any> | dict<any> | func,'
+      .. ' {idx}: string | number [, {default}: any])',
     resp.result.signatures[0].label)
   assert_match('^Get item', resp.result.signatures[0].documentation.value)
 enddef

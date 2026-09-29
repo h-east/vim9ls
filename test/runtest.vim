@@ -15,10 +15,12 @@ endif
 
 # The server is this Vim started again, so it needs what the server needs.
 if !has('job') || !has('channel') || !has('patch-9.2.1084')
+    || !exists('*getinfo')
   writefile(['This Vim cannot run the server, so nothing was tested.',
-    'It needs 9.2.1084 or later with +job and +channel; this one is '
-    .. v:versionlong .. (has('job') ? '' : ' without +job')
-    .. (has('channel') ? '' : ' without +channel') .. '.',
+    'It needs 9.2.1084 or later with +job, +channel and getinfo(); this one'
+    .. ' is ' .. v:versionlong .. (has('job') ? '' : ' without +job')
+    .. (has('channel') ? '' : ' without +channel')
+    .. (exists('*getinfo') ? '' : ' without getinfo()') .. '.',
     'Name another with $VIMPROG:',
     '    VIMPROG=/path/to/vim ./run'], HERE .. '/messages')
   cquit 1
