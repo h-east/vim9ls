@@ -29,7 +29,7 @@ export def CallAt(lines: list<string>, lnum: number, col: number,
           break
         endif
         for pos in range(seg_start, stop)
-          var c = line[pos]
+          var c = strpart(line, pos, 1)
           if c == '('
             add(frames, {line: at, open: pos, commas: 0})
           elseif c == ')' && !frames->empty()
@@ -44,15 +44,15 @@ export def CallAt(lines: list<string>, lnum: number, col: number,
     while !frames->empty()
       var frame = frames[-1]
       var line = lines[frame.line]
-      var name = matchstr(line[: frame.open - 1], refs.NAME .. '\+$')
+      var name = matchstr(strpart(line, 0, frame.open), refs.NAME .. '\+$')
       if name != '' && name =~ '^\h'
         var name_col = frame.open - strlen(name)
-        var before = name_col == 0 ? '' : line[: name_col - 1]
+        var before = strpart(line, 0, name_col)
         return {
           name: name,
           line: frame.line,
           col: name_col,
-          prev: name_col == 0 ? '' : line[name_col - 1],
+          prev: name_col == 0 ? '' : strpart(line, name_col - 1, 1),
           method: before =~ '->$',
           active: frame.commas,
         }

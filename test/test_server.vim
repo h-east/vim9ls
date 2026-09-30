@@ -1714,6 +1714,29 @@ def g:Test_signature_help()
   assert_match('^Get item', resp.result.signatures[0].documentation.value)
 enddef
 
+# A call is found by its bytes: a character of more than one byte before it,
+# or in a call closed above, does not throw the count off.
+def g:Test_signature_help_multibyte()
+  var lines = [
+    'vim9script',
+    "var chars = get(g:, 'chars', ['─', '│', '─', '│', '╭', '╮', '╯', '╰'])",
+    'def F()',
+    '  if empty()',
+    "  echo '─│' .. matchstr(",
+    'enddef',
+  ]
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc(lines)
+  var resp = helper.Request('textDocument/signatureHelp',
+    helper.Params(3, strlen(lines[3])))
+  assert_equal(null, resp.result)
+
+  resp = helper.Request('textDocument/signatureHelp',
+    helper.Params(4, strlen(lines[4])))
+  assert_match('^matchstr(', resp.result.signatures[0].label)
+enddef
+
 # Changes come as ranges; the server keeps the text up to date from them.
 def g:Test_incremental_sync()
   helper.StartServer()
