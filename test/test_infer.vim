@@ -208,7 +208,7 @@ enddef
 def g:Test_infer_against_compiler()
   var lang = v:lang
   language messages C
-  for [expected, expr] in LITERALS + CONTAINERS + OPERATORS + INDEXING
+  for [_, expr] in LITERALS + CONTAINERS + OPERATORS + INDEXING
       + CALLS + BUILTINS
     # The functions the probe cannot define, a name it does not define, or
     # what the compiler rejects.

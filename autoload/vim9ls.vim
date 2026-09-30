@@ -1772,7 +1772,7 @@ def Notification(method: string, params: dict<any>)
   endif
 enddef
 
-def OnMessage(ch: channel, msg: dict<any>)
+def OnMessage(_: channel, msg: dict<any>)
   var method: string = msg->get('method', '')
   if method == ''
     # A response; the server has nothing outstanding.
@@ -1806,7 +1806,7 @@ def OnMessage(ch: channel, msg: dict<any>)
   endtry
 enddef
 
-def OnClose(ch: channel)
+def OnClose(_: channel)
   cache.Save()
   qall!
 enddef
