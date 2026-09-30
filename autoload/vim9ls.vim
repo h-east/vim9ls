@@ -28,7 +28,7 @@ import autoload './vim9ls/selection.vim'
 import autoload './vim9ls/unused.vim'
 import autoload './vim9ls/cache.vim'
 
-export const VERSION = '0.1.001'
+export const VERSION = '0.1.002'
 
 const SCRIPT = expand('<sfile>:p')
 
