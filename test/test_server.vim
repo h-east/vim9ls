@@ -1773,6 +1773,19 @@ def g:Test_incremental_sync()
   assert_equal(['Whole'], resp.result->mapnew((_, s) => s.name))
 enddef
 
+# A change after a character of more than one byte lands where it was made.
+def g:Test_incremental_sync_multibyte()
+  var line = "var s = 'ああ' | var one = 1"
+  var at = stridx(line, 'one') + 3
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc(['vim9script', line])
+  helper.ChangeRange([1, at, 1, at], 'Two', 2)
+  var resp = helper.Request('textDocument/documentSymbol',
+    {textDocument: {uri: helper.URI}})
+  assert_equal(['s', 'oneTwo'], resp.result->mapnew((_, s) => s.name))
+enddef
+
 def g:Test_unknown_method()
   helper.StartServer()
   helper.Initialize()

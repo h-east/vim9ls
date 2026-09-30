@@ -28,7 +28,7 @@ import autoload './vim9ls/selection.vim'
 import autoload './vim9ls/unused.vim'
 import autoload './vim9ls/cache.vim'
 
-export const VERSION = '0.1.003'
+export const VERSION = '0.1.004'
 
 const SCRIPT = expand('<sfile>:p')
 
@@ -594,8 +594,8 @@ def ApplyChange(d: dict<any>, change: dict<any>)
     encoding)
   var end_col = util.ColFromLsp(last_line, change.range.end.character,
     encoding)
-  inserted[0] = (col == 0 ? '' : first_line[: col - 1]) .. inserted[0]
-  inserted[-1] = inserted[-1] .. last_line[end_col :]
+  inserted[0] = strpart(first_line, 0, col) .. inserted[0]
+  inserted[-1] = inserted[-1] .. strpart(last_line, end_col)
   d.lines = slice(d.lines, 0, first) + inserted + slice(d.lines, last + 1)
 enddef
 
