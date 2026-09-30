@@ -28,7 +28,7 @@ import autoload './vim9ls/selection.vim'
 import autoload './vim9ls/unused.vim'
 import autoload './vim9ls/cache.vim'
 
-export const VERSION = '0.1.004'
+export const VERSION = '0.1.005'
 
 const SCRIPT = expand('<sfile>:p')
 
@@ -1408,6 +1408,16 @@ def ScriptSignature(s: dict<any>): string
   return s.name .. detail
 enddef
 
+# "help" with the parameters of its signature counted in the encoding the
+# client took, which sig.Help() counts in bytes.
+def InEncoding(help: dict<any>): dict<any>
+  var label = help.signatures[0].label
+  for p in help.signatures[0].parameters
+    p.label = p.label->mapnew((_, col) => util.ColToLsp(label, col, encoding))
+  endfor
+  return help
+enddef
+
 def SignatureHelp(params: dict<any>): any
   var w = Where(params)
   if w == null_dict
@@ -1433,13 +1443,14 @@ def SignatureHelp(params: dict<any>): any
     # before "->" fills is known: it is not always the first.
     var info = getinfo('function', hit.name)
     if info->empty()
-      return sig.Help(label, active, documentation)
+      return InEncoding(sig.Help(label, active, documentation))
     endif
     if hit.method
       active = hit.active + (hit.active >= info.method - 1 ? 1 : 0)
     endif
     var typed = sig.Typed(label, info)
-    return sig.Help(typed.label, active, documentation, typed.parameters)
+    return InEncoding(sig.Help(typed.label, active, documentation,
+      typed.parameters))
   endif
 
   var token = {text: hit.name, col: hit.col, end: hit.col
@@ -1449,7 +1460,7 @@ def SignatureHelp(params: dict<any>): any
       && found.symbol.kind != parse.KIND_METHOD)
     return v:null
   endif
-  return sig.Help(ScriptSignature(found.symbol), active)
+  return InEncoding(sig.Help(ScriptSignature(found.symbol), active))
 enddef
 
 def CodeActions(params: dict<any>): any

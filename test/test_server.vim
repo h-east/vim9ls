@@ -1774,6 +1774,17 @@ def g:Test_signature_help_multibyte_label()
   assert_equal([[stridx(label, 'a'), stridx(label, ',')],
     [stridx(label, 'b'), stridx(label, ')')]],
     resp.result.signatures[0].parameters->mapnew((_, p) => p.label))
+  helper.StopServer()
+
+  # In UTF-16 units when that is what the client took.
+  helper.StartServer()
+  helper.Initialize(['utf-16'])
+  helper.OpenDoc(['vim9script', "def F(a = 'あ', b = 1)", 'enddef', 'F(1, '])
+  resp = helper.Request('textDocument/signatureHelp', helper.Params(3, 5))
+  var Units = (s: string): number =>
+    strutf16len(strpart(label, 0, stridx(label, s)))
+  assert_equal([[Units('a'), Units(',')], [Units('b'), Units(')')]],
+    resp.result.signatures[0].parameters->mapnew((_, p) => p.label))
 enddef
 
 # Changes come as ranges; the server keeps the text up to date from them.
