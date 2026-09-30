@@ -450,8 +450,9 @@ enddef
 
 # The text of "line" after the word at "col": past a "!" and the blanks.
 def ArgText(line: string, col: number, word: string): string
-  var wlen = strlen(word) + (line[col + strlen(word)] == '!' ? 1 : 0)
-  return line[matchend(line, '\s*', col + wlen) :]
+  var wlen = strlen(word)
+    + (strpart(line, col + strlen(word), 1) == '!' ? 1 : 0)
+  return strpart(line, matchend(line, '\s*', col + wlen))
 enddef
 
 # Handles one statement, "text" from "col" in its line; "word" is its first

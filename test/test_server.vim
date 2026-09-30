@@ -217,11 +217,37 @@ def g:Test_hover_utf16()
   helper.StartServer()
   helper.Initialize(['utf-16'])
   helper.OpenDoc(["echo '😀' .. strlen('a')"])
-  # "strlen" starts at byte 12 and at UTF-16 unit 10.
-  var resp = helper.Request('textDocument/hover', helper.Params(0, 11))
+  # "strlen" starts at byte 15 and at UTF-16 unit 13.
+  var resp = helper.Request('textDocument/hover', helper.Params(0, 14))
   assert_match('^strlen', resp.result.contents.value)
-  assert_equal(10, resp.result.range.start.character)
-  assert_equal(16, resp.result.range.end.character)
+  assert_equal(13, resp.result.range.start.character)
+  assert_equal(19, resp.result.range.end.character)
+enddef
+
+# A name after a character of more than one byte is found where it is.
+def g:Test_name_after_multibyte()
+  var lines = [
+    'vim9script',
+    'var count = 1',
+    "echo 'ああ' .. count",
+    "echo 'ああ' .. cou",
+  ]
+  var at = stridx(lines[2], 'count')
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc(lines)
+  var resp = helper.Request('textDocument/definition', helper.Params(2, at + 1))
+  assert_equal(1, resp.result[0].range.start.line)
+
+  resp = helper.Request('textDocument/references', extend(
+    helper.Params(1, 5), {context: {includeDeclaration: false}}))
+  assert_equal([[2, at, at + 5]],
+    resp.result->mapnew((_, l) => [l.range.start.line, l.range.start.character,
+      l.range.end.character]))
+
+  resp = helper.Request('textDocument/completion',
+    helper.Params(3, strlen(lines[3])))
+  assert_true(Labels(resp.result.items)->index('count') >= 0)
 enddef
 
 def Labels(items: list<dict<any>>): list<string>

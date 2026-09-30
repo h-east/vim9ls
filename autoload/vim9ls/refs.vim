@@ -70,22 +70,22 @@ export def Tokens(line: string, vim9: bool): list<dict<any>>
       endif
       var col = m[1]
       var stop_col = min([m[2], seg_end])
-      var text = line[col : stop_col - 1]
+      var text = strpart(line, col, stop_col - col)
       pos = stop_col
       if text !~ '^\%(<SID>\)\=\h'
         continue
       endif
-      var prev = col == 0 ? '' : line[col - 1]
+      var prev = col == 0 ? '' : strpart(line, col - 1, 1)
       add(tokens, {text: text, col: col, end: stop_col, prev: prev,
         in_string: false})
     endwhile
   endfor
   for [seg_start, seg_end] in spans.strings
-    var text = line[seg_start : seg_end - 1]
+    var text = strpart(line, seg_start, seg_end - seg_start)
     if text =~ '^\*\=\%(<SID>\|[sg]:\)\=\h' .. NAME .. '*$'
       var col = seg_start + (text[0] == '*' ? 1 : 0)
-      add(tokens, {text: text[col - seg_start :], col: col, end: seg_end,
-        prev: '', in_string: true})
+      add(tokens, {text: strpart(text, col - seg_start), col: col,
+        end: seg_end, prev: '', in_string: true})
     endif
   endfor
   return tokens
@@ -259,7 +259,7 @@ export def UsesOf(parsed: dict<any>, lines: list<string>, path: string,
         out->add({line: lnum, col: token.end - strlen(name), end: token.end})
       elseif token.prev == '.' && token.text == name && token.col >= 2
           && index(aliases,
-            matchstr(line[: token.col - 2], NAME .. '\+$')) >= 0
+            matchstr(strpart(line, 0, token.col - 1), NAME .. '\+$')) >= 0
         out->add({line: lnum, col: token.col, end: token.end})
       endif
     endfor

@@ -34,12 +34,9 @@ const SYMBOL_KINDS = {
 # typed, whether an option is expected, whether a command is, and the name
 # before a "." when the word is a member of it.
 export def Context(line: string, col: number): dict<any>
-  var before = line[: col - 1]
-  if col == 0
-    before = ''
-  endif
+  var before = strpart(line, 0, col)
   var prefix = matchstr(before, '[[:alnum:]_:#]*$')
-  var head = before[: strlen(before) - strlen(prefix) - 1]
+  var head = strpart(before, 0, strlen(before) - strlen(prefix))
   if prefix != '' && strlen(prefix) == strlen(before)
     head = ''
   endif

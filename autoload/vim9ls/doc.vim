@@ -12,7 +12,7 @@ def LoadTags()
   for line in readfile($VIMRUNTIME .. '/doc/tags')
     var tab = stridx(line, "\t")
     if tab > 0
-      tags[line[: tab - 1]] = true
+      tags[strpart(line, 0, tab)] = true
     endif
   endfor
   tags_loaded = true

@@ -24,7 +24,7 @@ def Header(detail: string): dict<any>
   var start = 1
   var stop = -1
   for i in range(strlen(detail))
-    var c = detail[i]
+    var c = strpart(detail, i, 1)
     if c == '(' || c == '[' || c == '{' || c == '<'
       depth += 1
     elseif c == ')' || c == ']' || c == '}' || c == '>'
@@ -34,7 +34,7 @@ def Header(detail: string): dict<any>
         break
       endif
     elseif c == ',' && depth == 1
-      add(params, [detail[start : i - 1]])
+      add(params, [strpart(detail, start, i - start)])
       start = i + 1
     endif
   endfor
@@ -42,7 +42,7 @@ def Header(detail: string): dict<any>
     return {params: [], returns: 'any'}
   endif
   if stop > start
-    add(params, [detail[start : stop - 1]])
+    add(params, [strpart(detail, start, stop - start)])
   endif
   for p in params
     var name = matchstr(p[0], '^\s*\%(\.\.\.\)\=\zs\h\w*')
@@ -50,7 +50,7 @@ def Header(detail: string): dict<any>
     p[0] = name
     add(p, type == '' ? 'any' : type)
   endfor
-  var returns = matchstr(detail[stop + 1 :], '^\s*:\s*\zs.*')->trim()
+  var returns = matchstr(strpart(detail, stop + 1), '^\s*:\s*\zs.*')->trim()
   return {params: params->filter((_, p) => p[0] != ''),
     returns: returns == '' ? 'void' : returns}
 enddef
@@ -108,9 +108,9 @@ def Open(text: string, vim9: bool): number
   var depth = 0
   for [seg_start, seg_end] in refs.CodeSpans(text, vim9).code
     for i in range(seg_start, seg_end - 1)
-      if text[i] =~ '[[({]'
+      if strpart(text, i, 1) =~ '[[({]'
         depth += 1
-      elseif text[i] =~ '[\])}]'
+      elseif strpart(text, i, 1) =~ '[\])}]'
         depth -= 1
       endif
     endfor
@@ -124,14 +124,14 @@ def Initializer(s: dict<any>, lines: list<string>, vim9_at: list<bool>): string
   var line = lines[s.line]
   var vim9 = vim9_at[s.line]
   var eq = matchend(line, '^\s*=\s*', s.name_end)
-  if eq < 0 || line[eq] == '='
+  if eq < 0 || strpart(line, eq, 1) == '='
     return ''
   endif
-  var text = line[eq : CodeEnd(line, vim9) - 1]
+  var text = strpart(line, eq, CodeEnd(line, vim9) - eq)
   var lnum = s.line
   while lnum + 1 < len(lines) && lnum < s.line + MORE_LINES
     var next = lines[lnum + 1]
-    var code = next[: CodeEnd(next, vim9_at[lnum + 1]) - 1]->trim()
+    var code = strpart(next, 0, CodeEnd(next, vim9_at[lnum + 1]))->trim()
     if Open(text, vim9) <= 0
         && text !~ '\%(\.\.\|->\|=>\|[-+*/%?:,]\|&&\|||\)$'
         && code !~ '^\%(->\|\.\.\|[?:+*/%-]\|&&\|||\)'
@@ -273,12 +273,12 @@ def Arguments(lines: list<string>, lnum: number, col: number,
       if skipped
         continue
       endif
-      var c = line[pos]
+      var c = strpart(line, pos, 1)
       if depth == 1 && expect && c !~ '[[:space:],]'
         if c == ')'
           return args
         endif
-        add(args, {line: at, col: pos, text: line[pos : stop - 1]})
+        add(args, {line: at, col: pos, text: strpart(line, pos, stop - pos)})
         expect = false
       endif
       if c =~ '[[({]'
@@ -316,7 +316,8 @@ export def ParamHints(parsed: dict<any>, lines: list<string>, first: number,
     endif
     for token in refs.Tokens(line, vim9_at[lnum])
       # A call by name: not a member, whose parameters are not known here.
-      if token.in_string || line[token.end] != '(' || token.prev == '.'
+      if token.in_string || strpart(line, token.end, 1) != '('
+          || token.prev == '.'
         continue
       endif
       var params = Params(token.text)
@@ -325,7 +326,8 @@ export def ParamHints(parsed: dict<any>, lines: list<string>, first: number,
       endif
       var names: list<string> = params.names
       # The value before "->" fills one argument, the others shift past it.
-      var filled = line[: token.col - 1] =~ '->$' ? params.method - 1 : -1
+      var filled = strpart(line, 0, token.col) =~ '->$'
+        ? params.method - 1 : -1
       var i = 0
       for arg in Arguments(lines, lnum, token.end, vim9_at)
         if i == filled

@@ -25,7 +25,7 @@ def Tokenize(expr: string): list<dict<string>>
   var pos = 0
   var length = strlen(expr)
   while pos < length
-    var c = expr[pos]
+    var c = strpart(expr, pos, 1)
     var m: list<any> = ['', -1, -1]
     var kind = 'op'
     if c =~ '\s'
@@ -40,16 +40,16 @@ def Tokenize(expr: string): list<dict<string>>
     elseif c =~ '\d'
       m = matchstrpos(expr, NUMBER, pos)
       kind = m[0] =~ '^0[zZ]' ? 'blob' : m[0] =~ '\.' ? 'float' : 'num'
-    elseif c == '&' && expr[pos + 1] =~ '\h'
+    elseif c == '&' && strpart(expr, pos + 1, 1) =~ '\h'
       m = matchstrpos(expr, '^&\%([lg]:\)\=\h\w*', pos)
       kind = 'opt'
-    elseif c == '$' && expr[pos + 1] =~ '\h'
+    elseif c == '$' && strpart(expr, pos + 1, 1) =~ '\h'
       m = matchstrpos(expr, '^\$\h\w*', pos)
       kind = 'env'
     elseif c == '@'
-      m = [expr[pos : pos + 1], pos, pos + 2]
+      m = [strpart(expr, pos, 2), pos, pos + 2]
       kind = 'reg'
-    elseif c =~ '\h' || expr[pos :] =~ '^<SID>'
+    elseif c =~ '\h' || strpart(expr, pos) =~ '^<SID>'
       m = matchstrpos(expr, NAME, pos)
       kind = m[0] == 'is' || m[0] == 'isnot' ? 'op' : 'name'
     else

@@ -79,7 +79,7 @@ enddef
 # The number of arguments of the call whose "(" is at byte "open" of "line",
 # -1 when the call does not end in it.
 def ArgCount(line: string, open: number, vim9: bool): number
-  if line[open + 1 :] =~ '^\s*)'
+  if strpart(line, open + 1) =~ '^\s*)'
     return 0
   endif
   var depth = 0
@@ -89,7 +89,7 @@ def ArgCount(line: string, open: number, vim9: bool): number
       continue
     endif
     for pos in range(max([seg_start, open]), seg_end - 1)
-      var c = line[pos]
+      var c = strpart(line, pos, 1)
       if c == '(' || c == '[' || c == '{'
         depth += 1
       elseif c == ')' || c == ']' || c == '}'
@@ -132,7 +132,8 @@ export def KeyCalls(parsed: dict<any>, lines: list<string>): list<dict<any>>
       continue
     endif
     for token in Candidates(line, true)
-      if line[token.end] != '(' || token.prev == '.' || token.text =~ '[#:]'
+      if strpart(line, token.end, 1) != '(' || token.prev == '.'
+          || token.text =~ '[#:]'
         continue
       endif
       var before = strpart(line, 0, token.col)
@@ -214,7 +215,8 @@ export def Undefined(parsed: dict<any>, lines: list<string>,
         continue
       endif
       # "func(" is a type, and after a backslash the name is in a pattern.
-      if line[token.end] != '(' || token.prev == '.' || token.prev == '\'
+      if strpart(line, token.end, 1) != '(' || token.prev == '.'
+          || token.prev == '\'
           || name == 'func' || index(params, name) >= 0
         continue
       endif

@@ -633,18 +633,19 @@ enddef
 def WordAt(line: string, col: number): dict<any>
   const WORD = '[[:alnum:]_:#]'
   var at = col
-  if line[at] !~ WORD && at > 0 && line[at - 1] =~ WORD
+  if strpart(line, at, 1) !~ WORD && at > 0
+      && strpart(line, at - 1, 1) =~ WORD
     at -= 1
   endif
   var begin = at
-  while begin > 0 && line[begin - 1] =~ WORD
+  while begin > 0 && strpart(line, begin - 1, 1) =~ WORD
     begin -= 1
   endwhile
   var stop = at
-  while stop < strlen(line) && line[stop] =~ WORD
+  while stop < strlen(line) && strpart(line, stop, 1) =~ WORD
     stop += 1
   endwhile
-  return {word: line[begin : stop - 1], start: begin, end: stop}
+  return {word: strpart(line, begin, stop - begin), start: begin, end: stop}
 enddef
 
 # "before", the text in front of a word, without the colons and modifiers
@@ -664,8 +665,8 @@ enddef
 # The help tag for the word at "found" in "line", going by what is around it.
 def TagAt(line: string, found: dict<any>): string
   var word = found.word
-  var before = found.start == 0 ? '' : line[: found.start - 1]
-  var after = line[found.end :]
+  var before = strpart(line, 0, found.start)
+  var after = strpart(line, found.end)
   var statement = StatementText(before)
   if before =~ '&$' && word =~ '^[lg]:'
     word = word[2 :]
@@ -957,7 +958,8 @@ def Lookup(w: dict<any>, token: dict<any>): dict<any>
 
   # "alias.Name": a name from an imported script.
   if token.prev == '.' && token.col >= 2
-    var alias = matchstr(w.line[: token.col - 2], refs.NAME .. '\+$')
+    var alias = matchstr(strpart(w.line, 0, token.col - 1),
+      refs.NAME .. '\+$')
     var imported = TopLevel(parsed, alias)
     if imported != null_dict && imported.kind == parse.KIND_MODULE
       var file = refs.ImportFile(w.path, imported.detail,
@@ -1525,8 +1527,8 @@ enddef
 # Whether the name at "col" in "line" is being written to: 3 for a write, 2
 # for a read, the numbers |DocumentHighlightKind| uses.
 def UseKind(line: string, col: number, endcol: number): number
-  var before = col > 0 ? line[: col - 1] : ''
-  var after = line[endcol :]
+  var before = strpart(line, 0, col)
+  var after = strpart(line, endcol)
   # A declaration, also the names in "var [a, b]" and "for [a, b]".
   if before =~ '\<\%(var\|final\|const\|let\|for\)\s\+\%(\[[^]]*\)\=$'
     return 3
