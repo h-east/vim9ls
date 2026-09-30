@@ -69,6 +69,19 @@ def g:Test_names_keys()
   ], Undefined(lines, {'foo#bar#Missing': 0}))
 enddef
 
+# A mapping in a heredoc is text; its keys have no call to look up.
+def g:Test_names_key_calls_in_heredoc()
+  var lines =<< trim END
+    vim9script
+    var text =<< trim EOT
+      nnoremap <F2> :call <SID>Missing()<CR>
+    EOT
+    nnoremap <F3> :call <SID>Present()<CR>
+  END
+  assert_equal([[4, '<SID>Present']], names.KeyCalls(parse.Parse(lines), lines)
+    ->mapnew((_, c) => [c.line, c.name]))
+enddef
+
 # The arguments of a user command and of the commands whose arguments are
 # not code are left alone, their continuation lines with them.
 def g:Test_names_skipped_commands()

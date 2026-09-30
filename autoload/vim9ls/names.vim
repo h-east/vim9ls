@@ -114,9 +114,17 @@ enddef
 export def KeyCalls(parsed: dict<any>, lines: list<string>): list<dict<any>>
   var out: list<dict<any>> = []
   var vim9_at = parse.Vim9Lines(parsed, len(lines))
+  var heredoc: dict<bool> = {}
+  for lnum in parsed.heredoc_lines
+    heredoc[lnum] = true
+  endfor
   var keys = false
   for lnum in range(len(lines))
     var line = lines[lnum]
+    if heredoc->has_key(lnum)
+      keys = false
+      continue
+    endif
     if line !~ '^\s*\\'
       keys = parse.CommandOf(FirstWord(line)) =~# KEYS_COMMAND
     endif
