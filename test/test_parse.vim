@@ -225,6 +225,39 @@ def g:Test_parse_heredoc_form()
   assert_equal([6, 7, 9, 10], parsed.heredoc_lines)
 enddef
 
+# A heredoc ends at the marker alone on its line, with "trim" after the
+# indent of the line of "=<<"; with more indent, or any without "trim", the
+# marker is text.
+def g:Test_parse_heredoc_end_indent()
+  var lines =<< trim END
+    vim9script
+    var outer =<< trim EOT
+        EOT
+      var inner = 1
+    EOT
+    var plain =<< EOS
+      EOS
+    EOS
+    var after = 2
+  END
+  var parsed = parse.Parse(lines)
+  assert_equal(['outer', 'plain', 'after'], Names(parsed.symbols))
+  assert_equal([2, 3, 4, 6, 7], parsed.heredoc_lines)
+
+  lines =<< trim END
+    vim9script
+    def F()
+      var outer =<< trim EOT
+        EOT
+      EOT
+      var after = 1
+    enddef
+  END
+  parsed = parse.Parse(lines)
+  assert_equal(['outer', 'after'], Names(parsed.symbols[0].children))
+  assert_equal([3, 4], parsed.heredoc_lines)
+enddef
+
 # A comment may follow the end marker of a heredoc, '"' in legacy script and
 # "#" under Vim9 rules; with the other one it is not a heredoc for Vim.
 def g:Test_parse_heredoc_comment()

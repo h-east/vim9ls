@@ -163,7 +163,26 @@ enddef
 # The state of one parse, handed to the functions below.
 def NewState(): dict<any>
   return {vim9: false, stack: [], top: [], diags: [], heredoc: '',
+    heredoc_let: -1, heredoc_trim: false,
     heredoc_lines: [], blocks: [], params: null_dict, params_depth: 0}
+enddef
+
+# A heredoc assigned on line "lnum" up to "marker".  Vim ends it at a line
+# that is the marker, with "trim" after the indent of that line.
+def StartLetHeredoc(st: dict<any>, lnum: number, marker: string,
+    text: string)
+  st.heredoc = marker
+  st.heredoc_let = lnum
+  st.heredoc_trim = text =~ '=<<\s\+trim\s'
+enddef
+
+def HeredocEnds(st: dict<any>, lines: list<string>, line: string): bool
+  if st.heredoc_let < 0
+    return line->trim() == st.heredoc
+  endif
+  var indent = st.heredoc_trim ? matchstr(lines[st.heredoc_let], '^\s*') : ''
+  return line == st.heredoc || (indent != '' && stridx(line, indent) == 0
+    && line[len(indent) :] == st.heredoc)
 enddef
 
 def Container(st: dict<any>): list<dict<any>>
@@ -485,7 +504,7 @@ def Statement(st: dict<any>, lnum: number, text: string, col: number,
     var marker = matchstr(arg_text, HEREDOC_NAME
       .. (InVim9(st) ? HEREDOC_VIM9 : HEREDOC))
     if marker != ''
-      st.heredoc = marker
+      StartLetHeredoc(st, lnum, marker, arg_text)
     endif
     var in_class = InKind(st, 'class') || InKind(st, 'enum')
     var kind = in_class ? KIND_FIELD
@@ -623,8 +642,9 @@ export def Parse(lines: list<string>): dict<any>
     var line = lines[lnum]
     if st.heredoc != ''
       add(st.heredoc_lines, lnum)
-      if line->trim() == st.heredoc
+      if HeredocEnds(st, lines, line)
         st.heredoc = ''
+        st.heredoc_let = -1
       endif
       continue
     endif
@@ -658,7 +678,7 @@ export def Parse(lines: list<string>): dict<any>
     var assigned = matchstr(line, '^\s*[[:alnum:]_:.]\+'
       .. (InVim9(st) ? HEREDOC_VIM9 : HEREDOC))
     if assigned != ''
-      st.heredoc = assigned
+      StartLetHeredoc(st, lnum, assigned, line)
       continue
     endif
     # "end: 1" in a dictionary that goes over lines is a key, not ":endif".
