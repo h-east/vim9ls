@@ -23,12 +23,12 @@ Vim 9.2.1160 or later with `+channel` and `+job`.
 <details>
 <summary>What those patches are for</summary>
 
-- 9.2.1160: `getinfo()` names and types the arguments in the signature
+- [9.2.1160](https://github.com/vim/vim/commit/89c0f361635943234bd293b13e4fa4e507e8ca86): `getinfo()` names and types the arguments in the signature
   help of a builtin
-- 9.2.1084: `:source ++dryrun` brings the diagnostics from Vim itself
-- 9.2.1055: lets a function holding a lambda compile after an earlier one
+- [9.2.1084](https://github.com/vim/vim/commit/e376846379307f2d990d65675e95e3ee1425476d): `:source ++dryrun` brings the diagnostics from Vim itself
+- [9.2.1055](https://github.com/vim/vim/commit/1cb30afd951e36c1d66e9015891845d3e33866c8): lets a function holding a lambda compile after an earlier one
   failed, which the checker relies on
-- 9.2.1049: adds `--stdio-channel`, which is how the server talks to a client
+- [9.2.1049](https://github.com/vim/vim/commit/673be365fd1f94caa60fabd9ebc7a1083b9a88d2): adds `--stdio-channel`, which is how the server talks to a client
   on stdin and stdout
 
 </details>
