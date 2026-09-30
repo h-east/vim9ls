@@ -353,12 +353,19 @@ def ForgetGlobalFunctions(path: string)
   endfor
 enddef
 
+# A check that fails is answered with the error, so that the server does not
+# wait for it until its time runs out.
 def OnMessage(ch: channel, msg: any)
   if get(msg, 'method', '') == 'check'
-    ch_sendexpr(ch, {id: msg.id, result: {
-      errors: Check(msg.params.path, msg.params.lines, msg.params.wrapped,
-        msg.params->get('refresh', true), msg.params->get('calls', [])),
-    }})
+    try
+      ch_sendexpr(ch, {id: msg.id, result: {
+        errors: Check(msg.params.path, msg.params.lines, msg.params.wrapped,
+          msg.params->get('refresh', true), msg.params->get('calls', [])),
+      }})
+    catch
+      ch_sendexpr(ch, {id: msg.id, error: {code: -32603,
+        message: v:exception}})
+    endtry
   endif
 enddef
 

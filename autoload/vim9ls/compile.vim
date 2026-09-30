@@ -149,6 +149,9 @@ def OnReply(_: channel, resp: dict<any>)
   var p = current
   current = null_dict
   timer_stop(p.timer)
+  if resp->has_key('error')
+    util.Log($'the checker failed for {p.path}: {resp.error.message}')
+  endif
   var result = resp->get('result', null_dict)
   p.Done(result == null_dict ? null : result.errors)
   Next()

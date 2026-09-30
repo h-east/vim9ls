@@ -59,6 +59,24 @@ def g:Test_compile_unanswered()
   endtry
 enddef
 
+# A check that fails in the checker is answered with null at once, not when
+# its time runs out, and the checker takes the next one.
+def g:Test_compile_check_fails()
+  answers = []
+  try
+    compile.Check('/x/fails.vim', ['vim9script'], null, (errors: any) => {
+      add(answers, errors == null ? 'null' : string(errors))
+    }, false, [{}])
+    compile.Check('/x/next.vim', ['vim9script'], null, (errors: any) => {
+      add(answers, errors == null ? 'null' : string(errors))
+    })
+    helper.WaitFor(() => len(answers) >= 2, 3000)
+    assert_equal(['null', '[]'], answers)
+  finally
+    Teardown()
+  endtry
+enddef
+
 # Stopping answers what the checker has and what waits with null.
 def g:Test_compile_stop()
   Setup(5000)
