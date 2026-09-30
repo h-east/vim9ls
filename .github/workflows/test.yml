@@ -20,14 +20,12 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # The server needs getinfo(), which the current Vim does not have yet:
-      # a branch that has it is built until then.
+      # The server needs getinfo() of 9.2.1160: the current Vim has it.
       - name: Build Vim
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libncurses-dev
-          git clone --depth 1 --branch tmp-getinfo-and-more \
-              https://github.com/h-east/vim.git "$RUNNER_TEMP/vim"
+          git clone --depth 1 https://github.com/vim/vim.git "$RUNNER_TEMP/vim"
           cd "$RUNNER_TEMP/vim"
           ./configure --prefix="$HOME/vim" \
               --enable-gui=no --without-x --disable-nls
@@ -40,7 +38,7 @@ jobs:
           vim --version | head -1
           cd test && ./run
 
-  # Paused: no Vim built for Windows has getinfo() yet.
+  # Paused: no Vim built for Windows has 9.2.1160 yet.
   windows:
     if: false
     runs-on: windows-latest

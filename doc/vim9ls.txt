@@ -31,10 +31,10 @@ reported is what Vim finds in the script, not what another parser guesses.
 ==============================================================================
 2. Requirements					*vim9ls-requirements*
 
-Vim 9.2.1xxx or later with the |+channel| and |+job| features.
+Vim 9.2.1160 or later with the |+channel| and |+job| features.
 
 What those patches are for:
-9.2.1xxx: |getinfo()| gives the names and the types of the arguments in
+9.2.1160: |getinfo()| gives the names and the types of the arguments in
           the signature help of a builtin
 9.2.1084: |:source-dryrun| brings the diagnostics from Vim itself
 9.2.1055: lets a function holding a lambda compile after an earlier one
@@ -79,7 +79,7 @@ from.
 vim9ls#Command() returns the command that starts the server with the Vim it is
 called in.  On MS-Windows it names vim.exe when called from gvim.exe, so that
 no window opens.  It throws when that Vim lacks |+channel| or |+job|, or is
-older than 9.2.1xxx.
+older than 9.2.1160.
 
 With another LSP client ~
 Point the client at bin/vim9ls (bin/vim9ls.cmd on MS-Windows), a script that

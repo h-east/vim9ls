@@ -2,7 +2,7 @@
 
 [![Test](https://github.com/h-east/vim9ls/actions/workflows/test.yml/badge.svg)](https://github.com/h-east/vim9ls/actions/workflows/test.yml)
 [![Update doc/tags](https://github.com/h-east/vim9ls/actions/workflows/update-doc-tags.yml/badge.svg)](https://github.com/h-east/vim9ls/actions/workflows/update-doc-tags.yml)
-[![Vim 9.2.1xxx+](https://img.shields.io/badge/Vim-9.2.1xxx%2B-015b01?logo=vim&logoColor=white)](#requirements)
+[![Vim 9.2.1160+](https://img.shields.io/badge/Vim-9.2.1160%2B-015b01?logo=vim&logoColor=white)](#requirements)
 
 A language server for Vim9 script and legacy Vim script, run by Vim itself.
 
@@ -18,12 +18,12 @@ reported is what Vim finds in the script, not what another parser guesses.
 
 ## Requirements
 
-Vim 9.2.1xxx or later with `+channel` and `+job`.
+Vim 9.2.1160 or later with `+channel` and `+job`.
 
 <details>
 <summary>What those patches are for</summary>
 
-- 9.2.1xxx: `getinfo()` names and types the arguments in the signature
+- 9.2.1160: `getinfo()` names and types the arguments in the signature
   help of a builtin
 - 9.2.1084: `:source ++dryrun` brings the diagnostics from Vim itself
 - 9.2.1055: lets a function holding a lambda compile after an earlier one
