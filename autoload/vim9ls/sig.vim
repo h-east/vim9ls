@@ -97,7 +97,7 @@ export def Parameters(label: string): list<list<number>>
   var pos = open + 1
   var begin = -1
   while pos < strlen(label)
-    var c = label[pos]
+    var c = strpart(label, pos, 1)
     if begin < 0 && c !~ '\s' && c != ')'
       begin = pos
     endif
@@ -202,7 +202,7 @@ export def Help(label: string, active: number, documentation: string = '',
     spans: any = null): dict<any>
   var params = (spans == null ? Parameters(label) : spans)
     ->mapnew((_, p) => ({label: [p[0],
-      p[1] - strlen(matchstr(label[p[0] : p[1] - 1], '\s*$'))]}))
+      p[1] - strlen(matchstr(strpart(label, p[0], p[1] - p[0]), '\s*$'))]}))
   var signature: dict<any> = {label: label, parameters: params}
   if documentation != ''
     signature.documentation = {kind: 'plaintext', value: documentation}

@@ -1763,6 +1763,19 @@ def g:Test_signature_help_multibyte()
   assert_match('^matchstr(', resp.result.signatures[0].label)
 enddef
 
+# The parameters of a label with a multibyte character are marked where they
+# are, in bytes with UTF-8.
+def g:Test_signature_help_multibyte_label()
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc(['vim9script', "def F(a = 'あ', b = 1)", 'enddef', 'F(1, '])
+  var resp = helper.Request('textDocument/signatureHelp', helper.Params(3, 5))
+  var label = resp.result.signatures[0].label
+  assert_equal([[stridx(label, 'a'), stridx(label, ',')],
+    [stridx(label, 'b'), stridx(label, ')')]],
+    resp.result.signatures[0].parameters->mapnew((_, p) => p.label))
+enddef
+
 # Changes come as ranges; the server keeps the text up to date from them.
 def g:Test_incremental_sync()
   helper.StartServer()
