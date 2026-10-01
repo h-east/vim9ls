@@ -38,9 +38,7 @@ jobs:
           vim --version | head -1
           cd test && ./run
 
-  # Paused: no Vim built for Windows has 9.2.1160 yet.
   windows:
-    if: false
     runs-on: windows-latest
     defaults:
       run:
