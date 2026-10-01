@@ -1316,6 +1316,24 @@ def g:Test_compile_import_changed()
         reported ? 'reported' : 'not reported')
       helper.StopServer()
     endfor
+
+    # Written again in the second it was read, to the same size.
+    writefile(['vim9script', 'export const N: number = 12'],
+      root .. '/xlib.vim')
+    helper.StartServer()
+    helper.Initialize()
+    helper.OpenDoc(user, uri)
+    assert_equal([],
+      helper.WaitNotification('textDocument/publishDiagnostics')
+      .params.diagnostics)
+    writefile(['vim9script', "export const N: string = ''"],
+      root .. '/xlib.vim')
+    helper.Notify('workspace/didChangeWatchedFiles', {changes: [
+      {uri: util.PathToUri(root .. '/xlib.vim'), type: 2}]})
+    helper.ChangeDoc(user + [''], uri, 2)
+    assert_equal([E1012],
+      helper.WaitNotification('textDocument/publishDiagnostics')
+        .params.diagnostics->mapnew((_, d) => d.message), 'same size')
   finally
     helper.StopServer()
     delete(root, 'rf')

@@ -88,8 +88,9 @@ def Refresh(path: string)
 enddef
 
 # Notes the scripts read since the last were noted, but for the one at
-# "path".
-def NoteNew(path: string)
+# "path".  One written since "started", the time the check started, may have
+# been read before it was written, and is noted to be read again.
+def NoteNew(path: string, started: number)
   while true
     var found = getscriptinfo({sid: noted_sid + 1})
     if found->empty()
@@ -98,7 +99,7 @@ def NoteNew(path: string)
     noted_sid += 1
     var file = FileOf(found[0], path)
     if file != ''
-      read_as[file] = Stamp(file)
+      read_as[file] = getftime(file) >= started ? '' : Stamp(file)
     endif
   endwhile
 enddef
@@ -348,13 +349,14 @@ def Check(path_arg: string, lines: list<string>, wrapped: any,
   endif
   var text = type(wrapped) != v:t_list ? lines
     : lines + ['def ScriptLevel()'] + wrapped + ['enddef']
+  var started = localtime()
   if refresh || stale || reltimefloat(reltime(refreshed)) >= REFRESH_SECONDS
     Refresh(path)
   endif
   Load(path, text)
   # The range needs the colon: ":execute" from a ":def" reads the Vim9 way.
   var errors = Errors(Source(':%source ++dryrun'), path)
-  NoteNew(path)
+  NoteNew(path, started)
   if type(wrapped) == v:t_list
     var declared = Declarations(lines, wrapped,
       errors->mapnew((_, e) => e->copy()->extend(
@@ -362,7 +364,7 @@ def Check(path_arg: string, lines: list<string>, wrapped: any,
     if declared != wrapped
       Load(path, lines + ['def ScriptLevel()'] + declared + ['enddef'])
       errors = Errors(Source(':%source ++dryrun'), path)
-      NoteNew(path)
+      NoteNew(path, started)
     endif
   endif
   for e in errors
