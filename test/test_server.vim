@@ -1384,6 +1384,19 @@ def g:Test_compile_import_of_own_plugin()
     assert_match('^E1053: ',
       helper.WaitNotification('textDocument/publishDiagnostics')
         .params.diagnostics->get(0, {message: ''}).message)
+
+    # A script in an "after" directory imports from the directory above it.
+    mkdir(root .. '/one/autoload', 'p')
+    mkdir(root .. '/one/after/ftplugin', 'p')
+    writefile(['vim9script', 'export def Show(s: string)', 'enddef'],
+      root .. '/one/autoload/xpop.vim')
+    var after = ['vim9script', "import autoload 'xpop.vim'", 'def F()',
+      "  xpop.Show('a')", 'enddef']
+    var after_uri = util.PathToUri(root .. '/one/after/ftplugin/x.vim')
+    writefile(after, root .. '/one/after/ftplugin/x.vim')
+    helper.OpenDoc(after, after_uri)
+    assert_equal([], helper.WaitNotification('textDocument/publishDiagnostics')
+      .params.diagnostics)
   finally
     helper.StopServer()
     delete(root, 'rf')

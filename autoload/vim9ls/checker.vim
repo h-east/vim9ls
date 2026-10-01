@@ -21,10 +21,18 @@ const RUNTIMEPATH = &runtimepath
 # lets it redefine its functions.  A script in a plugin directory has the
 # plugin put on 'runtimepath', for what it imports by name, and no plugin
 # checked before, so that what is found does not depend on what came first.
+# An "after" directory goes last, its parent first: Vim does not import from
+# an "after" directory.
 def Load(path: string, lines: list<string>)
   var root = matchstr(path,
     '.*\ze[/\\]\%(autoload\|plugin\|ftplugin\|import\|syntax\|indent\)[/\\]')
-  &runtimepath = root == '' ? RUNTIMEPATH : root .. ',' .. RUNTIMEPATH
+  if root == ''
+    &runtimepath = RUNTIMEPATH
+  elseif root =~ '[/\\]after$'
+    &runtimepath = fnamemodify(root, ':h') .. ',' .. RUNTIMEPATH .. ',' .. root
+  else
+    &runtimepath = root .. ',' .. RUNTIMEPATH
+  endif
   if bufexists(path)
     execute 'silent! keepalt buffer!' bufnr(path)
   else
