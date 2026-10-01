@@ -7,8 +7,8 @@
 A language server for Vim9 script and legacy Vim script, run by Vim itself.
 
 vim9ls is written in Vim9 script and runs in a Vim of its own, so it answers
-from what that Vim knows: its help files, its builtin functions, options and
-commands, and the plugins you already have.  A new function or option is
+from what that Vim knows: its builtin functions, options and commands, its
+help files, and the plugins you already have.  A new function or option is
 there as soon as Vim has it, since nothing is copied out of Vim.  Nothing
 else needs to be installed.
 
