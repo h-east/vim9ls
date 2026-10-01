@@ -103,14 +103,51 @@ def NoteNew(path: string)
   endwhile
 enddef
 
-# Reads the buffer with "cmd" and returns what Vim reported.
+# The commands defined in place of user commands, see Source().
+var placeholders: list<string> = []
+
+# The capitalized commands in "messages" reported as invalid and not
+# defined, but for an assignment to a variable.
+def UnknownCommands(messages: string): list<string>
+  var names: list<string> = []
+  for line in split(messages, "\n")
+    var name = matchstr(line, '^E476: Invalid command: \zs\u\w*\ze'
+      .. '\%(!\|\s\+\%(\%([-+*/%]\|\.\.\)\==[^=~]\)\@!\|$\)')
+    if name != '' && exists(':' .. name) != 2 && index(names, name) < 0
+      names->add(name)
+    endif
+  endfor
+  return names
+enddef
+
+# Reads the buffer with "cmd" and returns what Vim reported.  A user command
+# that is not defined is defined to do nothing and the buffer read again:
+# the compilation it fails would leave the rest of its statement to be read
+# as commands.
 def Source(cmd: string): string
-  var messages = ''
-  Reset()
-  redir => messages
-  silent! execute cmd
-  redir END
-  return messages
+  while true
+    var messages = ''
+    Reset()
+    redir => messages
+    silent! execute cmd
+    redir END
+    var names = UnknownCommands(messages)
+    if names->empty()
+      return messages
+    endif
+    for name in names
+      execute 'command -nargs=* -bang -range' name ':'
+    endfor
+    placeholders += names
+  endwhile
+  return ''
+enddef
+
+def ForgetPlaceholders()
+  for name in placeholders
+    silent! execute 'delcommand' name
+  endfor
+  placeholders = []
 enddef
 
 # A path spelled the way the server spells them: on MS-Windows with "/".
@@ -202,9 +239,8 @@ def Errors(messages: string, path: string): list<dict<any>>
       continue
     endif
     # The summary of a failed compilation, after the error that caused it.
-    # It is only reported with ":silent!".  A user command, capitalized, may
-    # be defined by a plugin, and this Vim loads none.
-    if line =~ '^E1028:' || line =~ '^E476: Invalid command: \u'
+    # It is only reported with ":silent!".
+    if line =~ '^E1028:'
       continue
     endif
     var at = Where(context, lnum, path)
@@ -335,6 +371,7 @@ def Check(path_arg: string, lines: list<string>, wrapped: any,
   endfor
   errors += KeyCallErrors(path, calls)
   ForgetGlobalFunctions(path)
+  ForgetPlaceholders()
   return sort(errors, (a, b) => a.line - b.line)
 enddef
 

@@ -1099,6 +1099,17 @@ def g:Test_compile_diagnostics()
   # Nor is one in a function, while a builtin command spelled wrong is.
   assert_equal([[3, 'E476: Invalid command: echoo 1']],
     After(['vim9script', 'def F()', '  LspHover', '  echoo 1', 'enddef'], 9))
+  # Nor is one in a lambda in a list, and the lines after it are not taken
+  # for commands.
+  assert_equal([], After(['vim9script', 'g:dir_actions = [',
+    "  {text: 'a', Action: (items) => {", '    :Dir', '  }},',
+    "  {text: 'b', Action: (items) => {", '    # mess clear', '  }},', ']'],
+    13))
+  # An assignment to a capitalized name that is not declared is an error.
+  assert_equal([[1, 'E476: Invalid command: Undeclared = 1'],
+    [3, 'E476: Invalid command: Inside = 1']],
+    After(['vim9script', 'Undeclared = 1', 'def F()', '  Inside = 1',
+      'enddef'], 14))
   # A continuation line in the first column, which a function would take
   # for an error.
   assert_equal([], After(['vim9script', "&l:define = 'a'",
