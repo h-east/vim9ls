@@ -1110,6 +1110,9 @@ def g:Test_compile_diagnostics()
     [3, 'E476: Invalid command: Inside = 1']],
     After(['vim9script', 'Undeclared = 1', 'def F()', '  Inside = 1',
       'enddef'], 14))
+  # So is a name that cannot be a user command.
+  assert_equal([[2, 'E476: Invalid command: Foo_bar']],
+    After(['vim9script', 'def F()', '  Foo_bar', 'enddef'], 15))
   # A continuation line in the first column, which a function would take
   # for an error.
   assert_equal([], After(['vim9script', "&l:define = 'a'",

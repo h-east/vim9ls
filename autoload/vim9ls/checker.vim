@@ -106,14 +106,15 @@ enddef
 # The commands defined in place of user commands, see Source().
 var placeholders: list<string> = []
 
-# The capitalized commands in "messages" reported as invalid and not
-# defined, but for an assignment to a variable.
+# The names that can be user commands in "messages" reported as invalid,
+# not defined and not tried before, but for an assignment to a variable.
 def UnknownCommands(messages: string): list<string>
   var names: list<string> = []
   for line in split(messages, "\n")
-    var name = matchstr(line, '^E476: Invalid command: \zs\u\w*\ze'
+    var name = matchstr(line, '^E476: Invalid command: \zs\u[[:alnum:]]*\ze'
       .. '\%(!\|\s\+\%(\%([-+*/%]\|\.\.\)\==[^=~]\)\@!\|$\)')
     if name != '' && exists(':' .. name) != 2 && index(names, name) < 0
+        && index(placeholders, name) < 0
       names->add(name)
     endif
   endfor
@@ -136,7 +137,7 @@ def Source(cmd: string): string
       return messages
     endif
     for name in names
-      execute 'command -nargs=* -bang -range' name ':'
+      silent! execute 'command -nargs=* -bang -range' name ':'
     endfor
     placeholders += names
   endwhile
