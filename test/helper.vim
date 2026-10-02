@@ -82,12 +82,15 @@ export def Notify(method: string, params: any = null)
   ch_sendexpr(job, msg)
 enddef
 
-# What a client does first; "encodings" is what it offers to count in.
-export def Initialize(encodings: list<string> = ['utf-8', 'utf-16']): dict<any>
+# What a client does first; "encodings" is what it offers to count in and
+# "experimental" what it takes beyond the protocol.
+export def Initialize(encodings: list<string> = ['utf-8', 'utf-16'],
+    experimental: dict<any> = {}): dict<any>
   var resp = Request('initialize', {
     processId: getpid(),
     rootUri: null,
-    capabilities: {general: {positionEncodings: encodings}},
+    capabilities: {general: {positionEncodings: encodings},
+      experimental: experimental},
   })
   Notify('initialized', {})
   return resp

@@ -124,9 +124,24 @@ it is the alias of an import, the members of a class or an enum when it is
 their name, of the class a variable is declared with or made with
 "Class.new()", and of the class around "this".  After "foo#bar#": the
 functions of autoload/foo/bar.vim and the files below it as "foo#bar#name#".
+In the argument of a command that takes no expression, ":set completeopt="
+for one: nothing, since the current value of an option, file names and the
+like are the client's.  A client that declares "cmdlineCompletion" in its
+experimental capabilities is asked to complete it the way |i_CTRL-X_CTRL-V|
+does, see |vim9ls-cmdline-completion|; lsp.vim does that, see
+|lsp-cmdline-completion|.  "=" and "," bring the menu on there, and give
+nothing elsewhere.
 The help entry of a builtin comes with "completionItem/resolve", for the item
 the client asks about: its first line as the detail, the rest as the
 documentation.
+
+						*vim9ls-cmdline-completion*
+A client takes this on by setting "cmdlineCompletion" to |true| in
+"capabilities.experimental" of "initialize", and is then answered there with
+a CompletionList with no items and "cmdlineCompletion" set to |true|.  It
+completes the text of the line before the cursor, with |getcompletion()| and
+"cmdline" in Vim, and puts in what a match has after the text typed: a match
+may start before the word, "src/ma" giving "src/main.c".
 
 Document symbols ~
 The functions, variables, constants, classes with their members, enums with

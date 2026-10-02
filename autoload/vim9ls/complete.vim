@@ -51,6 +51,39 @@ export def Context(line: string, col: number): dict<any>
   }
 enddef
 
+# Commands taking an expression or a name the script defines, for which
+# getcompletiontype() gives no type.
+const SCRIPT_ARGS = {def: 1, function: 1, class: 1, enum: 1, interface: 1,
+  type: 1, import: 1, throw: 1, eval: 1, defer: 1, lockvar: 1, unlockvar: 1}
+
+# Whether the cursor at "col" in "line" is in the argument of a command that
+# takes no expression, which only the client completes right: file names, the
+# current value of an option.
+export def InCommandArg(line: string, col: number): bool
+  # The last of the commands bars separate; "||" is an operator.
+  var stmt = split(strpart(line, 0, col), '\%(\\\||\)\@<!||\@!', true)[-1]
+  var rest = substitute(stmt,
+    '^\s*\%(:\s*\)*\%([-+0-9.$%,;]\|''.\)*\s*', '', '')
+  var word = matchstr(rest, '^\h\w*')
+  while word != '' && parse.IsModifier(word)
+    rest = substitute(strpart(rest, strlen(word)), '^!\=\s*', '', '')
+    word = matchstr(rest, '^\h\w*')
+  endwhile
+  var after = substitute(strpart(rest, strlen(word)), '^!', '', '')
+  # A Vim9 assignment, "x = 1", starts like a command with an argument.
+  if word == '' || after !~ '^\s'
+      || after =~ '^\s*\%([-+*/%.]\|\.\.\)\==\%(\s\|$\)'
+    return false
+  endif
+  var cmd = parse.CommandOf(word)
+  if cmd == ''
+    # A user command, which only the client may know.
+    return word =~ '^\u'
+  endif
+  return !SCRIPT_ARGS->has_key(cmd)
+    && index(['expression', 'function', 'var'], getcompletiontype(stmt)) < 0
+enddef
+
 # The completion items for "symbols", those whose name starts with "prefix".
 export def ItemsOf(symbols: list<dict<any>>, prefix: string): list<dict<any>>
   var items: list<dict<any>> = []

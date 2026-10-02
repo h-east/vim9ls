@@ -31,7 +31,7 @@ def g:Test_initialize()
   assert_equal({openClose: true, change: 2, save: true}, caps.textDocumentSync)
   assert_true(caps.hoverProvider)
   assert_true(caps.documentSymbolProvider)
-  assert_equal(['&', ':'], caps.completionProvider.triggerCharacters)
+  assert_equal(['&', ':', '=', ','], caps.completionProvider.triggerCharacters)
   assert_equal(['(', ','], caps.signatureHelpProvider.triggerCharacters)
   assert_true(caps.inlayHintProvider)
   assert_equal('vim9ls', resp.result.serverInfo.name)
@@ -312,6 +312,61 @@ def g:Test_completion()
   resp = helper.Request('completionItem/resolve',
     items[Labels(items)->index('textwidth')])
   assert_match("^'textwidth' 'tw'", resp.result.detail)
+enddef
+
+# In the argument of a command the client is asked to complete as Vim does
+# on the command line, when it takes that; an expression is completed here.
+def g:Test_completion_command_argument()
+  var lines = [
+    'vim9script',
+    'set completeopt=',
+    'set cot=menu|set fo=',
+    'silent! hi Normal guifg=',
+    'edit src/ma',
+    'MyCommand ',
+    'var x = ',
+    'x = ',
+    'echo a || b ',
+    'throw ',
+    'def F',
+    'set ',
+  ]
+  helper.StartServer()
+  helper.Initialize(['utf-8', 'utf-16'], {cmdlineCompletion: true})
+  helper.OpenDoc(lines)
+
+  var Complete = (lnum: number) =>
+    helper.Request('textDocument/completion',
+      helper.Params(lnum, strlen(lines[lnum]))).result
+  for lnum in range(1, 5)
+    assert_equal({isIncomplete: false, items: [], cmdlineCompletion: true},
+      Complete(lnum), lines[lnum])
+  endfor
+  for lnum in range(6, 9)
+    assert_false(Complete(lnum)->has_key('cmdlineCompletion'), lines[lnum])
+    assert_true(Labels(Complete(lnum).items)->index('strlen') >= 0,
+      lines[lnum])
+  endfor
+  assert_false(Complete(10)->has_key('cmdlineCompletion'), lines[10])
+  assert_true(Labels(Complete(11).items)->index('completeopt') >= 0)
+
+  # "=" and "," bring the menu on for the argument of a command, and nothing
+  # in an expression.
+  var Triggered = (lnum: number, char: string) =>
+    helper.Request('textDocument/completion',
+      extend(helper.Params(lnum, strlen(lines[lnum])),
+        {context: {triggerKind: 2, triggerCharacter: char}})).result
+  assert_equal({isIncomplete: false, items: [], cmdlineCompletion: true},
+    Triggered(1, '='))
+  assert_equal({isIncomplete: false, items: []}, Triggered(6, '='))
+  assert_equal({isIncomplete: false, items: []}, Triggered(6, ','))
+
+  # A client that does not take it is given nothing there.
+  helper.StopServer()
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc(lines)
+  assert_equal({isIncomplete: false, items: []}, Complete(1))
 enddef
 
 # After "alias.", "foo#bar#", "this.", "var." and "Class.": what is there,

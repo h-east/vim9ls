@@ -28,7 +28,7 @@ import autoload './vim9ls/selection.vim'
 import autoload './vim9ls/unused.vim'
 import autoload './vim9ls/cache.vim'
 
-export const VERSION = '0.1.008'
+export const VERSION = '0.1.009'
 
 const SCRIPT = expand('<sfile>:p')
 
@@ -84,6 +84,9 @@ def Initialize(params: dict<any>): dict<any>
   encoding = index(offered, 'utf-8') >= 0 ? 'utf-8' : 'utf-16'
   watch_files = params->get('capabilities', {})->get('workspace', {})
     ->get('didChangeWatchedFiles', {})->get('dynamicRegistration', false)
+  var experimental = params->get('capabilities', {})->get('experimental', {})
+  cmdline_completion = type(experimental) == v:t_dict
+    && experimental->get('cmdlineCompletion', false) == true
   var options = params->get('initializationOptions', null)
   var workspace = type(options) == v:t_dict ? options->get('workspace', null)
     : null
@@ -106,7 +109,7 @@ def Initialize(params: dict<any>): dict<any>
       positionEncoding: encoding,
       textDocumentSync: {openClose: true, change: 2, save: true},
       hoverProvider: true,
-      completionProvider: {triggerCharacters: ['&', ':'],
+      completionProvider: {triggerCharacters: ['&', ':', '=', ','],
         resolveProvider: true},
       documentSymbolProvider: true,
       workspaceSymbolProvider: true,
@@ -171,6 +174,9 @@ enddef
 var folders: list<string> = []
 # Whether the client takes a registration for the files to watch.
 var watch_files = false
+# Whether the client completes the argument of a command itself, as Vim does
+# on the command line, when asked to with "cmdlineCompletion".
+var cmdline_completion = false
 # The request kept open, {id, token, streaming}, or null_dict.
 var pull: dict<any> = null_dict
 # What is kept for the answer to a request without a token.
@@ -728,6 +734,15 @@ def Completion(params: dict<any>): any
     items = complete.ItemsOf(Members(w, ctx.owner), ctx.prefix)
   elseif ctx.prefix =~ '#'
     items = AutoloadItems(w, ctx.prefix)
+  elseif !ctx.option && complete.InCommandArg(w.line, w.col)
+    return cmdline_completion
+      ? {isIncomplete: false, items: [], cmdlineCompletion: true}
+      : {isIncomplete: false, items: []}
+  elseif index(['=', ','], params->get('context', {})
+      ->get('triggerCharacter', '')) >= 0
+    # Those are there for the argument of a command; in an expression the
+    # menu would hold every name there is.
+    return {isIncomplete: false, items: []}
   else
     items = complete.Items(w.line, w.col, w.parsed.symbols)
   endif
