@@ -152,7 +152,7 @@ given.
 
 | Method | State | Note |
 | --- | --- | --- |
-| `textDocument/completion` | yes | triggered by `&`, `:`, `=` and `,` as well; `cmdlineCompletion` in the experimental capabilities, see `:help vim9ls-cmdline-completion` |
+| `textDocument/completion` | yes | triggered by `&`, `:`, `=`, `,` and a space as well; `cmdlineCompletion` in the experimental capabilities, see `:help vim9ls-cmdline-completion` |
 | `completionItem/resolve` | yes | the help entry of a builtin, fetched for the item that is looked at |
 | `textDocument/hover` | yes | the help entry; for editors other than Vim, which has `K` |
 | `textDocument/signatureHelp` | yes | triggered by `(` and `,` as well |

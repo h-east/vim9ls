@@ -31,7 +31,8 @@ def g:Test_initialize()
   assert_equal({openClose: true, change: 2, save: true}, caps.textDocumentSync)
   assert_true(caps.hoverProvider)
   assert_true(caps.documentSymbolProvider)
-  assert_equal(['&', ':', '=', ','], caps.completionProvider.triggerCharacters)
+  assert_equal(['&', ':', '=', ',', ' '],
+    caps.completionProvider.triggerCharacters)
   assert_equal(['(', ','], caps.signatureHelpProvider.triggerCharacters)
   assert_true(caps.inlayHintProvider)
   assert_equal('vim9ls', resp.result.serverInfo.name)
@@ -350,8 +351,8 @@ def g:Test_completion_command_argument()
   assert_false(Complete(10)->has_key('cmdlineCompletion'), lines[10])
   assert_true(Labels(Complete(11).items)->index('completeopt') >= 0)
 
-  # "=" and "," bring the menu on for the argument of a command, and nothing
-  # in an expression.
+  # "=", "," and a space bring the menu on for the argument of a command, a
+  # space for the name of an option as well, and nothing in an expression.
   var Triggered = (lnum: number, char: string) =>
     helper.Request('textDocument/completion',
       extend(helper.Params(lnum, strlen(lines[lnum])),
@@ -360,6 +361,10 @@ def g:Test_completion_command_argument()
     Triggered(1, '='))
   assert_equal({isIncomplete: false, items: []}, Triggered(6, '='))
   assert_equal({isIncomplete: false, items: []}, Triggered(6, ','))
+  assert_equal({isIncomplete: false, items: [], cmdlineCompletion: true},
+    Triggered(5, ' '))
+  assert_true(Labels(Triggered(11, ' ').items)->index('completeopt') >= 0)
+  assert_equal({isIncomplete: false, items: []}, Triggered(8, ' '))
 
   # A client that does not take it is given nothing there.
   helper.StopServer()

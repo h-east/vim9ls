@@ -129,8 +129,8 @@ for one: nothing, since the current value of an option, file names and the
 like are the client's.  A client that declares "cmdlineCompletion" in its
 experimental capabilities is asked to complete it the way |i_CTRL-X_CTRL-V|
 does, see |vim9ls-cmdline-completion|; lsp.vim does that, see
-|lsp-cmdline-completion|.  "=" and "," bring the menu on there, and give
-nothing elsewhere.
+|lsp-cmdline-completion|.  "=", "," and a space bring the menu on there, a
+space for the name of an option as well, and give nothing elsewhere.
 The help entry of a builtin comes with "completionItem/resolve", for the item
 the client asks about: its first line as the detail, the rest as the
 documentation.

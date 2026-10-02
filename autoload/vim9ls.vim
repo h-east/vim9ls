@@ -28,7 +28,7 @@ import autoload './vim9ls/selection.vim'
 import autoload './vim9ls/unused.vim'
 import autoload './vim9ls/cache.vim'
 
-export const VERSION = '0.1.009'
+export const VERSION = '0.1.010'
 
 const SCRIPT = expand('<sfile>:p')
 
@@ -109,7 +109,7 @@ def Initialize(params: dict<any>): dict<any>
       positionEncoding: encoding,
       textDocumentSync: {openClose: true, change: 2, save: true},
       hoverProvider: true,
-      completionProvider: {triggerCharacters: ['&', ':', '=', ','],
+      completionProvider: {triggerCharacters: ['&', ':', '=', ',', ' '],
         resolveProvider: true},
       documentSymbolProvider: true,
       workspaceSymbolProvider: true,
@@ -738,7 +738,7 @@ def Completion(params: dict<any>): any
     return cmdline_completion
       ? {isIncomplete: false, items: [], cmdlineCompletion: true}
       : {isIncomplete: false, items: []}
-  elseif index(['=', ','], params->get('context', {})
+  elseif !ctx.option && index(['=', ',', ' '], params->get('context', {})
       ->get('triggerCharacter', '')) >= 0
     # Those are there for the argument of a command; in an expression the
     # menu would hold every name there is.
