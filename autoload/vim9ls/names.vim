@@ -126,7 +126,7 @@ export def KeyCalls(parsed: dict<any>, lines: list<string>): list<dict<any>>
       continue
     endif
     if line !~ '^\s*\\'
-      keys = parse.CommandOf(FirstWord(line)) =~# KEYS_COMMAND
+      keys = parse.CommandOf(FirstWord(line)) =~ KEYS_COMMAND
     endif
     if !keys || !vim9_at[lnum] || stridx(line, '(') < 0
       continue
@@ -190,7 +190,7 @@ export def Undefined(parsed: dict<any>, lines: list<string>,
       var word = FirstWord(line)
       var cmd = parse.CommandOf(word)
       skipping = SKIPPED->has_key(cmd) || (!vim9_at[lnum] && word =~ '^\u')
-      keys = cmd =~# KEYS_COMMAND
+      keys = cmd =~ KEYS_COMMAND
     endif
     # Only a call or a "v:" name is looked at, most lines have neither.
     if skipping || heredoc->has_key(lnum)
