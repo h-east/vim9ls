@@ -48,6 +48,7 @@ export def Context(line: string, col: number): dict<any>
         .. '\%(se\%[tlocal]\|setg\%[lobal]\)\s\+\%(\S\+\s\+\)*$',
     command: head =~ '^\s*\%(:\s*\)*$',
     owner: matchstr(head, '\h\w*\ze\.$'),
+    method: head =~ '->$',
   }
 enddef
 
@@ -154,6 +155,58 @@ export def Items(line: string, col: number,
   for name in getcompletion(prefix, 'function')
     var fn = substitute(name, '($', '', '')
     Add(fn, KIND_FUNCTION, '', fn .. '()')
+  endfor
+  return items
+enddef
+
+# Whether each builtin can be called with "->", filled in as asked.  A user
+# function of the server's own Vim is not one of the client's.
+var is_method: dict<bool> = {}
+
+# Whether function "s" of the script takes an argument, which "->" fills.
+def TakesArgument(s: dict<any>): bool
+  return s.detail =~ '\.\.\.'
+    || s.children->indexof((_, c) => c->get('param', false)) >= 0
+enddef
+
+# The completion items after "->" that start with "prefix": the builtins that
+# can be called as a method, and the functions taking an argument and the
+# Funcref variables in "symbols".
+export def MethodItems(prefix: string,
+    symbols: list<dict<any>>): list<dict<any>>
+  var items: list<dict<any>> = []
+  var seen: dict<bool> = {}
+  for s in parse.AllSymbols(symbols)
+    if seen->has_key(s.name)
+        || (prefix != '' && s.name[: strlen(prefix) - 1] != prefix)
+      continue
+    endif
+    if (s.kind == parse.KIND_FUNCTION && s.detail != ':command'
+          && TakesArgument(s))
+        || ((s.kind == parse.KIND_VARIABLE || s.kind == parse.KIND_CONSTANT)
+          && s.detail =~ '^func\>')
+      seen[s.name] = true
+      var item = {label: s.name, kind: SYMBOL_KINDS[s.kind]}
+      if s.detail != ''
+        item.detail = s.detail
+      endif
+      add(items, item)
+    endif
+  endfor
+  for name in getcompletion(prefix, 'function')
+    var fn = substitute(name, '($', '', '')
+    if seen->has_key(fn)
+      continue
+    endif
+    if !is_method->has_key(fn)
+      var info = getinfo('function', fn)
+      is_method[fn] = info->get('kind', '') == 'builtin'
+        && info->get('method', 0) > 0
+    endif
+    if is_method[fn]
+      seen[fn] = true
+      add(items, {label: fn, kind: KIND_FUNCTION, data: {tag: fn .. '()'}})
+    endif
   endfor
   return items
 enddef

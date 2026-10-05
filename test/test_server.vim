@@ -31,7 +31,7 @@ def g:Test_initialize()
   assert_equal({openClose: true, change: 2, save: true}, caps.textDocumentSync)
   assert_true(caps.hoverProvider)
   assert_true(caps.documentSymbolProvider)
-  assert_equal(['&', ':', '=', ',', ' '],
+  assert_equal(['&', ':', '=', ',', ' ', '>'],
     caps.completionProvider.triggerCharacters)
   assert_equal(['(', ','], caps.signatureHelpProvider.triggerCharacters)
   assert_true(caps.inlayHintProvider)
@@ -372,6 +372,55 @@ def g:Test_completion_command_argument()
   helper.Initialize()
   helper.OpenDoc(lines)
   assert_equal({isIncomplete: false, items: []}, Complete(1))
+enddef
+
+# After "->": the functions that can take the value before it, and no other
+# name.
+def g:Test_completion_method()
+  var lines = [
+    'vim9script',
+    'var text: string = "test string"',
+    'var Ref: func(string): number = (s) => 1',
+    'def MyFunc(s: string): string',
+    '  return s',
+    'enddef',
+    'command MyCommand echo',
+    'echo text->',
+    'echo text->sp',
+    'echo text > ',
+    'def NoArg()',
+    'enddef',
+    'function Legacy(...)',
+    'endfunction',
+  ]
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc(lines)
+
+  var Triggered = (lnum: number) =>
+    helper.Request('textDocument/completion',
+      extend(helper.Params(lnum, strlen(lines[lnum])),
+        {context: {triggerKind: 2, triggerCharacter: '>'}})).result
+  var labels = Labels(Triggered(7).items)
+  assert_true(labels->index('len') >= 0)
+  assert_true(labels->index('MyFunc') >= 0)
+  assert_true(labels->index('Ref') >= 0)
+  assert_true(labels->index('Legacy') >= 0)
+  assert_equal(-1, labels->index('text'))
+  assert_equal(-1, labels->index('MyCommand'))
+  assert_equal(-1, labels->index('argc'))
+  assert_equal(-1, labels->index('NoArg'))
+
+  labels = Labels(helper.Request('textDocument/completion',
+    helper.Params(8, strlen(lines[8]))).result.items)
+  assert_true(labels->index('split') >= 0)
+  assert_equal([], labels->copy()->filter((_, l) => l !~ '^sp'))
+
+  # A ">" that is not part of "->" gives nothing.
+  assert_equal({isIncomplete: false, items: []},
+    helper.Request('textDocument/completion',
+      extend(helper.Params(9, strlen(lines[9]) - 1),
+        {context: {triggerKind: 2, triggerCharacter: '>'}})).result)
 enddef
 
 # After "alias.", "foo#bar#", "this.", "var." and "Class.": what is there,

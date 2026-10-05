@@ -124,6 +124,11 @@ it is the alias of an import, the members of a class or an enum when it is
 their name, of the class a variable is declared with or made with
 "Class.new()", and of the class around "this".  After "foo#bar#": the
 functions of autoload/foo/bar.vim and the files below it as "foo#bar#name#".
+After "->": the builtin functions that can be called as a |method|, the
+functions of the script that take an argument, and the Funcref variables of
+the script; ">" brings the menu on there and gives nothing elsewhere.  A
+global function a plugin defines is not among them: it is known to the Vim
+that is editing, not to the document or to Vim itself.
 In the argument of a command that takes no expression, ":set completeopt="
 for one: nothing, since the current value of an option, file names and the
 like are the client's.  A client that declares "cmdlineCompletion" in its
