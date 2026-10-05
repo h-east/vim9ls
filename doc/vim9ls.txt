@@ -90,7 +90,7 @@ and the server talks to the client on stdin and stdout, which every client
 supports.  See |--stdio-channel|.
 
 Initialization options ~
-						*vim9ls-options*
+				*vim9ls-initializationOptions* *vim9ls-options*
 The client can give these in "initializationOptions" of "initialize":
 	workspace.maxFiles	The most "*.vim" files of the workspace
 				folders that workspace diagnostics read, at
@@ -140,7 +140,7 @@ The help entry of a builtin comes with "completionItem/resolve", for the item
 the client asks about: its first line as the detail, the rest as the
 documentation.
 
-						*vim9ls-cmdline-completion*
+			*vim9ls-experimental* *vim9ls-cmdline-completion*
 A client takes this on by setting "cmdlineCompletion" to |true| in
 "capabilities.experimental" of "initialize", and is then answered there with
 a CompletionList with no items and "cmdlineCompletion" set to |true|.  It
