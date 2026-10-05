@@ -267,6 +267,7 @@ def g:Test_completion()
     'echo &tw',
     '  My',
     'ec',
+    'echo TestF',
   ])
 
   var resp = helper.Request('textDocument/completion', helper.Params(4, 9))
@@ -291,6 +292,10 @@ def g:Test_completion()
   items = resp.result.items
   assert_true(index(Labels(items), 'echo') >= 0)
   assert_equal(14, items[Labels(items)->index('echo')].kind)
+
+  # A function $VIMRUNTIME/filetype.vim defines in the server's own Vim.
+  resp = helper.Request('textDocument/completion', helper.Params(8, 10))
+  assert_equal([], Labels(resp.result.items))
 
   # The help entry of a builtin comes with completionItem/resolve; an item
   # of the script comes back as it is.

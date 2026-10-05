@@ -104,6 +104,18 @@ export def ItemsOf(symbols: list<dict<any>>, prefix: string): list<dict<any>>
   return items
 enddef
 
+# What getinfo() reports of each builtin, filled in as asked.  A user function
+# of the server's own Vim is not one of the client's and gets an empty one.
+var builtins: dict<dict<any>> = {}
+
+def BuiltinInfo(name: string): dict<any>
+  if !builtins->has_key(name)
+    var info = getinfo('function', name)
+    builtins[name] = info->get('kind', '') == 'builtin' ? info : {}
+  endif
+  return builtins[name]
+enddef
+
 # The completion items for the cursor at "col" in "line"; "symbols" is what
 # the script defines.
 export def Items(line: string, col: number,
@@ -154,14 +166,12 @@ export def Items(line: string, col: number,
   endfor
   for name in getcompletion(prefix, 'function')
     var fn = substitute(name, '($', '', '')
-    Add(fn, KIND_FUNCTION, '', fn .. '()')
+    if !BuiltinInfo(fn)->empty()
+      Add(fn, KIND_FUNCTION, '', fn .. '()')
+    endif
   endfor
   return items
 enddef
-
-# Whether each builtin can be called with "->", filled in as asked.  A user
-# function of the server's own Vim is not one of the client's.
-var is_method: dict<bool> = {}
 
 # Whether function "s" of the script takes an argument, which "->" fills.
 def TakesArgument(s: dict<any>): bool
@@ -198,12 +208,7 @@ export def MethodItems(prefix: string,
     if seen->has_key(fn)
       continue
     endif
-    if !is_method->has_key(fn)
-      var info = getinfo('function', fn)
-      is_method[fn] = info->get('kind', '') == 'builtin'
-        && info->get('method', 0) > 0
-    endif
-    if is_method[fn]
+    if BuiltinInfo(fn)->get('method', 0) > 0
       seen[fn] = true
       add(items, {label: fn, kind: KIND_FUNCTION, data: {tag: fn .. '()'}})
     endif
