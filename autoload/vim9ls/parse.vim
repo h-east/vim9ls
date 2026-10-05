@@ -511,7 +511,7 @@ def Statement(st: dict<any>, lnum: number, text: string, col: number,
     var kind = in_class ? KIND_FIELD
       : cmd == 'var' || cmd == 'let' ? KIND_VARIABLE : KIND_CONSTANT
     var detail = arg_text !~ ':' ? ''
-      : matchstr(arg_text, '^[^=]*:\s*\zs[^=]*\ze\%(\s*=\|$\)')->trim()
+      : matchstr(arg_text, '^[^=:]*:\s*\zs[^=]*\ze\%(\s*=\|$\)')->trim()
     var container = Container(st)
     for name in VariableNames(arg_text)
       if cmd == 'let'

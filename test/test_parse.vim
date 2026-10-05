@@ -98,6 +98,11 @@ def g:Test_parse_vim9_symbols()
 
   assert_equal(parse.KIND_FUNCTION, top[8].kind)
   assert_equal(':command', top[8].detail)
+
+  # A type with a colon of its own.
+  top = parse.Parse(['vim9script',
+    'var Ref: func(string): number = (s) => 1']).symbols
+  assert_equal('func(string): number', top[0].detail)
 enddef
 
 def g:Test_parse_legacy_symbols()
