@@ -112,7 +112,8 @@ enddef
 # with "wrapped" the script level as a function (see wrap.vim) or null.
 # "Done" gets the {line, message} items, with "col" and "end_col" for one
 # that is not about the whole line, or null when the checker gave no answer.
-# A check of the same script that still waits gives way to this one.  A
+# A check of the same script that still waits gives way to this one, and is
+# answered with null.  A
 # check made "in_background" waits until no other one does.  "calls" are the
 # calls in keys to look up, see names.KeyCalls().  Returns false when there
 # is no checker to ask.
@@ -127,17 +128,16 @@ export def Check(path: string, lines: list<string>, wrapped: any,
   endif
   var check = {path: path, lines: lines, wrapped: wrapped, Done: Done,
     calls: calls}
-  if in_background
-    if !background_checks->has_key(path)
-      add(background, path)
-    endif
-    background_checks[path] = check
+  var queue = in_background ? background : waiting
+  var checks = in_background ? background_checks : waiting_checks
+  if checks->has_key(path)
+    # Answered after the caller has noted the new check.
+    var Old = checks[path].Done
+    timer_start(0, (_) => Old(null))
   else
-    if !waiting_checks->has_key(path)
-      add(waiting, path)
-    endif
-    waiting_checks[path] = check
+    add(queue, path)
   endif
+  checks[path] = check
   Next()
   return true
 enddef

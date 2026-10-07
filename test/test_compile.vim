@@ -7,10 +7,10 @@ import autoload '../autoload/vim9ls/compile.vim'
 # and text the fake checker put in the error, or "null" and the path.
 var answers: list<string> = []
 
-def Ask(path: string, lines: list<string> = [])
+def Ask(path: string, lines: list<string> = [], in_background = false)
   compile.Check(path, lines, null, (errors: any) => {
     add(answers, errors == null ? 'null ' .. path : errors[0].message)
-  })
+  }, in_background)
 enddef
 
 def Setup(msecs: number)
@@ -28,7 +28,7 @@ enddef
 
 # The checks are handed over one at a time, in the order asked; a check of a
 # script that still waits gives way to a newer one of the same script, in
-# its place.
+# its place, and is answered with null.
 def g:Test_compile_queue()
   Setup(5000)
   try
@@ -36,9 +36,24 @@ def g:Test_compile_queue()
     Ask('/x/two.vim', ['old'])
     Ask('/x/three.vim')
     Ask('/x/two.vim', ['new'])
+    helper.WaitFor(() => len(answers) >= 4)
+    sleep 100m
+    assert_equal(['/x/one.vim', '/x/two.vim new', '/x/three.vim'],
+      answers->copy()->filter((_, a) => a !~ '^null '))
+    assert_equal(['null /x/two.vim'],
+      answers->copy()->filter((_, a) => a =~ '^null '))
+
+    # The same in the background.
+    answers = []
+    Ask('/x/one.vim')
+    Ask('/x/two.vim', ['old'], true)
+    Ask('/x/two.vim', ['new'], true)
     helper.WaitFor(() => len(answers) >= 3)
     sleep 100m
-    assert_equal(['/x/one.vim', '/x/two.vim new', '/x/three.vim'], answers)
+    assert_equal(['/x/one.vim', '/x/two.vim new'],
+      answers->copy()->filter((_, a) => a !~ '^null '))
+    assert_equal(['null /x/two.vim'],
+      answers->copy()->filter((_, a) => a =~ '^null '))
   finally
     Teardown()
   endtry
