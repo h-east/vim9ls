@@ -61,6 +61,9 @@ const REFRESH_SECONDS = 2.0
 # The script checked last changed, and was not read again for that: the next
 # check looks at the scripts.
 var stale = false
+# The scripts last read from a document that differs from their file, to be
+# read from the file before another script is checked.
+var from_text: dict<bool> = {}
 
 def Stamp(file: string): string
   return getftime(file) .. ':' .. getfsize(file)
@@ -361,6 +364,13 @@ def Check(path_arg: string, lines: list<string>, wrapped: any,
   if refresh || stale || reltimefloat(reltime(refreshed)) >= REFRESH_SECONDS
     Refresh(path)
   endif
+  for file in keys(from_text)
+    if file != path
+      remove(from_text, file)
+      silent! execute 'source ++dryrun' fnameescape(file)
+      read_as[file] = Stamp(file)
+    endif
+  endfor
   Load(path, text)
   # The range needs the colon: ":execute" from a ":def" reads the Vim9 way.
   var errors = Errors(Source(':%source ++dryrun'), path)
@@ -383,6 +393,12 @@ def Check(path_arg: string, lines: list<string>, wrapped: any,
   errors += KeyCallErrors(path, calls)
   ForgetGlobalFunctions(path)
   ForgetPlaceholders()
+  if filereadable(path)
+    var file = readfile(path)
+    if lines != file && lines != file + ['']
+      from_text[path] = true
+    endif
+  endif
   return sort(errors, (a, b) => a.line - b.line)
 enddef
 

@@ -379,6 +379,26 @@ def g:Test_completion_command_argument()
   assert_equal({isIncomplete: false, items: []}, Complete(1))
 enddef
 
+# The "{expr}" of an interpolated string is an expression, also in the
+# argument of a command.
+def g:Test_completion_interpolated_string()
+  var lines = [
+    'vim9script',
+    'var foo = 1',
+    'echo $"{fo',
+    'var x = $"a {foo} {fo',
+  ]
+  helper.StartServer()
+  helper.Initialize(['utf-8', 'utf-16'], {cmdlineCompletion: true})
+  helper.OpenDoc(lines)
+  for lnum in range(2, 3)
+    var result = helper.Request('textDocument/completion',
+      helper.Params(lnum, strlen(lines[lnum]))).result
+    assert_false(result->has_key('cmdlineCompletion'), lines[lnum])
+    assert_true(Labels(result.items)->index('foo') >= 0, lines[lnum])
+  endfor
+enddef
+
 # After "->": the functions that can take the value before it, and no other
 # name.
 def g:Test_completion_method()
@@ -1448,6 +1468,35 @@ def g:Test_compile_import_changed()
     assert_equal([E1012],
       helper.WaitNotification('textDocument/publishDiagnostics')
         .params.diagnostics->mapnew((_, d) => d.message), 'same size')
+  finally
+    helper.StopServer()
+    delete(root, 'rf')
+  endtry
+enddef
+
+# A script that imports one being edited is checked against its file.
+def g:Test_compile_import_of_edited_document()
+  var root = helper.HERE .. '/Xedited'
+  mkdir(root, 'p')
+  var user = ['vim9script', "import './xlib.vim'", 'def F(): number',
+    '  return xlib.N', 'enddef']
+  writefile(['vim9script', 'export const N: string = "s"'],
+    root .. '/xlib.vim')
+  writefile(user, root .. '/user.vim')
+  try
+    helper.StartServer()
+    helper.Initialize()
+    helper.OpenDoc(['vim9script', 'export const N: number = 1'],
+      util.PathToUri(root .. '/xlib.vim'))
+    assert_equal([],
+      helper.WaitNotification('textDocument/publishDiagnostics')
+      .params.diagnostics)
+    helper.OpenDoc(user, util.PathToUri(root .. '/user.vim'))
+    var params = helper.WaitNotification('textDocument/publishDiagnostics')
+      .params
+    assert_equal(util.PathToUri(root .. '/user.vim'), params.uri)
+    assert_equal(['E1012: Type mismatch; expected number but got string'],
+      params.diagnostics->mapnew((_, d) => d.message))
   finally
     helper.StopServer()
     delete(root, 'rf')
