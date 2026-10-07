@@ -80,15 +80,39 @@ def g:Test_document_diagnostic()
   assert_equal('full', Pulled().kind)
   assert_equal(both, Pulled().items->mapnew((_, d) => d.message))
 
+  # Right after a change the answer waits for what Vim reports.
   helper.ChangeDoc(text + [''])
-  assert_equal(['Unused variable: left'],
-    Pulled().items->mapnew((_, d) => d.message))
-  helper.WaitNotification('textDocument/publishDiagnostics')
   assert_equal(both, Pulled().items->mapnew((_, d) => d.message))
 
   assert_equal({kind: 'full', items: []},
     helper.Request('textDocument/diagnostic',
       {textDocument: {uri: 'file:///tmp/Xvim9ls_not_open.vim'}}).result)
+enddef
+
+# A client that pulls is sent nothing while the document changes; saving
+# sends the diagnostics.
+def g:Test_document_diagnostic_to_a_client_that_pulls()
+  helper.StartServer()
+  helper.Request('initialize', {processId: getpid(), rootUri: null,
+    capabilities: {general: {positionEncodings: ['utf-8']},
+      textDocument: {diagnostic: {}}}})
+  helper.Notify('initialized', {})
+  var text = ['vim9script', 'def F(): number', '  var left = 1',
+    '  return "x"', 'enddef']
+  var both = ['Unused variable: left',
+    'E1012: Type mismatch; expected number but got string']
+  helper.OpenDoc(text)
+  helper.ChangeDoc(text + [''])
+  sleep 500m
+  assert_equal([], helper.notifications->copy()->filter((_, n) =>
+    n->get('method', '') == 'textDocument/publishDiagnostics'))
+  assert_equal(both, helper.Request('textDocument/diagnostic',
+    {textDocument: {uri: helper.URI}}).result.items
+    ->mapnew((_, d) => d.message))
+
+  helper.SaveDoc()
+  assert_equal(both, helper.WaitNotification('textDocument/publishDiagnostics')
+    .params.diagnostics->mapnew((_, d) => d.message))
 enddef
 
 def g:Test_initialize_utf16()

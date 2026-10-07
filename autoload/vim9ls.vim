@@ -28,7 +28,7 @@ import autoload './vim9ls/selection.vim'
 import autoload './vim9ls/unused.vim'
 import autoload './vim9ls/cache.vim'
 
-export const VERSION = '0.1.012'
+export const VERSION = '0.1.013'
 
 const SCRIPT = expand('<sfile>:p')
 
@@ -84,6 +84,8 @@ def Initialize(params: dict<any>): dict<any>
   encoding = index(offered, 'utf-8') >= 0 ? 'utf-8' : 'utf-16'
   watch_files = params->get('capabilities', {})->get('workspace', {})
     ->get('didChangeWatchedFiles', {})->get('dynamicRegistration', false)
+  pulls = type(params->get('capabilities', {})->get('textDocument', {})
+    ->get('diagnostic', null)) == v:t_dict
   var experimental = params->get('capabilities', {})->get('experimental', {})
   cmdline_completion = type(experimental) == v:t_dict
     && experimental->get('cmdlineCompletion', false) == true
@@ -151,16 +153,37 @@ def Parsed(d: dict<any>, fresh = true): dict<any>
   return d.parsed
 enddef
 
-# textDocument/diagnostic: what the parser finds in the text as it is, and
-# what the checker reported when it has read this text.
-def DocumentDiagnostics(params: dict<any>): dict<any>
-  var uri = params.textDocument.uri
+# textDocument/diagnostic: what the parser finds and what the checker reports
+# in the text as it is, the answer waiting for the checker when it has not
+# read the text yet.
+def DocumentPull(id: any, params: dict<any>)
+  var uri = params->get('textDocument', {})->get('uri', '')
   var d = docs->get(uri, null_dict)
   if d == null_dict
-    return {kind: 'full', items: []}
+    Reply(id, {kind: 'full', items: []})
+    return
   endif
-  var items = StaticItems(d, util.UriToPath(uri))
-  return {kind: 'full', items: d.compiled_now ? WithCompiled(d, items) : items}
+  var path = util.UriToPath(uri)
+  var items = StaticItems(d, path)
+  if d.compiled_now
+    Reply(id, {kind: 'full', items: WithCompiled(d, items)})
+    return
+  endif
+  var parsed = Parsed(d)
+  var version = d.version
+  if path == '' || !compile.Check(path, d.lines,
+      parsed.vim9 ? wrap.Lines(parsed, d.lines) : null,
+      (errors: any) => {
+        if errors != null && docs->get(uri, null_dict) is d
+            && d.version == version
+          d.compiled = errors
+          d.compiled_now = true
+          items = WithCompiled(d, items)
+        endif
+        Reply(id, {kind: 'full', items: items})
+      }, false, names.KeyCalls(parsed, d.lines))
+    Reply(id, {kind: 'full', items: items})
+  endif
 enddef
 
 # workspace/diagnostic is kept open.  What is found in the scripts of the
@@ -177,6 +200,9 @@ var watch_files = false
 # Whether the client completes the argument of a command itself, as Vim does
 # on the command line, when asked to with "cmdlineCompletion".
 var cmdline_completion = false
+# Whether the client asks for the diagnostics of a document with
+# "textDocument/diagnostic": the server then leaves them until it does.
+var pulls = false
 # The request kept open, {id, token, streaming}, or null_dict.
 var pull: dict<any> = null_dict
 # What is kept for the answer to a request without a token.
@@ -581,7 +607,9 @@ enddef
 def SetDoc(uri: string, text: string, version: any)
   docs[uri] = {lines: SplitText(text), version: version, parsed: null_dict,
     stale: true, timer: -1, compiled: [], compiled_now: false}
-  ScheduleDiagnostics(uri)
+  if !pulls
+    ScheduleDiagnostics(uri)
+  endif
 enddef
 
 # Applies one change of textDocument/didChange: the whole text when it has
@@ -616,7 +644,9 @@ def ChangeDoc(uri: string, changes: list<dict<any>>, version: any)
   d.version = version
   d.stale = true
   d.compiled_now = false
-  ScheduleDiagnostics(uri)
+  if !pulls
+    ScheduleDiagnostics(uri)
+  endif
 enddef
 
 # The document and the line and byte column "params" point at, with its
@@ -1691,8 +1721,6 @@ def Request(method: string, params: dict<any>): any
     return v:null
   elseif method == 'textDocument/hover'
     return Hover(params)
-  elseif method == 'textDocument/diagnostic'
-    return DocumentDiagnostics(params)
   elseif method == 'textDocument/completion'
     return Completion(params)
   elseif method == 'completionItem/resolve'
@@ -1810,6 +1838,9 @@ def OnMessage(_: channel, msg: dict<any>)
   var params: dict<any> = type(given) == v:t_dict ? given : {}
   if method == 'workspace/diagnostic' && msg->has_key('id')
     WorkspacePull(msg.id, params)
+    return
+  elseif method == 'textDocument/diagnostic' && msg->has_key('id')
+    DocumentPull(msg.id, params)
     return
   elseif method == 'workspace/executeCommand' && msg->has_key('id')
     Reload(msg.id, params)

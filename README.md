@@ -182,8 +182,8 @@ given.
 | `textDocument/semanticTokens/range` | no |  |
 | `textDocument/inlayHint` | yes | the type of a `var` that leaves it to the initializer, and the parameter names at a call |
 | `inlayHint/resolve` | no | a hint comes complete |
-| `textDocument/publishDiagnostics` | yes | after the changes pause |
-| `textDocument/diagnostic` | yes | the same as those sent, for the text as it is |
+| `textDocument/publishDiagnostics` | yes | after the changes pause; to a client that pulls, only on save |
+| `textDocument/diagnostic` | yes | worked out when asked, with what Vim reports for the text as it is |
 | `textDocument/formatting` | yes | Vim's own indent script, run in the server; for editors other than Vim |
 | `textDocument/rangeFormatting` | yes | the lines of the range, taken whole |
 | `textDocument/rangesFormatting` | no |  |

@@ -292,7 +292,9 @@ indentation of the block stops; an end without a start is removed; a
 parameter that is not used is named "_".
 
 Diagnostics ~
-Reported when a document is opened and after its changes pause:
+Reported when a document is opened and after its changes pause, or, to a
+client that pulls them with "textDocument/diagnostic", when it asks and on
+save:
 - a block that is not closed ("if" without "endif", "def" without "enddef",
   and so on) and an end without a start, with the error Vim would give; an
   "endif", "endwhile", "endfor", "endtry", "else", "elseif", "catch" or
