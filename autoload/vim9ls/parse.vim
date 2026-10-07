@@ -662,7 +662,7 @@ export def Parse(lines: list<string>): dict<any>
     endif
     # ":append", ":change" and ":insert" read the lines up to "." as text;
     # Vim9 rules have none of them.
-    if line =~ APPEND && !InVim9(st)
+    if !InVim9(st) && line =~ APPEND
       st.heredoc = '.'
       continue
     endif
@@ -676,8 +676,9 @@ export def Parse(lines: list<string>): dict<any>
     var col = m[1]
     # A heredoc assigned to a variable that is there already, "x =<< END",
     # holds text as well.
-    var assigned = matchstr(line, '^\s*[[:alnum:]_:.]\+'
-      .. (InVim9(st) ? HEREDOC_VIM9 : HEREDOC))
+    var assigned = stridx(line, '=<<') < 0 ? ''
+      : matchstr(line, '^\s*[[:alnum:]_:.]\+'
+        .. (InVim9(st) ? HEREDOC_VIM9 : HEREDOC))
     if assigned != ''
       StartLetHeredoc(st, lnum, assigned, line)
       continue
