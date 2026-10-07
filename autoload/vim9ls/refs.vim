@@ -54,10 +54,95 @@ export def CodeSpans(line: string, vim9: bool): dict<list<list<number>>>
   return {code: code, strings: strings}
 enddef
 
+# The "{expr}" parts of "line" as "exprs", see Expressions(), and whether the
+# line ends inside one as "open".
+def Interpolation(line: string, in_text: bool): dict<any>
+  var out: list<list<any>> = []
+  if !in_text && stridx(line, '$''') < 0 && stridx(line, '$"') < 0
+    return {exprs: out, open: false}
+  endif
+  var chars = split(line, '\zs')
+  var n = len(chars)
+  # "code", "string", "text" (of an interpolated string), "expr" and "inner"
+  # (a string inside "expr").
+  var mode = in_text ? 'text' : 'code'
+  var quote = ''
+  var inner_quote = ''
+  var depth = 0
+  var start = 0
+  var byte = 0
+  var i = 0
+  while i < n
+    var c = chars[i]
+    var next = i + 1 < n ? chars[i + 1] : ''
+    # Whether "next" belongs to "c".
+    var pair = false
+    if mode == 'code'
+      if c == '#' && (i == 0 || chars[i - 1] =~ '\s')
+        break
+      elseif c == '$' && (next == "'" || next == '"')
+        mode = 'text'
+        quote = next
+        pair = true
+      elseif c == "'" || c == '"'
+        mode = 'string'
+        quote = c
+      endif
+    elseif mode == 'string' || mode == 'text' || mode == 'inner'
+      var q = mode == 'inner' ? inner_quote : quote
+      if q == '"' && c == '\'
+        pair = true
+      elseif c == q && q == "'" && next == "'"
+        pair = true
+      elseif c == q
+        mode = mode == 'inner' ? 'expr' : 'code'
+      elseif mode == 'text' && (c == '{' || c == '}') && next == c
+        pair = true
+      elseif mode == 'text' && c == '{'
+        mode = 'expr'
+        depth = 1
+        start = byte + 1
+      endif
+    elseif c == "'" || c == '"'
+      mode = 'inner'
+      inner_quote = c
+    elseif c == '{'
+      depth += 1
+    elseif c == '}'
+      depth -= 1
+      if depth == 0
+        add(out, [start, strpart(line, start, byte - start)])
+        mode = 'text'
+      endif
+    endif
+    byte += strlen(c)
+    i += 1
+    if pair && i < n
+      byte += strlen(chars[i])
+      i += 1
+    endif
+  endwhile
+  return {exprs: out, open: mode == 'expr'}
+enddef
+
+# The "{expr}" parts of the interpolated strings in "line", each as [the byte
+# it starts at, its text].  An expression may hold a string of its own, with
+# quotes and braces, which CodeSpans() does not know of.  "in_text" is for the
+# line of a heredoc that evaluates: all of it is text.
+export def Expressions(line: string, in_text: bool): list<list<any>>
+  return Interpolation(line, in_text).exprs
+enddef
+
+# Whether byte "col" of "line" is inside the "{expr}" of an interpolated
+# string, outside a string of its own.
+export def InInterpolation(line: string, col: number): bool
+  return Interpolation(strpart(line, 0, col), false).open
+enddef
+
 # The names used in "line", each with where it is and what is in front of
 # it.  Numbers are left out.  A name inside a string is only reported when
 # the string holds nothing else, which is how a function is named in a
-# string.
+# string, or when it is in the "{expr}" of an interpolated string.
 export def Tokens(line: string, vim9: bool): list<dict<any>>
   var spans = CodeSpans(line, vim9)
   var tokens: list<dict<any>> = []
@@ -88,6 +173,17 @@ export def Tokens(line: string, vim9: bool): list<dict<any>>
         end: seg_end, prev: '', in_string: true})
     endif
   endfor
+  var exprs = Expressions(line, false)
+  if !exprs->empty()
+    for [start, text] in exprs
+      for token in Tokens(text, vim9)
+        token.col += start
+        token.end += start
+        add(tokens, token)
+      endfor
+    endfor
+    sort(tokens, (a, b) => a.col - b.col)
+  endif
   return tokens
 enddef
 

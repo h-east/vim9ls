@@ -38,6 +38,23 @@ def g:Test_tokens()
   # A function named in a string, with or without a "*".
   tokens = refs.Tokens("exists('*s:Init') || function(\"Foo\")", false)
   assert_equal(['exists', 'function', 's:Init', 'Foo'], Texts(tokens))
+  # The names in the "{expr}" of an interpolated string, not its text.
+  tokens = refs.Tokens('echo $"a {name} {{b}} {Get(x, "}")} c" .. y', true)
+  assert_equal(['echo', 'name', 'Get', 'x', 'y'], Texts(tokens))
+  assert_equal([10, 23, 27, 42], tokens[1 :]->mapnew((_, t) => t.col))
+  assert_equal(false, tokens[1].in_string)
+enddef
+
+def g:Test_in_interpolation()
+  var line = 'echo $"a {na} {{b}} {F("{x")} c'
+  assert_true(refs.InInterpolation(line, 12))
+  assert_false(refs.InInterpolation(line, 8))
+  assert_false(refs.InInterpolation(line, 17))
+  assert_true(refs.InInterpolation(line, 23))
+  # In a string inside the expression.
+  assert_false(refs.InInterpolation(line, 26))
+  assert_false(refs.InInterpolation(line, strlen(line)))
+  assert_false(refs.InInterpolation('echo "{na', 9))
 enddef
 
 def g:Test_resolve_scopes()
@@ -126,6 +143,19 @@ def g:Test_references_vim9()
     Spans(refs.References(parsed, lines, symbol, true)))
   assert_equal([[3, 0, 4], [4, 2, 6], [5, 18, 22], [6, 6, 10]],
     Spans(refs.References(parsed, lines, symbol, false)))
+enddef
+
+def g:Test_references_in_interpolated_string()
+  var lines =<< trim END
+    vim9script
+    var count = 1
+    echo $"{count} and {count + 1}, not {{count}}"
+    echo $'{count}' .. "{count}"
+  END
+  var parsed = parse.Parse(lines)
+  var symbol = parsed.symbols[0]
+  assert_equal([[1, 4, 9], [2, 8, 13], [2, 20, 25], [3, 8, 13]],
+    Spans(refs.References(parsed, lines, symbol, true)))
 enddef
 
 def g:Test_references_legacy()

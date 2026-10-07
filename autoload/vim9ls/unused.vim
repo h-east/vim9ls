@@ -13,86 +13,16 @@ import autoload './refs.vim'
 
 const VARIABLE_KINDS = [parse.KIND_VARIABLE, parse.KIND_CONSTANT]
 
-# The "{expr}" parts of the interpolated strings in "line", each as [the byte
-# it starts at, its text].  An expression may hold a string of its own, with
-# quotes and braces, which refs.CodeSpans() does not know of.  "in_text" is
-# for the line of a heredoc that evaluates: all of it is text.
-def Expressions(line: string, in_text: bool): list<list<any>>
-  var out: list<list<any>> = []
-  if !in_text && stridx(line, '$''') < 0 && stridx(line, '$"') < 0
-    return out
-  endif
-  var chars = split(line, '\zs')
-  var n = len(chars)
-  # "code", "string", "text" (of an interpolated string), "expr" and "inner"
-  # (a string inside "expr").
-  var mode = in_text ? 'text' : 'code'
-  var quote = ''
-  var inner_quote = ''
-  var depth = 0
-  var start = 0
-  var byte = 0
-  var i = 0
-  while i < n
-    var c = chars[i]
-    var next = i + 1 < n ? chars[i + 1] : ''
-    # Whether "next" belongs to "c".
-    var pair = false
-    if mode == 'code'
-      if c == '#' && (i == 0 || chars[i - 1] =~ '\s')
-        break
-      elseif c == '$' && (next == "'" || next == '"')
-        mode = 'text'
-        quote = next
-        pair = true
-      elseif c == "'" || c == '"'
-        mode = 'string'
-        quote = c
-      endif
-    elseif mode == 'string' || mode == 'text' || mode == 'inner'
-      var q = mode == 'inner' ? inner_quote : quote
-      if q == '"' && c == '\'
-        pair = true
-      elseif c == q && q == "'" && next == "'"
-        pair = true
-      elseif c == q
-        mode = mode == 'inner' ? 'expr' : 'code'
-      elseif mode == 'text' && (c == '{' || c == '}') && next == c
-        pair = true
-      elseif mode == 'text' && c == '{'
-        mode = 'expr'
-        depth = 1
-        start = byte + 1
-      endif
-    elseif c == "'" || c == '"'
-      mode = 'inner'
-      inner_quote = c
-    elseif c == '{'
-      depth += 1
-    elseif c == '}'
-      depth -= 1
-      if depth == 0
-        add(out, [start, strpart(line, start, byte - start)])
-        mode = 'text'
-      endif
-    endif
-    byte += strlen(c)
-    i += 1
-    if pair && i < n
-      byte += strlen(chars[i])
-      i += 1
-    endif
-  endwhile
-  return out
-enddef
-
 # The names used in "line": in the code and in the expressions of an
 # interpolated string, or of a heredoc that evaluates.  "heredoc" is 1 for a
 # line of a heredoc that evaluates, 0 for one of any other, -1 for code.
 def LineTokens(line: string, heredoc: number): list<dict<any>>
-  var tokens: list<dict<any>> = heredoc < 0 ? refs.Tokens(line, true) : []
-  if heredoc != 0
-    for [start, text] in Expressions(line, heredoc > 0)
+  if heredoc < 0
+    return refs.Tokens(line, true)
+  endif
+  var tokens: list<dict<any>> = []
+  if heredoc > 0
+    for [start, text] in refs.Expressions(line, true)
       for token in refs.Tokens(text, true)
         token.col += start
         token.end += start

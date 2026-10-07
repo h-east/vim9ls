@@ -4,6 +4,7 @@ vim9script
 # Maintainer: Hirohito Higashi <h.east.727@gmail.com>
 
 import autoload './parse.vim'
+import autoload './refs.vim'
 
 # LSP CompletionItemKind values.
 const KIND_FUNCTION = 3
@@ -61,6 +62,9 @@ const SCRIPT_ARGS = {def: 1, function: 1, class: 1, enum: 1, interface: 1,
 # takes no expression, which only the client completes right: file names, the
 # current value of an option.
 export def InCommandArg(line: string, col: number): bool
+  if refs.InInterpolation(line, col)
+    return false
+  endif
   # The last of the commands bars separate; "||" is an operator.
   var stmt = split(strpart(line, 0, col), '\%(\\\||\)\@<!||\@!', true)[-1]
   var rest = substitute(stmt,
