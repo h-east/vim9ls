@@ -1335,6 +1335,16 @@ def g:Test_compile_diagnostics()
   helper.OpenDoc(readfile(checker), util.PathToUri(checker))
   note = helper.WaitNotification('textDocument/publishDiagnostics')
   assert_equal([], note.params.diagnostics)
+
+  # The errors of $VIMRUNTIME/defaults.vim, which the checker loaded itself,
+  # are reported.
+  var defaults = $VIMRUNTIME .. '/defaults.vim'
+  var lines = readfile(defaults)
+  helper.OpenDoc(lines + ['def g:Vim9lsBroken(): number', '  return "x"',
+    'enddef'], util.PathToUri(defaults))
+  note = helper.WaitNotification('textDocument/publishDiagnostics')
+  assert_equal([[len(lines) + 1, 'E1012']], note.params.diagnostics
+    ->mapnew((_, d) => [d.range.start.line, matchstr(d.message, '^E\d\+')]))
 enddef
 
 # A variable of a block at the script level may have the name of a script

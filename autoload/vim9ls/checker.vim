@@ -64,6 +64,9 @@ var stale = false
 # The scripts last read from a document that differs from their file, to be
 # read from the file before another script is checked.
 var from_text: dict<bool> = {}
+# The scripts this Vim loaded itself, such as $VIMRUNTIME/syntax/vim.vim,
+# which Vim does not read with a dry run (E1588).
+var loaded_here: dict<bool> = {}
 
 def Stamp(file: string): string
   return getftime(file) .. ':' .. getfsize(file)
@@ -354,8 +357,9 @@ enddef
 def Check(path_arg: string, lines: list<string>, wrapped: any,
     refresh: bool, calls: list<any>): list<dict<any>>
   var path = FullPath(path_arg)
-  # This script is running here, its functions cannot be defined again.
-  if path == FullPath(SELF)
+  # A script loaded here is read under another name.  This script is running
+  # here, its functions cannot be defined again.
+  if path == FullPath(SELF) || loaded_here->has_key(path)
     path ..= '.dryrun'
   endif
   var text = type(wrapped) != v:t_list ? lines
@@ -373,7 +377,14 @@ def Check(path_arg: string, lines: list<string>, wrapped: any,
   endfor
   Load(path, text)
   # The range needs the colon: ":execute" from a ":def" reads the Vim9 way.
-  var errors = Errors(Source(':%source ++dryrun'), path)
+  var messages = Source(':%source ++dryrun')
+  if messages =~ '\<E1588:'
+    loaded_here[path] = true
+    path ..= '.dryrun'
+    Load(path, text)
+    messages = Source(':%source ++dryrun')
+  endif
+  var errors = Errors(messages, path)
   NoteNew(path, started)
   if type(wrapped) == v:t_list
     var declared = Declarations(lines, wrapped,
