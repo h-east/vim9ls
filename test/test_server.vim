@@ -292,6 +292,7 @@ def g:Test_completion()
     '  My',
     'ec',
     'echo TestF',
+    'echo v:ver',
   ])
 
   var resp = helper.Request('textDocument/completion', helper.Params(4, 9))
@@ -321,11 +322,19 @@ def g:Test_completion()
   resp = helper.Request('textDocument/completion', helper.Params(8, 10))
   assert_equal([], Labels(resp.result.items))
 
+  # ":" is no keyword character: the item replaces the scope as well.
+  resp = helper.Request('textDocument/completion', helper.Params(9, 10))
+  items = resp.result.items
+  assert_equal({range: {start: {line: 9, character: 5},
+    end: {line: 9, character: 10}}, newText: 'v:version'},
+    items[Labels(items)->index('v:version')].textEdit)
+
   # The help entry of a builtin comes with completionItem/resolve; an item
   # of the script comes back as it is.
   resp = helper.Request('textDocument/completion', helper.Params(4, 9))
   items = resp.result.items
   var strlen_item = items[Labels(items)->index('strlen')]
+  assert_false(strlen_item->has_key('textEdit'))
   assert_equal({tag: 'strlen()'}, strlen_item.data)
   resp = helper.Request('completionItem/resolve', strlen_item)
   assert_match('^strlen({string})', resp.result.detail)

@@ -28,7 +28,7 @@ import autoload './vim9ls/selection.vim'
 import autoload './vim9ls/unused.vim'
 import autoload './vim9ls/cache.vim'
 
-export const VERSION = '0.1.014'
+export const VERSION = '0.1.015'
 
 const SCRIPT = expand('<sfile>:p')
 
@@ -777,8 +777,22 @@ def Completion(params: dict<any>): any
     return {isIncomplete: false, items: []}
   else
     items = complete.Items(w.line, w.col, w.parsed.symbols)
+    # A name with its scope, "v:version" or "s:Func", is the whole prefix; an
+    # option name after "&l:" is not.
+    ReplacePrefix(copy(items)->filter((_, item) => item.label =~ ':'), w,
+      ctx.prefix)
   endif
   return {isIncomplete: false, items: items}
+enddef
+
+# ":" and "#" are no keyword characters; without an edit a client replaces
+# only the word after them.
+def ReplacePrefix(items: list<dict<any>>, w: dict<any>,
+    prefix: string): list<dict<any>>
+  var range = util.Range(w.doc.lines, w.lnum, w.col - strlen(prefix), w.lnum,
+    w.col, encoding)
+  return items->map((_, item) =>
+    extend(item, {textEdit: {range: range, newText: item.label}}))
 enddef
 
 # The completion item with the help entry of the builtin it stands for: the
@@ -845,7 +859,6 @@ enddef
 
 # What the autoload name "prefix", "foo#bar#Fu" for one, can complete to: the
 # functions of autoload/foo/bar.vim and the files below it as "foo#bar#name#".
-# Each item replaces the whole prefix, "#" is no keyword character.
 def AutoloadItems(w: dict<any>, prefix: string): list<dict<any>>
   var head = matchstr(prefix, '.*#')
   var dir = substitute(head, '#', '/', 'g')
@@ -867,10 +880,7 @@ def AutoloadItems(w: dict<any>, prefix: string): list<dict<any>>
         kind: parse.KIND_MODULE, detail: ''})
     endfor
   endfor
-  var range = util.Range(w.doc.lines, w.lnum, w.col - strlen(prefix), w.lnum,
-    w.col, encoding)
-  return complete.ItemsOf(symbols, prefix)->map((_, item) =>
-    extend(item, {textEdit: {range: range, newText: item.label}}))
+  return ReplacePrefix(complete.ItemsOf(symbols, prefix), w, prefix)
 enddef
 
 # The whole document, indented the way Vim itself would.
