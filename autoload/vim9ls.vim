@@ -28,7 +28,7 @@ import autoload './vim9ls/selection.vim'
 import autoload './vim9ls/unused.vim'
 import autoload './vim9ls/cache.vim'
 
-export const VERSION = '0.1.015'
+export const VERSION = '0.1.016'
 
 const SCRIPT = expand('<sfile>:p')
 
@@ -111,7 +111,8 @@ def Initialize(params: dict<any>): dict<any>
       positionEncoding: encoding,
       textDocumentSync: {openClose: true, change: 2, save: true},
       hoverProvider: true,
-      completionProvider: {triggerCharacters: ['&', ':', '=', ',', ' ', '>'],
+      completionProvider: {
+        triggerCharacters: ['&', ':', '=', ',', ' ', '>', '.'],
         resolveProvider: true},
       documentSymbolProvider: true,
       workspaceSymbolProvider: true,
@@ -759,9 +760,13 @@ def Completion(params: dict<any>): any
     return v:null
   endif
   var ctx = complete.Context(w.line, w.col)
+  var trigger = params->get('context', {})->get('triggerCharacter', '')
   var items: list<dict<any>>
   if ctx.owner != ''
     items = complete.ItemsOf(Members(w, ctx.owner), ctx.prefix)
+  elseif trigger == '.'
+    # That is there for the members of a name; "a . b" and "1.5" have none.
+    return {isIncomplete: false, items: []}
   elseif ctx.prefix =~ '#'
     items = AutoloadItems(w, ctx.prefix)
   elseif !ctx.option && complete.InCommandArg(w.line, w.col)
@@ -770,13 +775,12 @@ def Completion(params: dict<any>): any
       : {isIncomplete: false, items: []}
   elseif ctx.method
     items = complete.MethodItems(ctx.prefix, w.parsed.symbols)
-  elseif !ctx.option && index(['=', ',', ' ', '>'],
-      params->get('context', {})->get('triggerCharacter', '')) >= 0
+  elseif !ctx.option && index(['=', ',', ' ', '>'], trigger) >= 0
     # Those are there for the argument of a command and for "->"; elsewhere
     # in an expression the menu would hold every name there is.
     return {isIncomplete: false, items: []}
   else
-    items = complete.Items(w.line, w.col, w.parsed.symbols)
+    items = complete.Items(w.line, w.col, w.parsed.symbols, w.doc.lines)
     # A name with its scope, "v:version" or "s:Func", is the whole prefix; an
     # option name after "&l:" is not.
     ReplacePrefix(copy(items)->filter((_, item) => item.label =~ ':'), w,
@@ -820,7 +824,8 @@ def Exported(script: dict<any>): list<dict<any>>
     script.lines[s.line] =~ '^\s*export\s')
 enddef
 
-# What can follow "owner." at line "w.lnum": the exported names of an
+# What can follow "owner." at line "w.lnum": the functions defined in a
+# Dictionary as "function s:obj.Method()", the exported names of an
 # imported script, the members of a class or an enum named, of the class
 # of a variable, or of the class "this" is in.
 def Members(w: dict<any>, owner: string): list<dict<any>>
@@ -833,6 +838,13 @@ def Members(w: dict<any>, owner: string): list<dict<any>>
       endif
     endfor
     return []
+  endif
+  var dot = owner .. '.'
+  var funcs = parse.AllSymbols(parsed.symbols)
+    ->filter((_, s) => strpart(s.name, 0, strlen(dot)) == dot)
+    ->mapnew((_, s) => extend(copy(s), {name: strpart(s.name, strlen(dot))}))
+  if !funcs->empty()
+    return funcs
   endif
   var token = {text: owner, col: 0, end: strlen(owner), prev: ' ',
     in_string: false}

@@ -347,6 +347,17 @@ def Declarations(lines: list<string>, wrapped: list<string>,
   return out
 enddef
 
+# Without the Dictionary, which a dry run does not make, defining
+# "function s:obj.Method()" fails and leaves the body at the script level.
+# Such a function is read under a name of its own.
+const DICT_FUNC =
+  '^\s*fu\%[nction]!\=\s\+\zs\%([gs]:\)\=\h\w*\%(\.\h\w*\)\+\ze\s*('
+
+def RenameDictFuncs(lines: list<string>): list<string>
+  return lines->mapnew((i, line) => line =~ DICT_FUNC
+    ? substitute(line, DICT_FUNC, 's:Vim9lsDict' .. (i + 1), '') : line)
+enddef
+
 # What Vim reports for "lines" as the script at "path".  "wrapped" is the
 # script level of a Vim9 script as the body of a function, see wrap.vim; it
 # is appended to the script, so that it is compiled along with the rest.
@@ -362,8 +373,9 @@ def Check(path_arg: string, lines: list<string>, wrapped: any,
   if path == FullPath(SELF) || loaded_here->has_key(path)
     path ..= '.dryrun'
   endif
-  var text = type(wrapped) != v:t_list ? lines
-    : lines + ['def ScriptLevel()'] + wrapped + ['enddef']
+  var renamed = RenameDictFuncs(lines)
+  var text = type(wrapped) != v:t_list ? renamed
+    : renamed + ['def ScriptLevel()'] + wrapped + ['enddef']
   var started = localtime()
   if refresh || stale || reltimefloat(reltime(refreshed)) >= REFRESH_SECONDS
     Refresh(path)
@@ -391,7 +403,7 @@ def Check(path_arg: string, lines: list<string>, wrapped: any,
       errors->mapnew((_, e) => e->copy()->extend(
         {line: e.line - len(lines) - 1})))
     if declared != wrapped
-      Load(path, lines + ['def ScriptLevel()'] + declared + ['enddef'])
+      Load(path, renamed + ['def ScriptLevel()'] + declared + ['enddef'])
       errors = Errors(Source(':%source ++dryrun'), path)
       NoteNew(path, started)
     endif

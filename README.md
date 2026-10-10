@@ -61,11 +61,13 @@ See `:help vim9ls` for the details.
 - Hover: the help entry for the builtin function, option, Ex command or `v:`
   variable under the cursor.
 - Completion: builtin functions, options, commands, and what the script
-  defines; after a `.` the exported names of an import or the members of a
-  class, after `foo#bar#` the autoload functions of that file.  The argument
-  of a command that takes no expression is left to a client that declares
-  `cmdlineCompletion` in its experimental capabilities, to complete the way
-  `i_CTRL-X_CTRL-V` does; lsp.vim does that.
+  defines; after a `.` the exported names of an import, the members of a
+  class or the functions of a Dictionary, after `foo#bar#` the autoload
+  functions of that file, after `g:`, `s:`, `b:`, `w:` or `t:` the
+  variables of that scope the document uses.
+  The argument of a command that takes no expression is left to a client
+  that declares `cmdlineCompletion` in its experimental capabilities, to
+  complete the way `i_CTRL-X_CTRL-V` does; lsp.vim does that.
 - Document symbols: functions, variables, classes and their members, enums,
   interfaces, augroups, imports and user commands.  The same names are
   searched across the workspace with `workspace/symbol`.
@@ -152,7 +154,7 @@ given.
 
 | Method | State | Note |
 | --- | --- | --- |
-| `textDocument/completion` | yes | triggered by `&`, `:`, `=`, `,`, `>` and a space as well; `cmdlineCompletion` in the experimental capabilities, see `:help vim9ls-cmdline-completion` |
+| `textDocument/completion` | yes | triggered by `&`, `:`, `=`, `,`, `>`, `.` and a space as well; `cmdlineCompletion` in the experimental capabilities, see `:help vim9ls-cmdline-completion` |
 | `completionItem/resolve` | yes | the help entry of a builtin, fetched for the item that is looked at |
 | `textDocument/hover` | yes | the help entry; for editors other than Vim, which has `K` |
 | `textDocument/signatureHelp` | yes | triggered by `(` and `,` as well |

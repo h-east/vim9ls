@@ -48,7 +48,7 @@ export def Context(line: string, col: number): dict<any>
       || head =~ statement
         .. '\%(se\%[tlocal]\|setg\%[lobal]\)\s\+\%(\S\+\s\+\)*$',
     command: head =~ '^\s*\%(:\s*\)*$',
-    owner: matchstr(head, '\h\w*\ze\.$'),
+    owner: matchstr(head, '\%(\<[gsbwtl]:\)\=\h\w*\ze\.$'),
     method: head =~ '->$',
   }
 enddef
@@ -121,9 +121,9 @@ def BuiltinInfo(name: string): dict<any>
 enddef
 
 # The completion items for the cursor at "col" in "line"; "symbols" is what
-# the script defines.
+# the script defines and "lines" is the text of the document.
 export def Items(line: string, col: number,
-    symbols: list<dict<any>>): list<dict<any>>
+    symbols: list<dict<any>>, lines: list<string>): list<dict<any>>
   var ctx = Context(line, col)
   var prefix = ctx.prefix
   var items: list<dict<any>> = []
@@ -160,6 +160,16 @@ export def Items(line: string, col: number,
   if prefix =~ '^v:'
     for name in getcompletion(prefix, 'var')
       Add(name, KIND_VARIABLE, '', name)
+    endfor
+  endif
+  # The variables of the server's own Vim are not the client's; only the
+  # names the document uses are known.
+  if prefix =~ '^[gsbwt]:'
+    var pat = '\<' .. prefix .. (prefix =~ ':$' ? '\h\w*' : '\w*')
+    for m in matchstrlist(lines, pat)
+      if m.text != prefix
+        Add(m.text, KIND_VARIABLE)
+      endif
     endfor
   endif
   for symbol in parse.AllSymbols(symbols)

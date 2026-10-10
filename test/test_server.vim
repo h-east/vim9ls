@@ -31,7 +31,7 @@ def g:Test_initialize()
   assert_equal({openClose: true, change: 2, save: true}, caps.textDocumentSync)
   assert_true(caps.hoverProvider)
   assert_true(caps.documentSymbolProvider)
-  assert_equal(['&', ':', '=', ',', ' ', '>'],
+  assert_equal(['&', ':', '=', ',', ' ', '>', '.'],
     caps.completionProvider.triggerCharacters)
   assert_equal(['(', ','], caps.signatureHelpProvider.triggerCharacters)
   assert_true(caps.inlayHintProvider)
@@ -293,6 +293,8 @@ def g:Test_completion()
     'ec',
     'echo TestF',
     'echo v:ver',
+    'g:my_flag = 1',
+    'echo g:my',
   ])
 
   var resp = helper.Request('textDocument/completion', helper.Params(4, 9))
@@ -328,6 +330,14 @@ def g:Test_completion()
   assert_equal({range: {start: {line: 9, character: 5},
     end: {line: 9, character: 10}}, newText: 'v:version'},
     items[Labels(items)->index('v:version')].textEdit)
+
+  # A global variable the document uses, but not the word being typed.
+  resp = helper.Request('textDocument/completion', helper.Params(11, 9))
+  items = resp.result.items
+  assert_equal({range: {start: {line: 11, character: 5},
+    end: {line: 11, character: 9}}, newText: 'g:my_flag'},
+    items[Labels(items)->index('g:my_flag')].textEdit)
+  assert_equal(-1, Labels(items)->index('g:my'))
 
   # The help entry of a builtin comes with completionItem/resolve; an item
   # of the script comes back as it is.
@@ -521,6 +531,7 @@ def g:Test_completion_members()
       'endenum',
       'echo Color.',
       'echo strlen.',
+      'echo 1.',
     ], uri)
     var Items = (line: number, col: number) => helper.Request(
       'textDocument/completion', helper.Params(line, col, uri)).result.items
@@ -539,6 +550,15 @@ def g:Test_completion_members()
     assert_equal(['Area', 'width'], Names(15, 11))
     assert_equal(['Blue', 'Red'], Names(20, 11))
     assert_equal([], Names(21, 12))
+
+    # "." brings the menu on after a name with members, and gives nothing
+    # elsewhere.
+    var Triggered = (line: number, col: number) => helper.Request(
+      'textDocument/completion', extend(helper.Params(line, col, uri),
+        {context: {triggerKind: 2, triggerCharacter: '.'}})).result.items
+      ->mapnew((_, i) => i.label)->sort()
+    assert_equal(['Greet', 'greeting'], Triggered(3, 9))
+    assert_equal([], Triggered(22, 7))
   finally
     delete(root, 'rf')
   endtry
@@ -1414,6 +1434,26 @@ def g:Test_compile_global_function_of_another_script()
   var diags = helper.WaitNotification('textDocument/publishDiagnostics')
   assert_equal(helper.URI, diags.params.uri)
   assert_equal([], diags.params.diagnostics)
+  helper.StopServer()
+enddef
+
+# The functions of a Dictionary that ":let" makes in a legacy script give no
+# error and are completed after its name.
+def g:Test_dictionary_functions()
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc([
+    'let s:lib = {}',
+    'function s:lib.Format() abort',
+    '  return 1',
+    'endfunction',
+    'echo s:lib.',
+  ])
+  var diags = helper.WaitNotification('textDocument/publishDiagnostics')
+  assert_equal([], diags.params.diagnostics)
+  var items = helper.Request('textDocument/completion',
+    helper.Params(4, 11)).result.items
+  assert_equal(['Format'], Labels(items))
   helper.StopServer()
 enddef
 

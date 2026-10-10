@@ -118,12 +118,15 @@ stands, not turned into Markdown.
 Completion ~
 Builtin functions, plus the functions, variables, classes and other names the
 script defines.  After "&" and in a ":set" command: options.  At the start of
-a statement: Ex commands as well.  "v:" variables after "v:".
+a statement: Ex commands as well.  "v:" variables after "v:".  After "g:",
+"s:", "b:", "w:" or "t:": the variables of that scope the document uses.
 After a ".": the exported names of the imported script when the name before
 it is the alias of an import, the members of a class or an enum when it is
 their name, of the class a variable is declared with or made with
-"Class.new()", and of the class around "this".  After "foo#bar#": the
-functions of autoload/foo/bar.vim and the files below it as "foo#bar#name#".
+"Class.new()", of the class around "this", and the functions defined as
+"function s:obj.Method()" after "s:obj."; "." brings the menu on there and
+gives nothing elsewhere.  After "foo#bar#": the functions of
+autoload/foo/bar.vim and the files below it as "foo#bar#name#".
 After "->": the builtin functions that can be called as a |method|, the
 functions of the script that take an argument, and the Funcref variables of
 the script; ">" brings the menu on there and gives nothing elsewhere.  A
@@ -342,7 +345,9 @@ the keys find it when typed, and reports a function that is not found and a
 wrong number of arguments.  A capitalized name found nowhere is left alone,
 another script may define it.
 What a legacy "function" does is not read until it is called, and neither is
-a mapping or an autocommand.
+a mapping or an autocommand.  A dry run does not execute ":let", so the
+Dictionary of "function s:obj.Method()" does not exist; the checker reads
+such a function under a name of its own.
 
 Workspace diagnostics ~
 A client that asks with "workspace/diagnostic" is told about the "*.vim" files
