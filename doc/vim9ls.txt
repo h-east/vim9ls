@@ -132,6 +132,10 @@ functions of the script that take an argument, and the Funcref variables of
 the script; ">" brings the menu on there and gives nothing elsewhere.  A
 global function a plugin defines is not among them: it is known to the Vim
 that is editing, not to the document or to Vim itself.
+The word typed is matched the way |matchfuzzy()| does, "l2s" for
+"list2str()", and the client narrows the items down further, see
+'completeopt'.  A scope, "g:", and an autoload head, "foo#bar#", are matched
+as they are: "g:cn" gives "g:CamelName", "cn" does not.
 In the argument of a command that takes no expression, ":set completeopt="
 for one: nothing, since the current value of an option, file names and the
 like are the client's.  A client that declares "cmdlineCompletion" in its

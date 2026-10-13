@@ -363,6 +363,54 @@ def g:Test_completion()
   assert_match("^'textwidth' 'tw'", resp.result.detail)
 enddef
 
+# A name matches the way matchfuzzy() does, after its scope as it is.
+def g:Test_completion_fuzzy()
+  var lines = [
+    'vim9script',
+    'def g:CamelName()',
+    'enddef',
+    'def CamelCase(s: string)',
+    'enddef',
+    'g:camel_flag = 1',
+    'enum Color',
+    '  DarkRed,',
+    '  Blue',
+    'endenum',
+    'echo g:cn',
+    'echo cc',
+    'echo s:cn',
+    'echo g:cf',
+    'echo l2s',
+    'echo mbl',
+    "echo 'x'->cc",
+    'echo &sts',
+    'ecm',
+    'echo Color.dr',
+  ]
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc(lines)
+  var Items = (lnum: number) => helper.Request('textDocument/completion',
+    helper.Params(lnum, strlen(lines[lnum]))).result.items
+  var Names = (lnum: number) => Labels(Items(lnum))
+
+  var items = Items(10)
+  assert_equal({range: {start: {line: 10, character: 5},
+    end: {line: 10, character: 9}}, newText: 'g:CamelName'},
+    items[Labels(items)->index('g:CamelName')].textEdit)
+  assert_true(Names(11)->index('CamelCase') >= 0)
+  # A scope is not skipped, nor taken for another.
+  assert_equal(-1, Names(11)->index('g:CamelName'))
+  assert_equal(-1, Names(12)->index('g:CamelName'))
+  assert_true(Names(13)->index('g:camel_flag') >= 0)
+  assert_true(Names(14)->index('list2str') >= 0)
+  assert_true(Names(15)->index('matchbufline') >= 0)
+  assert_true(Names(16)->index('CamelCase') >= 0)
+  assert_true(Names(17)->index('softtabstop') >= 0)
+  assert_true(Names(18)->index('echomsg') >= 0)
+  assert_equal(['DarkRed'], Names(19))
+enddef
+
 # In the argument of a command the client is asked to complete as Vim does
 # on the command line, when it takes that; an expression is completed here.
 def g:Test_completion_command_argument()
@@ -482,7 +530,7 @@ def g:Test_completion_method()
   labels = Labels(helper.Request('textDocument/completion',
     helper.Params(8, strlen(lines[8]))).result.items)
   assert_true(labels->index('split') >= 0)
-  assert_equal([], labels->copy()->filter((_, l) => l !~ '^sp'))
+  assert_equal([], labels->copy()->filter((_, l) => l !~? 's.*p'))
 
   # A ">" that is not part of "->" gives nothing.
   assert_equal({isIncomplete: false, items: []},
