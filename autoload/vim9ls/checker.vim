@@ -11,6 +11,8 @@ vim9script
 # carry ":silent!": an error would abort the ":def" it runs in, while what
 # is reported still reaches ":redir".
 
+import autoload './util.vim'
+
 var conn: channel
 
 const SELF = expand('<sfile>:p')
@@ -24,8 +26,7 @@ const RUNTIMEPATH = &runtimepath
 # An "after" directory goes last, its parent first: Vim does not import from
 # an "after" directory.
 def Load(path: string, lines: list<string>)
-  var root = matchstr(path,
-    '.*\ze[/\\]\%(autoload\|plugin\|ftplugin\|import\|syntax\|indent\)[/\\]')
+  var root = util.PluginRoot(path)
   if root == ''
     &runtimepath = RUNTIMEPATH
   elseif root =~ '[/\\]after$'

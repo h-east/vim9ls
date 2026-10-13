@@ -1691,6 +1691,14 @@ def g:Test_compile_import_of_own_plugin()
     helper.OpenDoc(after, after_uri)
     assert_equal([], helper.WaitNotification('textDocument/publishDiagnostics')
       .params.diagnostics)
+
+    # So does a script the plugin keeps in a directory of its own.
+    mkdir(root .. '/one/private/one', 'p')
+    var private_uri = util.PathToUri(root .. '/one/private/one/x.vim')
+    writefile(after, root .. '/one/private/one/x.vim')
+    helper.OpenDoc(after, private_uri)
+    assert_equal([], helper.WaitNotification('textDocument/publishDiagnostics')
+      .params.diagnostics)
   finally
     helper.StopServer()
     delete(root, 'rf')

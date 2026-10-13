@@ -36,6 +36,17 @@ def g:Test_column_conversion()
   assert_equal(8, util.ColFromLsp(line, 3, 'utf-32'))
 enddef
 
+def g:Test_plugin_root()
+  var root = util.FullPath(tempname())
+  mkdir(root .. '/autoload', 'pR')
+  mkdir(root .. '/private/sub', 'p')
+  assert_equal(root, util.PluginRoot(root .. '/autoload/a.vim'))
+  assert_equal(root, util.PluginRoot(root .. '/syntax/a.vim'))
+  assert_equal(root, util.PluginRoot(root .. '/private/sub/a.vim'))
+  assert_equal('', util.PluginRoot(util.FullPath(tempname())
+    .. '/private/sub/a.vim'))
+enddef
+
 def g:Test_range()
   var lines = ['abc', 'aあb']
   var range = util.Range(lines, 0, 1, 1, 4, 'utf-16')

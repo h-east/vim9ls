@@ -41,6 +41,27 @@ export def FullPath(path: string): string
   return has('win32') ? substitute(full, '\\', '/', 'g') : full
 enddef
 
+# The directory of the plugin the script at "path" belongs to: the one above
+# its autoload, plugin, ftplugin, import, syntax or indent directory, or else
+# the nearest one above it with an autoload or plugin directory.  "" when
+# there is none below the home directory.
+export def PluginRoot(path: string): string
+  var root = matchstr(path,
+    '.*\ze[/\\]\%(autoload\|plugin\|ftplugin\|import\|syntax\|indent\)[/\\]')
+  if root != ''
+    return root
+  endif
+  var home = substitute(FullPath(expand('~')), '[/\\]$', '', '')
+  var dir = fnamemodify(path, ':h')
+  while dir != home && dir != fnamemodify(dir, ':h')
+    if isdirectory(dir .. '/autoload') || isdirectory(dir .. '/plugin')
+      return dir
+    endif
+    dir = fnamemodify(dir, ':h')
+  endwhile
+  return ''
+enddef
+
 export def PathToUri(path: string): string
   var full = FullPath(path)
   # A drive letter needs a leading slash: "C:/x" becomes "/C:/x".

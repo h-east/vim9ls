@@ -242,12 +242,13 @@ found next to the script, an autoload import in the autoload directories above
 it and in $VIMRUNTIME.  A legacy "foo#bar#Func()" goes to autoload/foo/bar.vim
 the same way.
 References and rename follow an exported name and a legacy autoload function
-into the other scripts: those of the plugin the defining script belongs to,
-which is the directory above its autoload, plugin, ftplugin, import, syntax
-or indent directory, and the open documents.  A use is the name after the
-alias of an import of that script, or the autoload name "foo#bar#Func" spelled
-out, also in a string.  Scripts elsewhere on 'runtimepath', and a name put
-together at runtime, are not found.
+into the other scripts: those of the plugin the defining script belongs to
+and the open documents.  The plugin is the directory above its autoload,
+plugin, ftplugin, import, syntax or indent directory, or else the nearest
+directory above it with an autoload or plugin directory.  A use is the name
+after the alias of an import of that script, or the autoload name
+"foo#bar#Func" spelled out, also in a string.  Scripts elsewhere on
+'runtimepath', and a name put together at runtime, are not found.
 Rename changes the name proper and leaves a "s:" or "<SID>", or the "foo#bar#"
 of an autoload name, in place.  A name that is not defined in the document
 and not shared by the script that defines it, a builtin for one, cannot be

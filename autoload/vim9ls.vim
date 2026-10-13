@@ -28,7 +28,7 @@ import autoload './vim9ls/selection.vim'
 import autoload './vim9ls/unused.vim'
 import autoload './vim9ls/cache.vim'
 
-export const VERSION = '0.1.017'
+export const VERSION = '0.1.018'
 
 const SCRIPT = expand('<sfile>:p')
 
@@ -1085,11 +1085,9 @@ def Shared(hit: dict<any>): dict<any>
 enddef
 
 # The scripts that may use what the script at "path" defines: the others of
-# the plugin it belongs to, the directory above its autoload, plugin,
-# ftplugin, import, syntax or indent directory, and the open documents.
+# the plugin it belongs to and the open documents.
 def UsersOf(path: string): list<string>
-  var root = matchstr(path,
-    '.*\ze[/\\]\%(autoload\|plugin\|ftplugin\|import\|syntax\|indent\)[/\\]')
+  var root = util.PluginRoot(path)
   var paths = root == '' ? [] : glob(root .. '/**/*.vim', true, true)
     ->map((_, f) => util.FullPath(f))
   for uri in keys(docs)
