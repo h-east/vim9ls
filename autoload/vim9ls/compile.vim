@@ -20,7 +20,7 @@ export var checker_script = expand('<sfile>:p:h') .. '/checker.vim'
 export var check_msecs = 5000
 
 var job: job
-# The check the checker has, {id, Done, timer, path}, or null_dict.
+# The check the checker has, {id, Done, timer, path, file}, or null_dict.
 var current: dict<any> = null_dict
 # The paths of the checks that wait for it, oldest first, and the checks by
 # path, {path, lines, wrapped, definitions, Done}.
@@ -63,6 +63,7 @@ def Kill()
     var p = current
     current = null_dict
     timer_stop(p.timer)
+    delete(p.file)
     p.Done(null)
   endif
 enddef
@@ -94,16 +95,26 @@ def Next()
     var w = waiting->empty()
       ? remove(background_checks, remove(background, 0))
       : remove(waiting_checks, remove(waiting, 0))
-    var sent = ch_sendexpr(job, {method: 'check',
-      params: {path: w.path, lines: w.lines, wrapped: w.wrapped,
-        definitions: w.definitions, refresh: changed, calls: w.calls}},
-      {callback: OnReply})
+    # The text goes in a file: on MS-Windows Vim drops a message bigger than
+    # a pipe holds when the checker does not read it at once.
+    var file = tempname()
+    var sent: any = null
+    try
+      writefile([json_encode({lines: w.lines, wrapped: w.wrapped,
+        definitions: w.definitions, calls: w.calls})], file)
+      sent = ch_sendexpr(job, {method: 'check',
+        params: {path: w.path, file: file, refresh: changed}},
+        {callback: OnReply})
+    catch
+      util.Log($'the checker was not asked about {w.path}: {v:exception}')
+    endtry
     if type(sent) != v:t_dict || !sent->has_key('id')
+      delete(file)
       w.Done(null)
       continue
     endif
     changed = false
-    current = {id: sent.id, Done: w.Done, path: w.path,
+    current = {id: sent.id, Done: w.Done, path: w.path, file: file,
       timer: timer_start(check_msecs, (_) => Unanswered(sent.id))}
   endwhile
 enddef
@@ -150,6 +161,7 @@ def OnReply(_: channel, resp: dict<any>)
   var p = current
   current = null_dict
   timer_stop(p.timer)
+  delete(p.file)
   if resp->has_key('error')
     util.Log($'the checker failed for {p.path}: {resp.error.message}')
   endif

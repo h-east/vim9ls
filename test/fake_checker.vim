@@ -8,8 +8,9 @@ var stuck = false
 def OnMessage(ch: channel, msg: any)
   stuck = stuck || msg.params.path =~ 'hang'
   if !stuck
+    var lines = json_decode(readfile(msg.params.file)->join("\n")).lines
     ch_sendexpr(ch, {id: msg.id, result: {
-      errors: [{line: 0, message: join([msg.params.path] + msg.params.lines)}]}})
+      errors: [{line: 0, message: join([msg.params.path] + lines)}]}})
   endif
 enddef
 

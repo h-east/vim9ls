@@ -810,10 +810,12 @@ enddef
 def OnMessage(ch: channel, msg: any)
   if get(msg, 'method', '') == 'check'
     try
+      # The text of the script is in a file, see compile.Next().
+      var p = extend(copy(msg.params),
+        json_decode(readfile(msg.params.file)->join("\n")))
       ch_sendexpr(ch, {id: msg.id, result: {
-        errors: Check(msg.params.path, msg.params.lines, msg.params.wrapped,
-          msg.params->get('refresh', true), msg.params->get('calls', []),
-          msg.params->get('definitions', {})),
+        errors: Check(p.path, p.lines, p.wrapped, p->get('refresh', true),
+          p->get('calls', []), p->get('definitions', {})),
       }})
     catch
       ch_sendexpr(ch, {id: msg.id, error: {code: -32603,
