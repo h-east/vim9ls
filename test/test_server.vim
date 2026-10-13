@@ -1732,21 +1732,6 @@ def g:Test_compile_enum()
   helper.StopServer()
 enddef
 
-# A script bigger than a pipe holds is checked as well, see compile.Next().
-def g:Test_compile_big_document()
-  var lines = ['vim9script'] + range(3000)->mapnew((i, _) =>
-    $"var long_name_of_a_variable_{i}: string = 'some text to make it long'")
-    + ['def F(): number', "  return 'x'", 'enddef']
-  assert_true(strlen(join(lines, "\n")) > 3 * 65536)
-  helper.StartServer()
-  helper.Initialize()
-  helper.OpenDoc(lines)
-  assert_equal([[3002, 'E1012: Type mismatch; expected number but got string']],
-    helper.WaitNotification('textDocument/publishDiagnostics')
-    .params.diagnostics->mapnew((_, d) => [d.range.start.line, d.message]))
-  helper.StopServer()
-enddef
-
 # A script that imports one being edited is checked against its file.
 def g:Test_compile_import_of_edited_document()
   var root = helper.HERE .. '/Xedited'

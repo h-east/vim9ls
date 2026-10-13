@@ -122,6 +122,29 @@ def g:Test_workspace_diagnostic()
   endtry
 enddef
 
+# A script bigger than a pipe holds is checked as well, see compile.Next().
+# The server reads it from the file: a message that big from the client
+# fails on MS-Windows.
+def g:Test_workspace_diagnostic_big_script()
+  mkdir(ROOT, 'pR')
+  var lines = ['vim9script'] + range(3000)->mapnew((i, _) =>
+    $"var long_name_of_a_variable_{i}: string = 'some text to make it long'")
+    + ['def F(): number', "  return 'x'", 'enddef']
+  assert_true(strlen(join(lines, "\n")) > 3 * 65536)
+  writefile(lines, ROOT .. '/big.vim')
+  reports = {}
+  try
+    Start([ROOT])
+    helper.Send('workspace/diagnostic',
+      {previousResultIds: [], partialResultToken: 'tok'}, (_) => {
+      })
+    assert_equal(['E1012: Type mismatch; expected number but got string'],
+      WaitReport('tok', 'big.vim', 'E1012'))
+  finally
+    helper.StopServer()
+  endtry
+enddef
+
 # A folder with more scripts than "workspace.maxFiles" of the initialization
 # options has the first of them read, and the client is told.  A value that
 # is not a positive number is told about, and the default is used.
