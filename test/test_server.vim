@@ -3,6 +3,7 @@ vim9script
 import './helper.vim'
 import './test_parse.vim' as samples
 import autoload '../autoload/vim9ls/util.vim'
+import autoload '../autoload/vim9ls/selection.vim'
 
 import autoload '../autoload/vim9ls.vim'
 
@@ -947,6 +948,32 @@ def Chain(lnum: number, character: number): list<list<number>>
   return out
 enddef
 
+# A statement found from the lines around it: an operator at the start or
+# the end of a line goes on, and so do an empty line and a comment within.
+def g:Test_statement_at()
+  var lines = [
+    'var a = 1',
+    'var b = [',
+    '  1,',
+    '',
+    '  # two',
+    '  2]',
+    'var c = a',
+    '  + b[0]',
+    'echo c # comment,',
+    'echo c',
+  ]
+  assert_equal([0, 0], selection.StatementAt(lines, 0))
+  assert_equal([1, 5], selection.StatementAt(lines, 1))
+  assert_equal([1, 5], selection.StatementAt(lines, 3))
+  assert_equal([1, 5], selection.StatementAt(lines, 5))
+  assert_equal([6, 7], selection.StatementAt(lines, 7))
+  assert_equal([8, 8], selection.StatementAt(lines, 8))
+  assert_equal([9, 9], selection.StatementAt(lines, 9))
+  # No further than "reach" lines.
+  assert_equal([2, 3], selection.StatementAt(lines, 3, 1))
+enddef
+
 def g:Test_selection_range()
   helper.StartServer()
   helper.Initialize()
@@ -1293,19 +1320,15 @@ def g:Test_compile_diagnostics()
   assert_equal([], After(['vim9script', 'legacy let $X = 1', 'def Fine()',
     '  legacy let x = 1', 'enddef'], 3))
 
-  # A "const" is left alone and what comes after "finish" is read as well.
-  # With a dry run every line with an error is reported, in a function and
-  # at the script level; without one Vim stops at the first error of each.
-  assert_equal(util.DRYRUN ? [
+  # A "const" is left alone, what comes after "finish" is read as well, and
+  # every line with an error is reported, in a function and at the script
+  # level.
+  assert_equal([
     [1, 'E1012: Type mismatch; expected number but got string'],
     [4, 'E1012: Type mismatch; expected number but got string'],
     [6, 'Unused variable: s'],
     [6, 'E1012: Type mismatch; expected string but got number'],
     [7, 'E1001: Variable not found: undefined_name'],
-  ] : [
-    [1, 'E1012: Type mismatch; expected number but got string'],
-    [6, 'Unused variable: s'],
-    [6, 'E1012: Type mismatch; expected string but got number'],
   ], After(['vim9script', 'var n: number = "t"', 'const LIMIT = 10', 'finish',
       'var m: number = "s"', 'def Two(): number', '  var s: string = 1',
       '  echo undefined_name', '  return 1', 'enddef'], 3))
@@ -1407,6 +1430,47 @@ enddef
 # A variable of a block at the script level may have the name of a script
 # variable declared further on, as Vim reads the script in order; one
 # declared before is still reported.
+# Vim stops a function at its first error; the checker reads the script again
+# with that statement made harmless, for the errors after it.
+def g:Test_compile_recovery()
+  helper.StartServer()
+  helper.Initialize()
+  var Errors = (lines: list<string>, version: number): list<list<any>> =>
+    After(lines, version)->filter((_, e) => e[1] =~ '^E\d')
+  helper.OpenDoc(['vim9script'])
+  helper.WaitNotification('textDocument/publishDiagnostics')
+
+  # A declaration keeps its name and type: what uses it is no error.
+  assert_equal([[2, 'E1012: Type mismatch; expected string but got number'],
+    [4, 'E1012: Type mismatch; expected number but got string']],
+    Errors(['vim9script', 'def F()', '  var s: string = 1', '  echo s',
+      "  var n: number = 'x'", '  echo n', 'enddef'], 2))
+  # A condition and what is inside its block.
+  assert_equal([[2, 'E1001: Variable not found: undefined_a'],
+    [3, 'E1012: Type mismatch; expected number but got string']],
+    Errors(['vim9script', 'def F()', '  if undefined_a',
+      "    var n: number = 'x'", '  endif', 'enddef'], 3))
+  # A statement in the block of a lambda is one of its own.
+  assert_equal([[3, 'E1012: Type mismatch; expected number but got string'],
+    [6, 'E1001: Variable not found: undefined_q']],
+    Errors(['vim9script', 'def F()', '  var L = [1]->map((_, v) => {',
+      "    var n: number = 'x'", '    return v', '  })',
+      '  echo undefined_q', 'enddef'], 7))
+  # A call of a function that failed only for an error that is gone now.
+  assert_equal([[2, 'E1012: Type mismatch; expected number but got string']],
+    Errors(['vim9script', 'def A()', "  var n: number = 'x'", 'enddef',
+      'def B()', '  A()', 'enddef'], 4))
+  # Nothing after a "return" with an error.
+  assert_equal([[2, 'E1012: Type mismatch; expected number but got string']],
+    Errors(['vim9script', 'def R(): number', "  return 'x'",
+      "  var n: number = 'y'", 'enddef'], 5))
+  # The script is read again 20 times at most.
+  var many = ['vim9script', 'def M()']
+    + range(25)->mapnew((i, _) => $"  var v{i}: number = 'x'") + ['enddef']
+  assert_equal(21, len(Errors(many, 6)))
+  helper.StopServer()
+enddef
+
 def g:Test_compile_block_variable_declared_later()
   helper.StartServer()
   helper.Initialize()

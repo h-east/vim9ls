@@ -17,6 +17,7 @@ vim9script
 import autoload './util.vim'
 import autoload './parse.vim'
 import autoload './defs.vim'
+import autoload './selection.vim'
 
 const DRYRUN = util.DRYRUN
 
@@ -475,6 +476,146 @@ def RenameDictFuncs(lines: list<string>): list<string>
     ? substitute(line, DICT_FUNC, 's:Vim9lsDict' .. (i + 1), '') : line)
 enddef
 
+# How many times a script is read again for the errors after the first one
+# of a function.
+const MAX_ROUNDS = 20
+
+# The lines in the body of each ":def" function and method of "lines", past
+# its header.  A method of an interface and an abstract one have no body.
+def Bodies(lines: list<string>): dict<bool>
+  var bodies: dict<bool> = {}
+  var starts: list<number> = []
+  var interface = false
+  for lnum in range(len(lines))
+    var line = lines[lnum]
+    if stridx(line, 'def') < 0 && stridx(line, 'interface') < 0
+      continue
+    endif
+    if line =~ '^\s*\%(export\s\+\)\=interface\s'
+      interface = true
+    elseif line =~ '^\s*endinterface\>'
+      interface = false
+    elseif line =~ '^\s*enddef\>' && !starts->empty()
+      for k in range(remove(starts, -1), lnum - 1)
+        bodies[k] = true
+      endfor
+    elseif !interface
+        && line =~ '^\s*\%(\%(export\|static\|public\)\s\+\)*def\s'
+      add(starts, selection.StatementAt(lines, lnum)[1] + 1)
+    endif
+  endfor
+  return bodies
+enddef
+
+# "text" with the statement from line "first" to "last" made harmless, so
+# that compiling goes on after it, or an empty list when it cannot be: a
+# declaration loses its value, then its type, a condition becomes a
+# constant, and another statement is blanked.  "times" is how often it was
+# made harmless before.
+def Harmless(text: list<string>, first: number, last: number,
+    times: number): list<string>
+  var line = text[first]
+  var indent = matchstr(line, '^\s*')
+  var made = ''
+  var m = matchlist(line, '^\s*\%(var\|const\|final\)\s\+'
+    .. '\(\[[^]]*\]\|\h\w*\)\%(\s*:\s*\([^=]\{-}\)\)\=\s*\%(=\(.*\)\)\=$')
+  if !m->empty()
+    if times >= 2 || m[3] =~ '^<<'
+      return []
+    endif
+    var type = times == 0 && m[2] != '' ? trim(m[2]) : 'any'
+    made = indent .. split(trim(m[1], '[]'), ',\s*')
+      ->mapnew((_, n) => 'var ' .. n .. ': ' .. type)->join(' | ')
+  elseif times > 0
+      || line =~ '^\s*\%(end\h*\|else\|finally\|try\|return\|def\)\>'
+      || line =~ '^\s*\%(fu\%[nction]\>\|[{}]\s*$\)'
+    return []
+  elseif line =~ '^\s*\%(if\|elseif\)\>'
+    made = indent .. matchstr(line, '^\s*\zs\a\+') .. ' true'
+  elseif line =~ '^\s*while\>'
+    made = indent .. 'while false'
+  elseif line =~ '^\s*for\s'
+    made = indent .. matchstr(line, '^\s*\zsfor\s.\{-}\s\+in\>') .. ' []'
+  elseif line =~ '^\s*catch\>'
+    made = indent .. 'catch'
+  endif
+  var out = copy(text)
+  out[first] = made
+  for lnum in range(first + 1, last)
+    out[lnum] = ''
+  endfor
+  return out
+enddef
+
+# The errors of "text", the script at "path" read with "cmd", after
+# "first_errors", where Vim stopped each function: the statement of each
+# error is made harmless and the text read again, until none can be.
+# "lines" is the document; the text has a line for each of its lines, and
+# again for the script level after the header line.  An error of a call to
+# a function that failed to compile is kept only when the last reading gives
+# it too.
+def Recover(path: string, cmd: string, text: list<string>,
+    lines: list<string>, first_errors: list<dict<any>>,
+    started: number): list<dict<any>>
+  var count = len(lines)
+  var bodies = Bodies(lines)
+  var all = copy(first_errors)
+  var errors = first_errors
+  var current = text
+  var tried: dict<number> = {}
+  for _ in range(MAX_ROUNDS)
+    var changed = false
+    for e in errors
+      # The line of the document, and how far the text has it further down.
+      var lnum = e.line > count ? e.line - count - 1 : e.line
+      var shift = e.line - lnum
+      # A call of a function that failed compiles once that function does.
+      # A line that opens the block of a lambda cannot go without its end.
+      if lnum < 0 || lnum >= count || (shift == 0 && !bodies->has_key(lnum))
+          || e.message =~ '^E1191:' || lines[lnum] =~ '{\s*$'
+        continue
+      endif
+      # A statement in the block of a lambda is one of its own, though the
+      # lines of the lambda go on from the one that opens it.
+      var [first, last] = selection.StatementAt(lines, lnum)
+      for k in range(lnum - 1, first, -1)
+        if lines[k] =~ '{\s*$'
+          first = k + 1
+          break
+        endif
+      endfor
+      for k in range(lnum + 1, last)
+        if lines[k] =~ '^\s*}'
+          last = k - 1
+          break
+        endif
+      endfor
+      first += shift
+      var times = tried->get(first, 0)
+      var made = Harmless(current, first, last + shift, times)
+      if !made->empty()
+        current = made
+        tried[first] = times + 1
+        changed = true
+      endif
+    endfor
+    if !changed
+      break
+    endif
+    Load(path, current)
+    errors = Errors(Source(cmd), path)
+    NoteNew(path, started)
+    for e in errors
+      # Vim reports a block left open at the end of the function, the
+      # parser on the line that opens it.
+      if index(all, e) < 0 && e.message !~ '^E\%(170\|171\|600\|1026\):'
+        add(all, e)
+      endif
+    endfor
+  endfor
+  return all->filter((_, e) => e.message !~ '^E1191:' || index(errors, e) >= 0)
+enddef
+
 # "base" with "wrapped", the script level as a function, appended, and the
 # command that compiles the functions when no dry run does.
 def Text(base: list<string>, wrapped: any): list<string>
@@ -540,10 +681,14 @@ def Check(path_arg: string, lines: list<string>, wrapped: any,
       errors->mapnew((_, e) => e->copy()->extend(
         {line: e.line - len(lines) - 1})))
     if declared != wrapped
-      Load(path, Text(base, declared))
+      text = Text(base, declared)
+      Load(path, text)
       errors = Errors(Source(cmd), path)
       NoteNew(path, started)
     endif
+  endif
+  if !DRYRUN && !errors->empty()
+    errors = Recover(path, cmd, text, lines, errors, started)
   endif
   for e in errors
     if e.line > len(lines)

@@ -239,6 +239,53 @@ def Run(line: string, col: number, pat: string): list<number>
   return [begin, stop]
 enddef
 
+# Whether the Vim9 "line" reaches the line below it, a comment at its end
+# left out.
+def Reaches(line: string): bool
+  var text = trim(substitute(line, '\s#\%(\s.*\)\=$', '', ''), " \t")
+  var tail = strpart(text, strlen(text) - 1, 1)
+  return stridx(TRAILEND, tail) >= 0
+    || (stridx('&|>', tail) >= 0 && text =~ TRAILPAIR)
+enddef
+
+# Whether "line" carries on the line above it.
+def CarriesOn(line: string): bool
+  var head = matchstr(line, '^\s*\zs\S')
+  return head == '\' || (stridx(OPSTART, head) >= 0 && line =~ CONTINUES)
+enddef
+
+# The first and the last line of the Vim9 statement at "lnum", found from the
+# lines around it, at most "reach" lines away.  An empty line or a comment
+# goes with the lines around it when they go on.
+export def StatementAt(lines: list<string>, lnum: number,
+    reach = 100): list<number>
+  var Blank = (l: string) => l =~ '^\s*\%(#\|$\)'
+  var first = lnum
+  while first > 0 && first > lnum - reach
+    var above = first - 1
+    while above > 0 && above > lnum - reach && Blank(lines[above])
+      above -= 1
+    endwhile
+    if Blank(lines[above])
+        || !(CarriesOn(lines[first]) || Reaches(lines[above]))
+      break
+    endif
+    first = above
+  endwhile
+  var last = lnum
+  while last < len(lines) - 1 && last < lnum + reach
+    var below = last + 1
+    while below < len(lines) - 1 && below < lnum + reach && Blank(lines[below])
+      below += 1
+    endwhile
+    if Blank(lines[below]) || !(Reaches(lines[last]) || CarriesOn(lines[below]))
+      break
+    endif
+    last = below
+  endwhile
+  return [first, last]
+enddef
+
 # The statement at "lnum", from the line it begins on to the one it ends on.
 def Statement(lines: list<string>, scan: dict<any>,
     lnum: number): list<number>
