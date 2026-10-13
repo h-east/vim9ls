@@ -24,6 +24,12 @@ if !has('job') || !has('channel') || !has('patch-9.2.1160')
   cquit 1
 endif
 
+# What an earlier run left: the logs, and the directories of tests that
+# were cut short.
+for name in glob(HERE .. '/X*', true, true)
+  delete(name, 'rf')
+endfor
+
 import './helper.vim'
 
 var failed: list<string> = []

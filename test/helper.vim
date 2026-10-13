@@ -4,9 +4,8 @@ vim9script
 export const HERE = expand('<sfile>:p:h')
 export const SERVER = fnamemodify(HERE, ':h') .. '/autoload/vim9ls.vim'
 # The temporary directory of the servers, where they log, a file each;
-# emptied for every run.
+# runtest.vim empties it for every run.
 export const LOG = HERE .. '/Xlog'
-delete(LOG, 'rf')
 mkdir(LOG, 'p')
 # Where the servers keep what they found in the workspace, instead of the
 # cache of the user.

@@ -543,7 +543,7 @@ enddef
 # and nothing else.
 def g:Test_completion_members()
   var root = helper.HERE .. '/Xproj'
-  mkdir(root .. '/autoload/xold', 'p')
+  mkdir(root .. '/autoload/xold', 'pR')
   mkdir(root .. '/plugin', 'p')
   writefile(['vim9script', 'export def Greet(): string', "  return 'hi'",
     'enddef', 'def Hidden()', 'enddef', 'export var greeting = 1'],
@@ -553,63 +553,59 @@ def g:Test_completion_members()
   writefile(['vim9script'], root .. '/autoload/xold/sub.vim')
   var main = root .. '/plugin/xmain.vim'
   var uri = util.PathToUri(main)
-  try
-    helper.StartServer()
-    helper.Initialize()
-    helper.OpenDoc([
-      'vim9script',
-      "import autoload 'xlib.vim' as lib",
-      'echo lib.Gr',
-      'echo lib.',
-      'call xold#F',
-      'class Shape',
-      '  var width: number',
-      '  def Area(): number',
-      '    return this.',
-      '  enddef',
-      'endclass',
-      'var s: Shape = Shape.new()',
-      'echo s.',
-      'var t = Shape.new()',
-      'echo t.',
-      'echo Shape.',
-      'enum Color',
-      '  Red,',
-      '  Blue',
-      'endenum',
-      'echo Color.',
-      'echo strlen.',
-      'echo 1.',
-    ], uri)
-    var Items = (line: number, col: number) => helper.Request(
-      'textDocument/completion', helper.Params(line, col, uri)).result.items
-    var Names = (line: number, col: number) => Items(line, col)
-      ->mapnew((_, i) => i.label)->sort()
-    assert_equal(['Greet'], Names(2, 11))
-    assert_equal(['Greet', 'greeting'], Names(3, 9))
-    assert_equal(['xold#Func'], Names(4, 11))
-    assert_equal({range: {start: {line: 4, character: 5},
-      end: {line: 4, character: 11}}, newText: 'xold#Func'},
-      Items(4, 11)[0].textEdit)
-    assert_equal(['xold#Func', 'xold#Other', 'xold#sub#'], Names(4, 10))
-    assert_equal(['Area', 'width'], Names(8, 16))
-    assert_equal(['Area', 'width'], Names(12, 7))
-    assert_equal(['Area', 'width'], Names(14, 7))
-    assert_equal(['Area', 'width'], Names(15, 11))
-    assert_equal(['Blue', 'Red'], Names(20, 11))
-    assert_equal([], Names(21, 12))
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc([
+    'vim9script',
+    "import autoload 'xlib.vim' as lib",
+    'echo lib.Gr',
+    'echo lib.',
+    'call xold#F',
+    'class Shape',
+    '  var width: number',
+    '  def Area(): number',
+    '    return this.',
+    '  enddef',
+    'endclass',
+    'var s: Shape = Shape.new()',
+    'echo s.',
+    'var t = Shape.new()',
+    'echo t.',
+    'echo Shape.',
+    'enum Color',
+    '  Red,',
+    '  Blue',
+    'endenum',
+    'echo Color.',
+    'echo strlen.',
+    'echo 1.',
+  ], uri)
+  var Items = (line: number, col: number) => helper.Request(
+    'textDocument/completion', helper.Params(line, col, uri)).result.items
+  var Names = (line: number, col: number) => Items(line, col)
+    ->mapnew((_, i) => i.label)->sort()
+  assert_equal(['Greet'], Names(2, 11))
+  assert_equal(['Greet', 'greeting'], Names(3, 9))
+  assert_equal(['xold#Func'], Names(4, 11))
+  assert_equal({range: {start: {line: 4, character: 5},
+    end: {line: 4, character: 11}}, newText: 'xold#Func'},
+    Items(4, 11)[0].textEdit)
+  assert_equal(['xold#Func', 'xold#Other', 'xold#sub#'], Names(4, 10))
+  assert_equal(['Area', 'width'], Names(8, 16))
+  assert_equal(['Area', 'width'], Names(12, 7))
+  assert_equal(['Area', 'width'], Names(14, 7))
+  assert_equal(['Area', 'width'], Names(15, 11))
+  assert_equal(['Blue', 'Red'], Names(20, 11))
+  assert_equal([], Names(21, 12))
 
-    # "." brings the menu on after a name with members, and gives nothing
-    # elsewhere.
-    var Triggered = (line: number, col: number) => helper.Request(
-      'textDocument/completion', extend(helper.Params(line, col, uri),
-        {context: {triggerKind: 2, triggerCharacter: '.'}})).result.items
-      ->mapnew((_, i) => i.label)->sort()
-    assert_equal(['Greet', 'greeting'], Triggered(3, 9))
-    assert_equal([], Triggered(22, 7))
-  finally
-    delete(root, 'rf')
-  endtry
+  # "." brings the menu on after a name with members, and gives nothing
+  # elsewhere.
+  var Triggered = (line: number, col: number) => helper.Request(
+    'textDocument/completion', extend(helper.Params(line, col, uri),
+      {context: {triggerKind: 2, triggerCharacter: '.'}})).result.items
+    ->mapnew((_, i) => i.label)->sort()
+  assert_equal(['Greet', 'greeting'], Triggered(3, 9))
+  assert_equal([], Triggered(22, 7))
 enddef
 
 def g:Test_document_symbol()
@@ -635,203 +631,191 @@ enddef
 
 def g:Test_type_definition()
   var root = helper.HERE .. '/Xproj'
-  mkdir(root .. '/plugin', 'p')
+  mkdir(root .. '/plugin', 'pR')
   writefile(['vim9script', 'export class Color', '  var name: string',
     'endclass'], root .. '/plugin/xcolor.vim')
   var uri = util.PathToUri(root .. '/plugin/xmain.vim')
-  try
-    helper.StartServer()
-    helper.Initialize()
-    helper.OpenDoc([
-      'vim9script',                       # 0
-      "import './xcolor.vim' as xcolor",  # 1
-      'class Shape',                      # 2
-      '  var name: string',               # 3
-      'endclass',                         # 4
-      'interface Drawable',               # 5
-      '  def Draw(): void',               # 6
-      'endinterface',                     # 7
-      'def Use()',                        # 8
-      '  var declared: Shape',            # 9
-      '  var inferred = Shape.new()',     # 10
-      '  var many: list<Shape>',          # 11
-      '  var other: xcolor.Color',        # 12
-      '  var plain: string',              # 13
-      '  var drawn: Drawable',            # 14
-      '  echo declared',                  # 15
-      '  echo inferred',                  # 16
-      '  echo many',                      # 17
-      '  echo other',                     # 18
-      '  echo plain',                     # 19
-      '  echo drawn',                     # 20
-      'enddef',                           # 21
-      'var top = Shape.new()',            # 22
-      'echo top',                         # 23
-    ], uri)
-    var Ask = (line: number, character: number) => helper.Request(
-      'textDocument/typeDefinition',
-      helper.Params(line, character, uri)).result
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc([
+    'vim9script',                       # 0
+    "import './xcolor.vim' as xcolor",  # 1
+    'class Shape',                      # 2
+    '  var name: string',               # 3
+    'endclass',                         # 4
+    'interface Drawable',               # 5
+    '  def Draw(): void',               # 6
+    'endinterface',                     # 7
+    'def Use()',                        # 8
+    '  var declared: Shape',            # 9
+    '  var inferred = Shape.new()',     # 10
+    '  var many: list<Shape>',          # 11
+    '  var other: xcolor.Color',        # 12
+    '  var plain: string',              # 13
+    '  var drawn: Drawable',            # 14
+    '  echo declared',                  # 15
+    '  echo inferred',                  # 16
+    '  echo many',                      # 17
+    '  echo other',                     # 18
+    '  echo plain',                     # 19
+    '  echo drawn',                     # 20
+    'enddef',                           # 21
+    'var top = Shape.new()',            # 22
+    'echo top',                         # 23
+  ], uri)
+  var Ask = (line: number, character: number) => helper.Request(
+    'textDocument/typeDefinition',
+    helper.Params(line, character, uri)).result
 
-    # A declared type, a type the initializer tells, and one inside a list.
-    for lnum in [15, 16, 17]
-      var got = Ask(lnum, 7)
-      assert_equal(uri, got[0].uri, 'line ' .. lnum)
-      assert_equal({start: {line: 2, character: 6},
-        end: {line: 2, character: 11}}, got[0].range, 'line ' .. lnum)
-    endfor
+  # A declared type, a type the initializer tells, and one inside a list.
+  for lnum in [15, 16, 17]
+    var got = Ask(lnum, 7)
+    assert_equal(uri, got[0].uri, 'line ' .. lnum)
+    assert_equal({start: {line: 2, character: 6},
+      end: {line: 2, character: 11}}, got[0].range, 'line ' .. lnum)
+  endfor
 
-    # A type of another script, through the alias of the import.
-    var other = Ask(18, 7)
-    assert_equal(util.PathToUri(root .. '/plugin/xcolor.vim'), other[0].uri)
-    assert_equal(1, other[0].range.start.line)
+  # A type of another script, through the alias of the import.
+  var other = Ask(18, 7)
+  assert_equal(util.PathToUri(root .. '/plugin/xcolor.vim'), other[0].uri)
+  assert_equal(1, other[0].range.start.line)
 
-    # An interface is a type of its own, and so is a class: the name of one
-    # leads to the line it is on.
-    assert_equal(5, Ask(20, 7)[0].range.start.line)
-    assert_equal(2, Ask(10, 17)[0].range.start.line)
+  # An interface is a type of its own, and so is a class: the name of one
+  # leads to the line it is on.
+  assert_equal(5, Ask(20, 7)[0].range.start.line)
+  assert_equal(2, Ask(10, 17)[0].range.start.line)
 
-    # A type of Vim's own has nothing to go to.
-    assert_equal(null, Ask(19, 7))
+  # A type of Vim's own has nothing to go to.
+  assert_equal(null, Ask(19, 7))
 
-    # A variable of the script, from its declaration and from a use.
-    assert_equal(2, Ask(22, 5)[0].range.start.line)
-    assert_equal(2, Ask(23, 6)[0].range.start.line)
-  finally
-    delete(root, 'rf')
-  endtry
+  # A variable of the script, from its declaration and from a use.
+  assert_equal(2, Ask(22, 5)[0].range.start.line)
+  assert_equal(2, Ask(23, 6)[0].range.start.line)
 enddef
 
 def g:Test_implementation()
   var root = helper.HERE .. '/Xproj'
-  mkdir(root .. '/plugin', 'p')
+  mkdir(root .. '/plugin', 'pR')
   writefile(['vim9script', "import './xmain.vim' as xmain",
     'class Square implements xmain.Drawable', '  def Draw(): void',
     '  enddef', 'endclass'], root .. '/plugin/xother.vim')
   var uri = util.PathToUri(root .. '/plugin/xmain.vim')
-  try
-    helper.StartServer()
-    helper.Initialize()
-    helper.OpenDoc([
-      'vim9script',                      # 0
-      'export interface Drawable',       # 1
-      '  def Draw(): void',              # 2
-      'endinterface',                    # 3
-      'abstract class Base',             # 4
-      '  abstract def Area(): number',   # 5
-      'endclass',                        # 6
-      'class Circle implements Drawable',  # 7
-      '  def Draw(): void',              # 8
-      '  enddef',                        # 9
-      'endclass',                        # 10
-      'class Box extends Base',          # 11
-      '  def Area(): number',            # 12
-      '    return 0',                    # 13
-      '  enddef',                        # 14
-      'endclass',                        # 15
-    ], uri)
-    var Ask = (line: number, character: number) => helper.Request(
-      'textDocument/implementation',
-      helper.Params(line, character, uri)).result
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc([
+    'vim9script',                      # 0
+    'export interface Drawable',       # 1
+    '  def Draw(): void',              # 2
+    'endinterface',                    # 3
+    'abstract class Base',             # 4
+    '  abstract def Area(): number',   # 5
+    'endclass',                        # 6
+    'class Circle implements Drawable',  # 7
+    '  def Draw(): void',              # 8
+    '  enddef',                        # 9
+    'endclass',                        # 10
+    'class Box extends Base',          # 11
+    '  def Area(): number',            # 12
+    '    return 0',                    # 13
+    '  enddef',                        # 14
+    'endclass',                        # 15
+  ], uri)
+  var Ask = (line: number, character: number) => helper.Request(
+    'textDocument/implementation',
+    helper.Params(line, character, uri)).result
 
-    # The interface: the classes that implement it, here and in the other
-    # script, which names it through the alias of its import.
-    var got = Ask(1, 17)
-    assert_equal([[uri, 7], [util.PathToUri(root .. '/plugin/xother.vim'), 2]],
-      got->mapnew((_, l) => [l.uri, l.range.start.line])->sort())
-    # The method of the interface: the method of each class.
-    assert_equal([8, 3], Ask(2, 6)
-      ->mapnew((_, l) => l.range.start.line))
+  # The interface: the classes that implement it, here and in the other
+  # script, which names it through the alias of its import.
+  var got = Ask(1, 17)
+  assert_equal([[uri, 7], [util.PathToUri(root .. '/plugin/xother.vim'), 2]],
+    got->mapnew((_, l) => [l.uri, l.range.start.line])->sort())
+  # The method of the interface: the method of each class.
+  assert_equal([8, 3], Ask(2, 6)
+    ->mapnew((_, l) => l.range.start.line))
 
-    # A class that is extended, and the abstract method in it.
-    assert_equal([[uri, 11]], Ask(4, 15)
-      ->mapnew((_, l) => [l.uri, l.range.start.line]))
-    assert_equal([[uri, 12]], Ask(5, 15)
-      ->mapnew((_, l) => [l.uri, l.range.start.line]))
+  # A class that is extended, and the abstract method in it.
+  assert_equal([[uri, 11]], Ask(4, 15)
+    ->mapnew((_, l) => [l.uri, l.range.start.line]))
+  assert_equal([[uri, 12]], Ask(5, 15)
+    ->mapnew((_, l) => [l.uri, l.range.start.line]))
 
-    # Nothing implements a class nothing extends.
-    assert_equal(null, Ask(7, 6))
-  finally
-    delete(root, 'rf')
-  endtry
+  # Nothing implements a class nothing extends.
+  assert_equal(null, Ask(7, 6))
 enddef
 
 def g:Test_type_hierarchy()
   var root = helper.HERE .. '/Xproj'
-  mkdir(root .. '/plugin', 'p')
+  mkdir(root .. '/plugin', 'pR')
   writefile(['vim9script', "import './xmain.vim' as xmain",
     'class Square extends xmain.Shape', 'endclass'],
     root .. '/plugin/xother.vim')
   var main = root .. '/plugin/xmain.vim'
   var uri = util.PathToUri(main)
-  try
-    helper.StartServer()
-    helper.Initialize()
-    # The other script imports this one, so it has to be on disk as well.
-    var lines = [
-      'vim9script',                       # 0
-      'export interface Drawable',        # 1
-      '  def Draw(): void',               # 2
-      'endinterface',                     # 3
-      'interface Solid extends Drawable', # 4
-      'endinterface',                     # 5
-      'export class Shape implements Drawable',  # 6
-      '  def Draw(): void',               # 7
-      '  enddef',                         # 8
-      'endclass',                         # 9
-      'enum Color implements Drawable',   # 10
-      '  Red',                            # 11
-      '  def Draw(): void',               # 12
-      '  enddef',                         # 13
-      'endenum',                          # 14
-      'def Plain()',                      # 15
-      'enddef',                           # 16
-    ]
-    writefile(lines, main)
-    helper.OpenDoc(lines, uri)
-    var Prepare = (line: number, character: number) => helper.Request(
-      'textDocument/prepareTypeHierarchy',
-      helper.Params(line, character, uri)).result
+  helper.StartServer()
+  helper.Initialize()
+  # The other script imports this one, so it has to be on disk as well.
+  var lines = [
+    'vim9script',                       # 0
+    'export interface Drawable',        # 1
+    '  def Draw(): void',               # 2
+    'endinterface',                     # 3
+    'interface Solid extends Drawable', # 4
+    'endinterface',                     # 5
+    'export class Shape implements Drawable',  # 6
+    '  def Draw(): void',               # 7
+    '  enddef',                         # 8
+    'endclass',                         # 9
+    'enum Color implements Drawable',   # 10
+    '  Red',                            # 11
+    '  def Draw(): void',               # 12
+    '  enddef',                         # 13
+    'endenum',                          # 14
+    'def Plain()',                      # 15
+    'enddef',                           # 16
+  ]
+  writefile(lines, main)
+  helper.OpenDoc(lines, uri)
+  var Prepare = (line: number, character: number) => helper.Request(
+    'textDocument/prepareTypeHierarchy',
+    helper.Params(line, character, uri)).result
 
-    # A class, an interface and an enum start a hierarchy; a function does
-    # not.
-    var items = Prepare(6, 13)
-    assert_equal(['Shape'], items->mapnew((_, i) => i.name))
-    assert_equal(5, items[0].kind)
-    assert_equal({line: 6, character: 13}, items[0].selectionRange.start)
-    assert_equal(null, Prepare(15, 4))
+  # A class, an interface and an enum start a hierarchy; a function does
+  # not.
+  var items = Prepare(6, 13)
+  assert_equal(['Shape'], items->mapnew((_, i) => i.name))
+  assert_equal(5, items[0].kind)
+  assert_equal({line: 6, character: 13}, items[0].selectionRange.start)
+  assert_equal(null, Prepare(15, 4))
 
-    # What it implements, through the alias of an import as well.
-    var supers = helper.Request('typeHierarchy/supertypes',
-      {item: items[0]}).result
-    assert_equal(['Drawable'], supers->mapnew((_, i) => i.name))
-    assert_equal(1, supers[0].range.start.line)
+  # What it implements, through the alias of an import as well.
+  var supers = helper.Request('typeHierarchy/supertypes',
+    {item: items[0]}).result
+  assert_equal(['Drawable'], supers->mapnew((_, i) => i.name))
+  assert_equal(1, supers[0].range.start.line)
 
-    # An interface that extends one, and an enum that implements it, are
-    # both below it.
-    var drawable = Prepare(1, 17)[0]
-    var subs = helper.Request('typeHierarchy/subtypes',
-      {item: drawable}).result
-    assert_equal([['Solid', uri], ['Shape', uri], ['Color', uri]],
-      subs->mapnew((_, i) => [i.name, i.uri]))
+  # An interface that extends one, and an enum that implements it, are
+  # both below it.
+  var drawable = Prepare(1, 17)[0]
+  var subs = helper.Request('typeHierarchy/subtypes',
+    {item: drawable}).result
+  assert_equal([['Solid', uri], ['Shape', uri], ['Color', uri]],
+    subs->mapnew((_, i) => [i.name, i.uri]))
 
-    # A class of another script, which names this one through its import.
-    var shape_subs = helper.Request('typeHierarchy/subtypes',
-      {item: items[0]}).result
-    assert_equal(['Square'], shape_subs->mapnew((_, i) => i.name))
-    assert_equal(util.PathToUri(root .. '/plugin/xother.vim'),
-      shape_subs[0].uri)
+  # A class of another script, which names this one through its import.
+  var shape_subs = helper.Request('typeHierarchy/subtypes',
+    {item: items[0]}).result
+  assert_equal(['Square'], shape_subs->mapnew((_, i) => i.name))
+  assert_equal(util.PathToUri(root .. '/plugin/xother.vim'),
+    shape_subs[0].uri)
 
-    # Nothing is below an enum, and the item comes back from a file that is
-    # not open.
-    var square = shape_subs[0]
-    assert_equal(null, helper.Request('typeHierarchy/subtypes',
-      {item: square}).result)
-    var square_supers = helper.Request('typeHierarchy/supertypes',
-      {item: square}).result
-    assert_equal(['Shape'], square_supers->mapnew((_, i) => i.name))
-  finally
-    delete(root, 'rf')
-  endtry
+  # Nothing is below an enum, and the item comes back from a file that is
+  # not open.
+  var square = shape_subs[0]
+  assert_equal(null, helper.Request('typeHierarchy/subtypes',
+    {item: square}).result)
+  var square_supers = helper.Request('typeHierarchy/supertypes',
+    {item: square}).result
+  assert_equal(['Shape'], square_supers->mapnew((_, i) => i.name))
 enddef
 
 def g:Test_formatting()
@@ -1056,7 +1040,7 @@ enddef
 
 def g:Test_workspace_symbol()
   var root = helper.HERE .. '/Xproj'
-  mkdir(root .. '/autoload', 'p')
+  mkdir(root .. '/autoload', 'pR')
   mkdir(root .. '/plugin', 'p')
   writefile(['vim9script', 'export def XprojGreet(): string',
     "  return 'hi'", 'enddef', 'export const XPROJ_LIMIT = 3'],
@@ -1065,37 +1049,33 @@ def g:Test_workspace_symbol()
     '  def XprojArea(): number', '    return 0', '  enddef', 'endclass'],
     root .. '/plugin/xclass.vim')
   var uri = util.PathToUri(root .. '/plugin/xmain.vim')
-  try
-    helper.StartServer()
-    helper.Initialize()
-    helper.OpenDoc(['vim9script', 'def XprojRun()', 'enddef'], uri)
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc(['vim9script', 'def XprojRun()', 'enddef'], uri)
 
-    # The query is matched without regard to case, in the files of the
-    # plugin the open document belongs to as well as in the document.
-    var found = helper.Request('workspace/symbol', {query: 'xprojg'}).result
-    assert_equal(['XprojGreet'], found->mapnew((_, s) => s.name))
-    assert_equal(util.PathToUri(root .. '/autoload/xlib.vim'),
-      found[0].location.uri)
-    assert_equal({start: {line: 1, character: 11},
-      end: {line: 1, character: 21}}, found[0].location.range)
+  # The query is matched without regard to case, in the files of the
+  # plugin the open document belongs to as well as in the document.
+  var found = helper.Request('workspace/symbol', {query: 'xprojg'}).result
+  assert_equal(['XprojGreet'], found->mapnew((_, s) => s.name))
+  assert_equal(util.PathToUri(root .. '/autoload/xlib.vim'),
+    found[0].location.uri)
+  assert_equal({start: {line: 1, character: 11},
+    end: {line: 1, character: 21}}, found[0].location.range)
 
-    found = helper.Request('workspace/symbol', {query: 'xproj'}).result
-    assert_equal(['XPROJ_LIMIT', 'XprojArea', 'XprojGreet', 'XprojRun',
-      'XprojShape'], sort(found->mapnew((_, s) => s.name)))
-    # A method carries the class it is in.
-    var area = found->copy()->filter((_, s) => s.name == 'XprojArea')[0]
-    assert_equal('XprojShape', area.containerName)
-    assert_equal(6, area.kind)
-    assert_false(found->copy()
-      ->filter((_, s) => s.name == 'XprojGreet')[0]->has_key('containerName'))
+  found = helper.Request('workspace/symbol', {query: 'xproj'}).result
+  assert_equal(['XPROJ_LIMIT', 'XprojArea', 'XprojGreet', 'XprojRun',
+    'XprojShape'], sort(found->mapnew((_, s) => s.name)))
+  # A method carries the class it is in.
+  var area = found->copy()->filter((_, s) => s.name == 'XprojArea')[0]
+  assert_equal('XprojShape', area.containerName)
+  assert_equal(6, area.kind)
+  assert_false(found->copy()
+    ->filter((_, s) => s.name == 'XprojGreet')[0]->has_key('containerName'))
 
-    # An empty query is answered with the open documents alone.
-    found = helper.Request('workspace/symbol', {query: ''}).result
-    assert_equal(['XprojRun'], found->mapnew((_, s) => s.name))
-    assert_equal(uri, found[0].location.uri)
-  finally
-    delete(root, 'rf')
-  endtry
+  # An empty query is answered with the open documents alone.
+  found = helper.Request('workspace/symbol', {query: ''}).result
+  assert_equal(['XprojRun'], found->mapnew((_, s) => s.name))
+  assert_equal(uri, found[0].location.uri)
 enddef
 
 # A quick fix for each of the three things the parser reports.
@@ -1391,20 +1371,16 @@ def g:Test_compile_diagnostics()
   # A class in an autoload script is defined again at every check; Vim only
   # refuses that outside a dry run.
   var root = helper.HERE .. '/Xproj'
-  mkdir(root .. '/autoload', 'p')
+  mkdir(root .. '/autoload', 'pR')
   var cls = util.PathToUri(root .. '/autoload/xshape.vim')
-  try
-    var text = ['vim9script', 'export class Shape', '  const width = 1',
-      '  def Area(): number', '    return this.width', '  enddef', 'endclass']
-    helper.OpenDoc(text, cls)
-    note = helper.WaitNotification('textDocument/publishDiagnostics')
-    assert_equal([], note.params.diagnostics)
-    helper.ChangeDoc(text + [''], cls, 2)
-    note = helper.WaitNotification('textDocument/publishDiagnostics')
-    assert_equal([], note.params.diagnostics)
-  finally
-    delete(root, 'rf')
-  endtry
+  var text = ['vim9script', 'export class Shape', '  const width = 1',
+    '  def Area(): number', '    return this.width', '  enddef', 'endclass']
+  helper.OpenDoc(text, cls)
+  note = helper.WaitNotification('textDocument/publishDiagnostics')
+  assert_equal([], note.params.diagnostics)
+  helper.ChangeDoc(text + [''], cls, 2)
+  note = helper.WaitNotification('textDocument/publishDiagnostics')
+  assert_equal([], note.params.diagnostics)
 
   # The checker's own script is running in the checker; reading it must
   # not try to define its functions again.
@@ -1550,7 +1526,7 @@ enddef
 # done every two seconds.
 def g:Test_compile_import_changed()
   var root = helper.HERE .. '/Xchanged'
-  mkdir(root, 'p')
+  mkdir(root, 'pR')
   var user = ['vim9script', "import './xlib.vim'", 'def F(): number',
     '  return xlib.N', 'enddef']
   var uri = util.PathToUri(root .. '/user.vim')
@@ -1601,14 +1577,13 @@ def g:Test_compile_import_changed()
         .params.diagnostics->mapnew((_, d) => d.message), 'same size')
   finally
     helper.StopServer()
-    delete(root, 'rf')
   endtry
 enddef
 
 # A script that imports one being edited is checked against its file.
 def g:Test_compile_import_of_edited_document()
   var root = helper.HERE .. '/Xedited'
-  mkdir(root, 'p')
+  mkdir(root, 'pR')
   var user = ['vim9script', "import './xlib.vim'", 'def F(): number',
     '  return xlib.N', 'enddef']
   writefile(['vim9script', 'export const N: string = "s"'],
@@ -1630,7 +1605,6 @@ def g:Test_compile_import_of_edited_document()
       params.diagnostics->mapnew((_, d) => d.message))
   finally
     helper.StopServer()
-    delete(root, 'rf')
   endtry
 enddef
 
@@ -1639,6 +1613,7 @@ enddef
 # file only the other one has is not found.
 def g:Test_compile_import_of_own_plugin()
   var root = helper.HERE .. '/Xplugins'
+  mkdir(root, 'R')
   for [name, text] in [
       ['one', ['vim9script', 'export const N: number = 1', 'export class Shape',
         'endclass']],
@@ -1701,7 +1676,6 @@ def g:Test_compile_import_of_own_plugin()
       .params.diagnostics)
   finally
     helper.StopServer()
-    delete(root, 'rf')
   endtry
 enddef
 
@@ -1743,7 +1717,7 @@ enddef
 
 def g:Test_definition_other_files()
   var root = helper.HERE .. '/Xproj'
-  mkdir(root .. '/autoload', 'p')
+  mkdir(root .. '/autoload', 'pR')
   mkdir(root .. '/plugin', 'p')
   writefile(['vim9script', 'export def Greet(): string', "  return 'hi'",
     'enddef'], root .. '/autoload/xlib.vim')
@@ -1753,51 +1727,47 @@ def g:Test_definition_other_files()
     root .. '/plugin/xconst.vim')
   var main = root .. '/plugin/xmain.vim'
   var uri = util.PathToUri(main)
-  try
-    helper.StartServer()
-    helper.Initialize()
-    helper.OpenDoc([
-      'vim9script',
-      "import autoload 'xlib.vim' as xlib",
-      "import './xconst.vim'",
-      'echo xlib.Greet()',
-      'echo xconst.LIMIT',
-      'call xold#Func()',
-    ], uri)
-    var resp = helper.Request('textDocument/definition',
-      helper.Params(3, 11, uri))
-    assert_equal(util.PathToUri(root .. '/autoload/xlib.vim'),
-      resp.result[0].uri)
-    assert_equal({start: {line: 1, character: 11},
-      end: {line: 1, character: 16}}, resp.result[0].range)
-    # The alias itself leads to the file.
-    resp = helper.Request('textDocument/definition', helper.Params(3, 6, uri))
-    assert_equal(util.PathToUri(root .. '/autoload/xlib.vim'),
-      resp.result[0].uri)
-    assert_equal(0, resp.result[0].range.start.line)
-    # A relative import, named by its file; the path is given without the
-    # "./" of the import.
-    resp = helper.Request('textDocument/definition',
-      helper.Params(4, 13, uri))
-    assert_equal(util.PathToUri(root .. '/plugin/xconst.vim'),
-      resp.result[0].uri)
-    assert_notmatch('/\./', resp.result[0].uri)
-    assert_equal(1, resp.result[0].range.start.line)
-    # A legacy autoload function.
-    resp = helper.Request('textDocument/definition',
-      helper.Params(5, 10, uri))
-    assert_equal(util.PathToUri(root .. '/autoload/xold.vim'),
-      resp.result[0].uri)
-    assert_equal({start: {line: 0, character: 9},
-      end: {line: 0, character: 18}}, resp.result[0].range)
-  finally
-    delete(root, 'rf')
-  endtry
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc([
+    'vim9script',
+    "import autoload 'xlib.vim' as xlib",
+    "import './xconst.vim'",
+    'echo xlib.Greet()',
+    'echo xconst.LIMIT',
+    'call xold#Func()',
+  ], uri)
+  var resp = helper.Request('textDocument/definition',
+    helper.Params(3, 11, uri))
+  assert_equal(util.PathToUri(root .. '/autoload/xlib.vim'),
+    resp.result[0].uri)
+  assert_equal({start: {line: 1, character: 11},
+    end: {line: 1, character: 16}}, resp.result[0].range)
+  # The alias itself leads to the file.
+  resp = helper.Request('textDocument/definition', helper.Params(3, 6, uri))
+  assert_equal(util.PathToUri(root .. '/autoload/xlib.vim'),
+    resp.result[0].uri)
+  assert_equal(0, resp.result[0].range.start.line)
+  # A relative import, named by its file; the path is given without the
+  # "./" of the import.
+  resp = helper.Request('textDocument/definition',
+    helper.Params(4, 13, uri))
+  assert_equal(util.PathToUri(root .. '/plugin/xconst.vim'),
+    resp.result[0].uri)
+  assert_notmatch('/\./', resp.result[0].uri)
+  assert_equal(1, resp.result[0].range.start.line)
+  # A legacy autoload function.
+  resp = helper.Request('textDocument/definition',
+    helper.Params(5, 10, uri))
+  assert_equal(util.PathToUri(root .. '/autoload/xold.vim'),
+    resp.result[0].uri)
+  assert_equal({start: {line: 0, character: 9},
+    end: {line: 0, character: 18}}, resp.result[0].range)
 enddef
 
 def g:Test_references_other_files()
   var root = helper.HERE .. '/Xproj'
-  mkdir(root .. '/autoload', 'p')
+  mkdir(root .. '/autoload', 'pR')
   mkdir(root .. '/plugin', 'p')
   var lib = root .. '/autoload/xlib.vim'
   writefile(['vim9script', 'export def Greet(): string', "  return 'hi'",
@@ -1812,45 +1782,41 @@ def g:Test_references_other_files()
   var Spans = (locations: list<dict<any>>) => locations->mapnew((_, l) =>
     [fnamemodify(util.UriToPath(l.uri), ':t'), l.range.start.line,
       l.range.start.character, l.range.end.character])
-  try
-    helper.StartServer()
-    helper.Initialize()
-    helper.OpenDoc(['vim9script', "import autoload 'xlib.vim' as lib",
-      'echo lib.Greet()', 'xold#Func()'], uri)
-    # An exported name: its own script, the other scripts of the plugin and
-    # the open documents, after an alias of the import and as an autoload
-    # name.
-    var resp = helper.Request('textDocument/references', extend(
-      helper.Params(2, 10, uri), {context: {includeDeclaration: true}}))
-    var greet = [['xlib.vim', 1, 11, 16], ['xlib.vim', 4, 5, 10],
-      ['xmain.vim', 2, 9, 14], ['xother.vim', 2, 10, 15],
-      ['xother.vim', 4, 10, 15]]
-    assert_equal(greet, Spans(resp.result))
-    # The same from the definition, in a document that is open.
-    helper.OpenDoc(readfile(lib), util.PathToUri(lib))
-    resp = helper.Request('textDocument/references', extend(
-      helper.Params(1, 12, util.PathToUri(lib)),
-      {context: {includeDeclaration: true}}))
-    assert_equal(greet, Spans(resp.result))
-    # A legacy autoload function is renamed after its last "#", also inside
-    # a string.
-    var at = helper.Params(3, 2, uri)
-    resp = helper.Request('textDocument/prepareRename', at)
-    assert_equal({range: {start: {line: 3, character: 5},
-      end: {line: 3, character: 9}}, placeholder: 'Func'}, resp.result)
-    resp = helper.Request('textDocument/rename', extend(at, {newName: 'Run'}))
-    var changes = resp.result.changes
-    var Edits = (path: string) => Spans(changes[util.PathToUri(path)]
-      ->mapnew((_, e) => ({uri: util.PathToUri(path), range: e.range})))
-    assert_equal([util.PathToUri(old), uri, util.PathToUri(other)],
-      keys(changes)->sort())
-    assert_equal([['xold.vim', 0, 14, 18]], Edits(old))
-    assert_equal([['xmain.vim', 3, 5, 9]], Edits(main))
-    assert_equal([['xother.vim', 3, 11, 15]], Edits(other))
-    assert_equal(['Run'], changes[uri]->mapnew((_, e) => e.newText))
-  finally
-    delete(root, 'rf')
-  endtry
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc(['vim9script', "import autoload 'xlib.vim' as lib",
+    'echo lib.Greet()', 'xold#Func()'], uri)
+  # An exported name: its own script, the other scripts of the plugin and
+  # the open documents, after an alias of the import and as an autoload
+  # name.
+  var resp = helper.Request('textDocument/references', extend(
+    helper.Params(2, 10, uri), {context: {includeDeclaration: true}}))
+  var greet = [['xlib.vim', 1, 11, 16], ['xlib.vim', 4, 5, 10],
+    ['xmain.vim', 2, 9, 14], ['xother.vim', 2, 10, 15],
+    ['xother.vim', 4, 10, 15]]
+  assert_equal(greet, Spans(resp.result))
+  # The same from the definition, in a document that is open.
+  helper.OpenDoc(readfile(lib), util.PathToUri(lib))
+  resp = helper.Request('textDocument/references', extend(
+    helper.Params(1, 12, util.PathToUri(lib)),
+    {context: {includeDeclaration: true}}))
+  assert_equal(greet, Spans(resp.result))
+  # A legacy autoload function is renamed after its last "#", also inside
+  # a string.
+  var at = helper.Params(3, 2, uri)
+  resp = helper.Request('textDocument/prepareRename', at)
+  assert_equal({range: {start: {line: 3, character: 5},
+    end: {line: 3, character: 9}}, placeholder: 'Func'}, resp.result)
+  resp = helper.Request('textDocument/rename', extend(at, {newName: 'Run'}))
+  var changes = resp.result.changes
+  var Edits = (path: string) => Spans(changes[util.PathToUri(path)]
+    ->mapnew((_, e) => ({uri: util.PathToUri(path), range: e.range})))
+  assert_equal([util.PathToUri(old), uri, util.PathToUri(other)],
+    keys(changes)->sort())
+  assert_equal([['xold.vim', 0, 14, 18]], Edits(old))
+  assert_equal([['xmain.vim', 3, 5, 9]], Edits(main))
+  assert_equal([['xother.vim', 3, 11, 15]], Edits(other))
+  assert_equal(['Run'], changes[uri]->mapnew((_, e) => e.newText))
 enddef
 
 def g:Test_references()

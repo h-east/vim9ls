@@ -205,25 +205,21 @@ enddef
 
 def g:Test_import_file()
   var root = HERE .. '/Xproj'
-  mkdir(root .. '/autoload/deep', 'p')
+  mkdir(root .. '/autoload/deep', 'pR')
   mkdir(root .. '/plugin', 'p')
   writefile(['vim9script'], root .. '/autoload/xlib.vim')
   writefile(['vim9script'], root .. '/autoload/deep/xsub.vim')
   writefile(['vim9script'], root .. '/plugin/xhelp.vim')
   var script = root .. '/plugin/xmain.vim'
-  try
-    assert_equal(root .. '/autoload/xlib.vim',
-      refs.ImportFile(script, 'xlib.vim', true))
-    assert_equal(root .. '/autoload/deep/xsub.vim',
-      refs.ImportFile(script, 'deep/xsub.vim', true))
-    assert_equal(root .. '/plugin/xhelp.vim',
-      refs.ImportFile(script, './xhelp.vim', false))
-    assert_equal('', refs.ImportFile(script, 'nothere.vim', true))
-    assert_equal(root .. '/autoload/deep/xsub.vim',
-      refs.AutoloadFile(script, 'deep/xsub.vim'))
-  finally
-    delete(root, 'rf')
-  endtry
+  assert_equal(root .. '/autoload/xlib.vim',
+    refs.ImportFile(script, 'xlib.vim', true))
+  assert_equal(root .. '/autoload/deep/xsub.vim',
+    refs.ImportFile(script, 'deep/xsub.vim', true))
+  assert_equal(root .. '/plugin/xhelp.vim',
+    refs.ImportFile(script, './xhelp.vim', false))
+  assert_equal('', refs.ImportFile(script, 'nothere.vim', true))
+  assert_equal(root .. '/autoload/deep/xsub.vim',
+    refs.AutoloadFile(script, 'deep/xsub.vim'))
 enddef
 
 # vim: ts=2 sw=0 et

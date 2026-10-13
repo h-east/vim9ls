@@ -51,7 +51,7 @@ def WaitReport(token: string, name: string, pattern: string): list<string>
 enddef
 
 def g:Test_workspace_diagnostic()
-  mkdir(ROOT .. '/one', 'p')
+  mkdir(ROOT .. '/one', 'pR')
   mkdir(ROOT .. '/two', 'p')
   writefile(['vim9script', 'export const N: number = 1'],
     ROOT .. '/one/xlib.vim')
@@ -119,7 +119,6 @@ def g:Test_workspace_diagnostic()
         util.UriToPath(r.uri), ':t')))
   finally
     helper.StopServer()
-    delete(ROOT, 'rf')
   endtry
 enddef
 
@@ -127,7 +126,7 @@ enddef
 # options has the first of them read, and the client is told.  A value that
 # is not a positive number is told about, and the default is used.
 def g:Test_workspace_diagnostic_limit()
-  mkdir(ROOT, 'p')
+  mkdir(ROOT, 'pR')
   for i in range(4)
     writefile(['vim9script'], printf('%s/s%d.vim', ROOT, i))
   endfor
@@ -169,7 +168,6 @@ def g:Test_workspace_diagnostic_limit()
     endfor
   finally
     helper.StopServer()
-    delete(ROOT, 'rf')
   endtry
 enddef
 
@@ -177,7 +175,7 @@ enddef
 # report for every tenth and end, which comes once what the checker reports
 # is in.
 def g:Test_workspace_diagnostic_progress()
-  mkdir(ROOT, 'p')
+  mkdir(ROOT, 'pR')
   for i in range(12)
     writefile(['vim9script'], printf('%s/s%02d.vim', ROOT, i))
   endfor
@@ -222,7 +220,6 @@ def g:Test_workspace_diagnostic_progress()
     assert_equal(13, len(reports))
   finally
     helper.StopServer()
-    delete(ROOT, 'rf')
   endtry
 enddef
 
@@ -240,7 +237,7 @@ enddef
 # What a server found is kept on disk; a server started again reports it
 # without reading the scripts that did not change since.
 def g:Test_workspace_diagnostic_cache()
-  mkdir(ROOT, 'p')
+  mkdir(ROOT, 'pR')
   writefile(['vim9script'], ROOT .. '/good.vim')
   writefile(['vim9script', 'def G(): number', '  return "x"', 'enddef'],
     ROOT .. '/bad.vim')
@@ -280,7 +277,6 @@ def g:Test_workspace_diagnostic_cache()
     assert_equal([E1012], WaitReport('tok', 'bad.vim', 'E1012'))
   finally
     helper.StopServer()
-    delete(ROOT, 'rf')
   endtry
 enddef
 
@@ -288,7 +284,7 @@ enddef
 # reported again, the work goes out under the token of the command, which
 # is answered at its end.
 def g:Test_workspace_reload()
-  mkdir(ROOT, 'p')
+  mkdir(ROOT, 'pR')
   writefile(['vim9script', 'def G(): number', '  return "x"', 'enddef'],
     ROOT .. '/bad.vim')
   reports = {}
@@ -324,14 +320,13 @@ def g:Test_workspace_reload()
     assert_equal(-32602, answers[0]->get('error', {})->get('code', 0))
   finally
     helper.StopServer()
-    delete(ROOT, 'rf')
   endtry
 enddef
 
 # A client that takes it is asked to watch the "*.vim" files; what it reports
 # changed is read again, and what it reports gone has its report emptied.
 def g:Test_workspace_watched_files()
-  mkdir(ROOT, 'p')
+  mkdir(ROOT, 'pR')
   writefile(['vim9script'], ROOT .. '/a.vim')
   writefile(['vim9script', 'def G(): number', '  return "x"', 'enddef'],
     ROOT .. '/b.vim')
@@ -374,6 +369,5 @@ def g:Test_workspace_watched_files()
       n->get('method', '') == 'client/registerCapability'))
   finally
     helper.StopServer()
-    delete(ROOT, 'rf')
   endtry
 enddef
