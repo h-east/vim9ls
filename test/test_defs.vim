@@ -4,7 +4,7 @@ import autoload '../autoload/vim9ls/parse.vim'
 import autoload '../autoload/vim9ls/defs.vim'
 
 def Definitions(lines: list<string>): list<string>
-  return defs.Lines(parse.Parse(lines), lines)
+  return defs.Lines(parse.Parse(lines), lines).lines
 enddef
 
 # The definitions stay, a declaration loses its value, and everything else
@@ -97,31 +97,97 @@ def g:Test_defs_blocks()
   ], Definitions(lines))
 enddef
 
-# A class stays as it is, but for the value of a static variable; an enum
-# stays as it is.
+# A class stays as it is, but for the value of a static variable, which
+# goes to a static method of its own.
 def g:Test_defs_class()
   var lines =<< trim END
     vim9script
     class C
       static var count = Count()
-      public static const NAME: string = Name()
+      public static const NAMES: list<string> = [
+        'a']
       var width: number = 1
-      def Area(): number
-        return this.width
-      enddef
     endclass
+  END
+  var made = defs.Lines(parse.Parse(lines), lines)
+  assert_equal([
+    'vim9script',
+    'class C',
+    '  static var count: any',
+    '  public static var NAMES: list<string>',
+    '',
+    '  var width: number = 1',
+    '  static def _Vim9lsCheck1()',
+    '    count = Count()',
+    '  enddef',
+    '  static def _Vim9lsCheck2()',
+    "    NAMES = [ 'a']",
+    '  enddef',
+    'endclass',
+  ], made.lines)
+  assert_equal([0, 1, 2, 3, 4, 5, 2, 2, 2, 3, 3, 3, 6], made.origin)
+enddef
+
+# An enum becomes a class with a static variable for each value, the
+# builtins declared, a constructor without arguments when it has none, and
+# a static method for the arguments of each value.
+def g:Test_defs_enum()
+  var lines =<< trim END
+    vim9script
     enum Color
       Red('r'),
-      Blue('b')
+      Blue('b'), Green(
+        'g')
       var code: string
       def new(this.code)
       enddef
     endenum
+    export enum Plain implements Shown
+      A, B
+    endenum
   END
-  var expected = copy(lines)
-  expected[2] = '  static var count: any'
-  expected[3] = '  public static var NAME: string'
-  assert_equal(expected, Definitions(lines))
+  var made = defs.Lines(parse.Parse(lines), lines)
+  assert_equal([
+    'vim9script',
+    'class Color',
+    '  final name: string',
+    '  final ordinal: number',
+    '  static final values: list<Color>',
+    '  static var Red: Color',
+    '  static var Blue: Color',
+    '  static var Green: Color',
+    '',
+    '  var code: string',
+    '  def new(this.code)',
+    '  enddef',
+    '  static def _Vim9lsCheck1()',
+    "    Color.new('r')",
+    '  enddef',
+    '  static def _Vim9lsCheck2()',
+    "    Color.new('b')",
+    '  enddef',
+    '  static def _Vim9lsCheck3()',
+    "    Color.new( 'g')",
+    '  enddef',
+    'endclass',
+    'export class Plain implements Shown',
+    '  final name: string',
+    '  final ordinal: number',
+    '  static final values: list<Plain>',
+    '  def new()',
+    '  enddef',
+    '  static var A: Plain',
+    '  static var B: Plain',
+    '  static def _Vim9lsCheck4()',
+    '    Plain.new()',
+    '  enddef',
+    '  static def _Vim9lsCheck5()',
+    '    Plain.new()',
+    '  enddef',
+    'endclass',
+  ], made.lines)
+  assert_equal([0, 1, 1, 1, 1, 2, 3, 3, 4, 5, 6, 7, 2, 2, 2, 3, 3, 3, 3, 3,
+    3, 8, 9, 9, 9, 9, 9, 9, 10, 10, 10, 10, 10, 10, 10, 10, 11], made.origin)
 enddef
 
 # A legacy script keeps its functions and nothing else.

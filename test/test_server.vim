@@ -1676,6 +1676,37 @@ def g:Test_compile_runs_nothing()
   endtry
 enddef
 
+# An enum makes no values, its constructor does not run, while the arguments
+# of its values are checked, and so are the values of static variables.
+def g:Test_compile_enum()
+  var mark = tempname()
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc(['vim9script', 'enum Color', "  Red('r'),", '  Blue(2)',
+    '  var code: string', '  def new(this.code)',
+    $"    writefile(['ran'], '{mark}')", '  enddef', 'endenum', 'class C',
+    "  static var count: number = 'x'", 'endclass', 'def F(): number',
+    '  return Color.Red.name', 'enddef', 'def G(): list<Color>',
+    '  return Color.values', 'enddef'])
+  assert_equal([
+    [3, 'E1013: Argument 1: type mismatch, expected string but got number'],
+    [10, 'E1012: Type mismatch; expected number but got string'],
+    [13, 'E1012: Type mismatch; expected number but got string'],
+  ], helper.WaitNotification('textDocument/publishDiagnostics')
+    .params.diagnostics->mapnew((_, d) => [d.range.start.line, d.message]))
+  assert_false(filereadable(mark))
+
+  # A value given twice.
+  helper.ChangeDoc(['vim9script', 'enum Twice', '  A,', '  A', 'endenum'],
+    helper.URI, 2)
+  var reported = helper.WaitNotification('textDocument/publishDiagnostics')
+    .params.diagnostics->mapnew((_, d) => [d.range.start.line, d.message])
+  assert_true(index(reported, [3, 'E1369: Duplicate variable: A']) >= 0,
+    string(reported))
+  assert_equal([], reported->copy()->filter((_, r) => r[1] =~ '_Vim9ls'))
+  helper.StopServer()
+enddef
+
 # A script that imports one being edited is checked against its file.
 def g:Test_compile_import_of_edited_document()
   var root = helper.HERE .. '/Xedited'

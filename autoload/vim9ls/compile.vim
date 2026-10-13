@@ -115,12 +115,12 @@ enddef
 # A check of the same script that still waits gives way to this one, and is
 # answered with null.  A
 # check made "in_background" waits until no other one does.  "calls" are the
-# calls in keys to look up, see names.KeyCalls().  "definitions" are the
-# lines with the definitions only, see defs.vim; when empty the checker makes
-# them.  Returns false when there is no checker to ask.
+# calls in keys to look up, see names.KeyCalls().  "definitions" is the
+# script with the definitions only, as defs.Lines() gives it; when empty the
+# checker makes it.  Returns false when there is no checker to ask.
 export def Check(path: string, lines: list<string>, wrapped: any,
     Done: func(any), in_background = false,
-    calls: list<dict<any>> = [], definitions: list<string> = []): bool
+    calls: list<dict<any>> = [], definitions: dict<any> = {}): bool
   if !Running()
     Start()
     if !Running()

@@ -190,7 +190,7 @@ def ReadDefinitions(file: string, visiting: dict<bool>)
     return
   endtry
   lines = RenameDictFuncs(lines)
-  var definitions = defs.Lines(parse.Parse(lines), lines)
+  var definitions = defs.Lines(parse.Parse(lines), lines).lines
   ReadImports(file, definitions, visiting)
   Load(file, Guarded(file, definitions))
   Source(':%source')
@@ -351,6 +351,30 @@ def Where(context: string, lnum: number, path: string): number
   return -1
 enddef
 
+# The line of the document for each line of the definitions read last, see
+# defs.Lines(), and how many lines the document has.  Empty when each line
+# of the definitions is the line of the document.
+var origin: list<number> = []
+var origin_count = 0
+
+# The line of the document for "line" of the text read: after the
+# definitions comes the script level, from the line of its header.
+def FromText(line: number): number
+  if origin->empty() || line < 0
+    return line
+  endif
+  return line < len(origin) ? origin[line] : line - len(origin) + origin_count
+enddef
+
+# The line of the text read for "line" of the document.
+def ToText(line: number): number
+  if origin->empty()
+    return line
+  endif
+  return line >= origin_count ? line - origin_count + len(origin)
+    : index(origin, line)
+enddef
+
 # The errors in what Vim reported, as {line, message}, in the order of the
 # lines.
 def Errors(messages: string, path: string): list<dict<any>>
@@ -373,11 +397,12 @@ def Errors(messages: string, path: string): list<dict<any>>
       continue
     endif
     # The summary of a failed compilation, after the error that caused it.
-    # It is only reported with ":silent!".
-    if line =~ '^E1028:'
+    # It is only reported with ":silent!".  A line defs.vim added is no
+    # command once the class it is in failed.
+    if line =~ '^E1028:' || line =~ '\<_Vim9lsCheck\d'
       continue
     endif
-    var at = Where(context, lnum, path)
+    var at = FromText(Where(context, lnum, path))
     var error = {line: at, message: line}
     if at >= 0 && index(errors, error) < 0
       errors->add(error)
@@ -592,7 +617,7 @@ def Recover(path: string, cmd: string, text: list<string>,
       endfor
       first += shift
       var times = tried->get(first, 0)
-      var made = Harmless(current, first, last + shift, times)
+      var made = Harmless(current, ToText(first), ToText(last + shift), times)
       if !made->empty()
         current = made
         tried[first] = times + 1
@@ -634,7 +659,7 @@ enddef
 # every REFRESH_SECONDS for what it does not know of.
 def Check(path_arg: string, lines: list<string>, wrapped: any,
     refresh: bool, calls: list<any>,
-    definitions: list<string>): list<dict<any>>
+    definitions: dict<any>): list<dict<any>>
   var path = FullPath(path_arg)
   # A script loaded here is read under another name.  The scripts of vim9ls
   # are running here, their functions cannot be defined again.  So is an
@@ -658,12 +683,16 @@ def Check(path_arg: string, lines: list<string>, wrapped: any,
   var base = renamed
   # The range needs the colon: ":execute" from a ":def" reads the Vim9 way.
   var cmd = ':%source ++dryrun'
+  origin = []
   if !DRYRUN
-    var only = RenameDictFuncs(definitions->empty()
-      ? defs.Lines(parse.Parse(lines), lines) : definitions)
+    var made = definitions->empty()
+      ? defs.Lines(parse.Parse(lines), lines) : definitions
+    var only = RenameDictFuncs(made.lines)
     ReadImports(path, only, {[path]: true})
     base = Guarded(path, only)
     cmd = ':%source'
+    origin = made.origin
+    origin_count = len(lines)
   endif
   var text = Text(base, wrapped)
   Load(path, text)
@@ -730,7 +759,7 @@ def OnMessage(ch: channel, msg: any)
       ch_sendexpr(ch, {id: msg.id, result: {
         errors: Check(msg.params.path, msg.params.lines, msg.params.wrapped,
           msg.params->get('refresh', true), msg.params->get('calls', []),
-          msg.params->get('definitions', [])),
+          msg.params->get('definitions', {})),
       }})
     catch
       ch_sendexpr(ch, {id: msg.id, error: {code: -32603,

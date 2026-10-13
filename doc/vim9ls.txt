@@ -359,8 +359,12 @@ another script may define it.
 What a legacy "function" does is not read until it is called, and neither is
 a mapping or an autocommand.  The checker does not execute ":let", so the
 Dictionary of "function s:obj.Method()" does not exist; it reads such a
-function under a name of its own.  An enum is defined as it is written, so
-its values are made, and its constructor runs, when the checker reads it.
+function under a name of its own.  An enum is read as a class, which makes
+no values, so its constructor does not run; the arguments of each value
+are checked against the constructor all the same, and so is the value of a
+static class variable.  Vim reports changing a value, and a value given
+twice, with other messages than for an enum, and calling the "new()" of an
+enum from outside it is not reported.
 
 Workspace diagnostics ~
 A client that asks with "workspace/diagnostic" is told about the "*.vim" files
