@@ -1455,19 +1455,44 @@ def g:Test_compile_recovery()
     [6, 'E1001: Variable not found: undefined_q']],
     Errors(['vim9script', 'def F()', '  var L = [1]->map((_, v) => {',
       "    var n: number = 'x'", '    return v', '  })',
-      '  echo undefined_q', 'enddef'], 7))
+      '  echo undefined_q', 'enddef'], 4))
   # A call of a function that failed only for an error that is gone now.
   assert_equal([[2, 'E1012: Type mismatch; expected number but got string']],
     Errors(['vim9script', 'def A()', "  var n: number = 'x'", 'enddef',
-      'def B()', '  A()', 'enddef'], 4))
-  # Nothing after a "return" with an error.
-  assert_equal([[2, 'E1012: Type mismatch; expected number but got string']],
+      'def B()', '  A()', 'enddef'], 5))
+  # A "return" gives a value of the type the function returns, so what comes
+  # after its block is checked; right after it is code that is never
+  # reached.
+  assert_equal([[2, 'E1012: Type mismatch; expected number but got string'],
+    [3, 'E1095: Unreachable code after :return']],
     Errors(['vim9script', 'def R(): number', "  return 'x'",
-      "  var n: number = 'y'", 'enddef'], 5))
+      "  var n: number = 'y'", 'enddef'], 6))
+  assert_equal([[3, 'E1012: Type mismatch; expected string but got number'],
+    [5, 'E1012: Type mismatch; expected number but got string']],
+    Errors(['vim9script', 'def S(x: number): string', '  if x > 0',
+      '    return 1', '  endif', "  var n: number = 'a'", "  return 'ok'",
+      'enddef'], 7))
+  # A function that returns nothing.
+  assert_equal([
+    [3, 'E1096: Returning a value in a function without a return type'],
+    [5, 'E1012: Type mismatch; expected number but got string']],
+    Errors(['vim9script', 'def V(x: number)', '  if x > 0', '    return 1',
+      '  endif', "  var n: number = 'a'", 'enddef'], 8))
+  # A lambda with a type.
+  assert_equal([[4, 'E1012: Type mismatch; expected string but got number'],
+    [8, 'E1012: Type mismatch; expected number but got string']],
+    Errors(['vim9script', 'def L()', '  var F = (x: number): string => {',
+      '    if x > 0', '      return 1', '    endif', "    return 'a'", '  }',
+      "  var n: number = 'b'", 'enddef'], 9))
+  # No value for a type alias: nothing after it is checked.
+  assert_equal([[4, 'E1012: Type mismatch; expected string but got number']],
+    Errors(['vim9script', 'type Name = string', 'def A(x: number): Name',
+      '  if x > 0', '    return 1', '  endif', "  var n: number = 'c'",
+      "  return 'n'", 'enddef'], 10))
   # The script is read again 20 times at most.
   var many = ['vim9script', 'def M()']
     + range(25)->mapnew((i, _) => $"  var v{i}: number = 'x'") + ['enddef']
-  assert_equal(21, len(Errors(many, 6)))
+  assert_equal(21, len(Errors(many, 11)))
   helper.StopServer()
 enddef
 

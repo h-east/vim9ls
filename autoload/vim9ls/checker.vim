@@ -532,11 +532,58 @@ def Bodies(lines: list<string>): dict<bool>
   return bodies
 enddef
 
+# A value of type "type" to return, "" for a function that returns nothing,
+# or "-" when there is no value to give: a type alias of "text" for one.
+def Zero(type: string, text: list<string>): string
+  const ZEROS = {'': '', void: '', number: '0', float: '0.0', bool: 'false',
+    string: "''", blob: '0z', any: 'null', job: 'null_job',
+    channel: 'null_channel'}
+  if ZEROS->has_key(type)
+    return ZEROS[type]
+  endif
+  var outer = matchstr(type, '^\h\w*')
+  if outer == 'list' || outer == 'dict' || outer == 'tuple'
+    return {list: '[]', dict: '{}', tuple: '()'}[outer]
+  elseif outer == 'func'
+    return 'null_function'
+  elseif outer == 'object'
+      || (type =~ '^\%(\h\w*\.\)\=\u\w*$' && text->indexof((_, l) =>
+        l =~ '^\s*\%(export\s\+\)\=type\s\+' .. outer .. '\>') < 0)
+    return 'null_object'
+  endif
+  return '-'
+enddef
+
+# The type the function or lambda around line "lnum" of "text" returns, ""
+# when it declares none, or "-" when there is no knowing: a lambda without a
+# type.  A function or a lambda that ends above "lnum" is passed over.
+def ReturnType(text: list<string>, lnum: number): string
+  var closed = 0
+  for k in range(lnum - 1, 0, -1)
+    var line = text[k]
+    var is_def = line =~ '^\s*\%(\%(export\|static\|public\)\s\+\)*def\s'
+    if line =~ '^\s*\%(}\|enddef\>\)'
+      closed += 1
+    elseif closed > 0 && (is_def || line =~ '{\s*$')
+      closed -= 1
+    elseif line =~ '=>\s*{\s*$'
+      var lambda = matchlist(line, ')\s*:\s*\(.\{-}\)\s*=>\s*{\s*$')
+      return lambda->empty() ? '-' : lambda[1]
+    elseif is_def
+      var [first, last] = selection.StatementAt(text, k)
+      var header = text[first : last]->mapnew((_, l) => trim(l))->join(' ')
+      return matchstr(header, ')\s*:\s*\zs.\{-}\ze\s*$')
+    endif
+  endfor
+  return '-'
+enddef
+
 # "text" with the statement from line "first" to "last" made harmless, so
 # that compiling goes on after it, or an empty list when it cannot be: a
 # declaration loses its value, then its type, a condition becomes a
-# constant, and another statement is blanked.  "times" is how often it was
-# made harmless before.
+# constant, a "return" gives a value of the type the function returns, and
+# another statement is blanked.  "times" is how often it was made harmless
+# before.
 def Harmless(text: list<string>, first: number, last: number,
     times: number): list<string>
   var line = text[first]
@@ -551,6 +598,13 @@ def Harmless(text: list<string>, first: number, last: number,
     var type = times == 0 && m[2] != '' ? trim(m[2]) : 'any'
     made = indent .. split(trim(m[1], '[]'), ',\s*')
       ->mapnew((_, n) => 'var ' .. n .. ': ' .. type)->join(' | ')
+  elseif line =~ '^\s*return\>' && times == 0
+    var type = ReturnType(text, first)
+    var value = type == '-' ? '-' : Zero(type, text)
+    if value == '-'
+      return []
+    endif
+    made = indent .. 'return' .. (value == '' ? '' : ' ' .. value)
   elseif times > 0
       || line =~ '^\s*\%(end\h*\|else\|finally\|try\|return\|def\)\>'
       || line =~ '^\s*\%(fu\%[nction]\>\|[{}]\s*$\)'

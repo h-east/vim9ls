@@ -340,10 +340,12 @@ so that the import does not run it either.  In a |vim9script| file the
 script level goes along once more as the body of a function, so that it is
 compiled as well; a declaration is checked against its type.  Vim stops at
 the first error of a function; the checker reads the script again with the
-statement made harmless, a declaration keeping its name and type, for the
-errors after it.  Nothing after a "return", the end of a block or a function
-header with an error is checked, and leaving out a statement can bring an
-error of its own.  A user command is left out, there and in a
+statement made harmless, a declaration keeping its name and type and a
+"return" giving a value of the type the function returns, for the errors
+after it.  Nothing after the end of a block, a function header or a
+"return" without such a value, of a type alias for one, is checked when
+it has an error, and leaving out a statement can bring an error of its
+own.  A user command is left out, there and in a
 function: the checker's Vim loads no plugins and would not know it.  The
 server does not wait for the checker, it goes on answering the client and
 sends the diagnostics once the checker has answered.  What Vim reports is
