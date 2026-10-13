@@ -18,6 +18,7 @@ import autoload './vim9ls/refs.vim'
 import autoload './vim9ls/sig.vim'
 import autoload './vim9ls/compile.vim'
 import autoload './vim9ls/wrap.vim'
+import autoload './vim9ls/defs.vim'
 import autoload './vim9ls/names.vim'
 import autoload './vim9ls/fix.vim'
 import autoload './vim9ls/fold.vim'
@@ -28,14 +29,13 @@ import autoload './vim9ls/selection.vim'
 import autoload './vim9ls/unused.vim'
 import autoload './vim9ls/cache.vim'
 
-export const VERSION = '0.1.019'
+export const VERSION = '0.1.020'
 
 const SCRIPT = expand('<sfile>:p')
 
 # The Vim the server and the checker need: --stdio-channel came with
 # 9.2.1049, 9.2.1055 compiles a function with a lambda after another
-# function failed to compile, 9.2.1084 has ":source ++dryrun" and 9.2.1160
-# has getinfo().
+# function failed to compile and 9.2.1160 has getinfo().
 const PATCH = '9.2.1160'
 
 export def Command(): list<string>
@@ -182,7 +182,7 @@ def DocumentPull(id: any, params: dict<any>)
           items = WithCompiled(d, items)
         endif
         Reply(id, {kind: 'full', items: items})
-      }, false, names.KeyCalls(parsed, d.lines))
+      }, false, names.KeyCalls(parsed, d.lines), defs.Lines(parsed, d.lines))
     Reply(id, {kind: 'full', items: items})
   endif
 enddef
@@ -389,7 +389,7 @@ def ReadScript(path: string)
   var parsed = Parsed(d)
   if compile.Check(path, d.lines, parsed.vim9 ? wrap.Lines(parsed, d.lines)
       : null, (errors: any) => Checked(path, stamp, d, items, errors, w),
-      true, names.KeyCalls(parsed, d.lines))
+      true, names.KeyCalls(parsed, d.lines), defs.Lines(parsed, d.lines))
     checking += 1
   else
     Step(w)
@@ -571,7 +571,7 @@ def PublishDiagnostics(uri: string)
   if path == '' || !compile.Check(path, d.lines,
       parsed.vim9 ? wrap.Lines(parsed, d.lines) : null,
       (errors: any) => Publish(uri, version, items, errors), false,
-      names.KeyCalls(parsed, d.lines))
+      names.KeyCalls(parsed, d.lines), defs.Lines(parsed, d.lines))
     Publish(uri, version, items, null)
   endif
 enddef

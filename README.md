@@ -12,9 +12,10 @@ help files, and the plugins you already have.  A new function or option is
 there as soon as Vim has it, since nothing is copied out of Vim.  Nothing
 else needs to be installed.
 
-The diagnostics are Vim's own.  The script is read with `:source ++dryrun`,
-which runs nothing in it and compiles its `:def` functions, so what is
-reported is what Vim finds in the script, not what another parser guesses.
+The diagnostics are Vim's own.  Vim reads the script with its definitions
+only, so that nothing in it runs, and compiles its `:def` functions.  What
+is reported is what Vim finds in the script, not what another parser
+guesses.
 
 ## Requirements
 
@@ -25,7 +26,6 @@ Vim 9.2.1160 or later with `+channel` and `+job`.
 
 - [9.2.1160](https://github.com/vim/vim/commit/89c0f361635943234bd293b13e4fa4e507e8ca86): `getinfo()` names and types the arguments in the signature
   help of a builtin
-- [9.2.1084](https://github.com/vim/vim/commit/e376846379307f2d990d65675e95e3ee1425476d): `:source ++dryrun` brings the diagnostics from Vim itself
 - [9.2.1055](https://github.com/vim/vim/commit/1cb30afd951e36c1d66e9015891845d3e33866c8): lets a function holding a lambda compile after an earlier one
   failed, which the checker relies on
 - [9.2.1049](https://github.com/vim/vim/commit/673be365fd1f94caa60fabd9ebc7a1083b9a88d2): adds `--stdio-channel`, which is how the server talks to a client
@@ -258,7 +258,7 @@ In the order they are meant to be taken up.
       item that is looked at rather than sent with every item.
 - [x] Diagnostics for what compiling a `:def` reports, from the checker: a
       Vim of its own that is started once and kept, and reads the script
-      with `:source ++dryrun`.
+      with its definitions only.
 - [x] `textDocument/codeAction` with a quick fix for what a diagnostic
       reports: `:let` to `var` under Vim9 rules, the `endif` a block lacks.
 - [x] Signature help with the types of a builtin's arguments; the help entry

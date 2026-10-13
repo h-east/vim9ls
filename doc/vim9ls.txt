@@ -24,9 +24,10 @@ and the plugins you already have.  A new function or option is there as soon
 as Vim has it, since nothing is copied out of Vim.  Nothing else needs to be
 installed.
 
-The diagnostics are Vim's own.  The script is read with |:source-dryrun|,
-which runs nothing in it and compiles its |:def| functions, so what is
-reported is what Vim finds in the script, not what another parser guesses.
+The diagnostics are Vim's own.  Vim reads the script with its definitions
+only, so that nothing in it runs, and compiles its |:def| functions.  What
+is reported is what Vim finds in the script, not what another parser
+guesses.
 
 ==============================================================================
 2. Requirements					*vim9ls-requirements*
@@ -36,7 +37,6 @@ Vim 9.2.1160 or later with the |+channel| and |+job| features.
 What those patches are for:
 9.2.1160: |getinfo()| gives the names and the types of the arguments in
           the signature help of a builtin
-9.2.1084: |:source-dryrun| brings the diagnostics from Vim itself
 9.2.1055: lets a function holding a lambda compile after an earlier one
           failed, which the checker relies on
 9.2.1049: adds |--stdio-channel|, which is how the server talks to a client
@@ -332,11 +332,15 @@ The reading is line by line and does not run the script.
 
 At the same time Vim itself reads the document.  The checker, a Vim of its
 own that the server starts once and keeps, sources the text under the file's
-own name, so that a relative import is found, with |:source-dryrun|: what
-the script defines is defined, nothing in it runs, and every ":def" is
-compiled.  In a |vim9script| file the script level goes along once more as
-the body of a function, so that it is compiled as well; a declaration is
-checked against its type.  A user command is left out, there and in a
+own name, so that a relative import is found, with its definitions only:
+the imports, functions, classes, interfaces, enums and type aliases, and the
+script variables declared without their values.  Nothing in it runs, and
+every ":def" is compiled.  A script it imports is read the same way first,
+so that the import does not run it either.  In a |vim9script| file the
+script level goes along once more as the body of a function, so that it is
+compiled as well; a declaration is checked against its type.  Vim stops at
+the first error of a function, so each function and the script level
+have one error reported at most.  A user command is left out, there and in a
 function: the checker's Vim loads no plugins and would not know it.  The
 server does not wait for the checker, it goes on answering the client and
 sends the diagnostics once the checker has answered.  What Vim reports is
@@ -350,9 +354,10 @@ the keys find it when typed, and reports a function that is not found and a
 wrong number of arguments.  A capitalized name found nowhere is left alone,
 another script may define it.
 What a legacy "function" does is not read until it is called, and neither is
-a mapping or an autocommand.  A dry run does not execute ":let", so the
-Dictionary of "function s:obj.Method()" does not exist; the checker reads
-such a function under a name of its own.
+a mapping or an autocommand.  The checker does not execute ":let", so the
+Dictionary of "function s:obj.Method()" does not exist; it reads such a
+function under a name of its own.  An enum is defined as it is written, so
+its values are made, and its constructor runs, when the checker reads it.
 
 Workspace diagnostics ~
 A client that asks with "workspace/diagnostic" is told about the "*.vim" files

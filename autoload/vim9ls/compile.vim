@@ -23,7 +23,7 @@ var job: job
 # The check the checker has, {id, Done, timer, path}, or null_dict.
 var current: dict<any> = null_dict
 # The paths of the checks that wait for it, oldest first, and the checks by
-# path, {path, lines, wrapped, Done}.
+# path, {path, lines, wrapped, definitions, Done}.
 var waiting: list<string> = []
 var waiting_checks: dict<dict<any>> = {}
 # The same for the checks made in the background, which wait until nothing
@@ -96,7 +96,7 @@ def Next()
       : remove(waiting_checks, remove(waiting, 0))
     var sent = ch_sendexpr(job, {method: 'check',
       params: {path: w.path, lines: w.lines, wrapped: w.wrapped,
-        refresh: changed, calls: w.calls}},
+        definitions: w.definitions, refresh: changed, calls: w.calls}},
       {callback: OnReply})
     if type(sent) != v:t_dict || !sent->has_key('id')
       w.Done(null)
@@ -115,11 +115,12 @@ enddef
 # A check of the same script that still waits gives way to this one, and is
 # answered with null.  A
 # check made "in_background" waits until no other one does.  "calls" are the
-# calls in keys to look up, see names.KeyCalls().  Returns false when there
-# is no checker to ask.
+# calls in keys to look up, see names.KeyCalls().  "definitions" are the
+# lines with the definitions only, see defs.vim; when empty the checker makes
+# them.  Returns false when there is no checker to ask.
 export def Check(path: string, lines: list<string>, wrapped: any,
     Done: func(any), in_background = false,
-    calls: list<dict<any>> = []): bool
+    calls: list<dict<any>> = [], definitions: list<string> = []): bool
   if !Running()
     Start()
     if !Running()
@@ -127,7 +128,7 @@ export def Check(path: string, lines: list<string>, wrapped: any,
     endif
   endif
   var check = {path: path, lines: lines, wrapped: wrapped, Done: Done,
-    calls: calls}
+    calls: calls, definitions: definitions}
   var queue = in_background ? background : waiting
   var checks = in_background ? background_checks : waiting_checks
   if checks->has_key(path)

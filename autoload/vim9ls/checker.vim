@@ -1,21 +1,30 @@
 vim9script
 
-# vim9ls - the checker: a Vim of its own that reads a script with
-# ":source ++dryrun" and reports what does not compile
+# vim9ls - the checker: a Vim of its own that reads a script without running
+# it and reports what does not compile
 # Maintainer: Hirohito Higashi <h.east.727@gmail.com>
 #
 # compile.vim starts this with --stdio-channel and sends it the text of a
-# script.  Nothing in the script runs: the dry run defines what the script
-# defines and compiles its functions.  What Vim reports comes back with the
-# line it is about.  The dry run, and the command that is meant to fail,
-# carry ":silent!": an error would abort the ":def" it runs in, while what
-# is reported still reaches ":redir".
+# script.  Nothing in the script runs: what is sourced is the script with its
+# definitions only (see defs.vim), and ":defcompile" compiles its functions.
+# A script it imports is read the same way first, so that the import finds
+# it and does not run the file.  With util.DRYRUN set the script is read
+# with ":source ++dryrun" instead.  What Vim reports comes back with the
+# line it is about.  Reading the script, and the command that is meant to
+# fail, carry ":silent!": an error would abort the ":def" it runs in, while
+# what is reported still reaches ":redir".
 
 import autoload './util.vim'
+import autoload './parse.vim'
+import autoload './defs.vim'
+
+const DRYRUN = util.DRYRUN
 
 var conn: channel
 
 const SELF = expand('<sfile>:p')
+# The directory of the scripts of vim9ls, which are running here.
+const OWN = util.FullPath(fnamemodify(SELF, ':h'))
 const RUNTIMEPATH = &runtimepath
 
 # The buffer for "path" with "lines" as its text.  The same buffer serves
@@ -66,18 +75,125 @@ var stale = false
 # read from the file before another script is checked.
 var from_text: dict<bool> = {}
 # The scripts this Vim loaded itself, such as $VIMRUNTIME/syntax/vim.vim,
-# which Vim does not read with a dry run (E1588).
+# which Vim does not read with a dry run (E1588) and which are not to be
+# read again here.
 var loaded_here: dict<bool> = {}
 
 def Stamp(file: string): string
   return getftime(file) .. ':' .. getfsize(file)
 enddef
 
+# Whether "file" is a script of vim9ls.
+def Own(file: string): bool
+  return strpart(file, 0, strlen(OWN)) == OWN
+enddef
+
 # The file of "info" when it is one to note, but for the one at "path".
 def FileOf(info: dict<any>, path: string): string
   var file = FullPath(info.name)
-  return file == path || file == FullPath(SELF) || !filereadable(file)
-    ? '' : file
+  return file == path || Own(file) || !filereadable(file) ? '' : file
+enddef
+
+# Reads the script at "file" again, as it is now.
+def ReadAgain(file: string)
+  if DRYRUN
+    silent! execute 'source ++dryrun' fnameescape(file)
+  else
+    ReadDefinitions(file, {})
+  endif
+enddef
+
+# The file "spec" of an import in the script at "importer" names, "" when it
+# is not found: relative to the script, or in an "import" directory of the
+# plugin or of 'runtimepath'.
+def ImportFile(importer: string, spec: string): string
+  var file = ''
+  if spec =~ '^\.\.\=/'
+    file = fnamemodify(importer, ':h') .. '/' .. spec
+  elseif spec =~ '^\%(/\|\a:[/\\]\|\~\)'
+    file = expand(spec)
+  else
+    var root = util.PluginRoot(importer)
+    var found = globpath((root == '' ? '' : root .. ',') .. RUNTIMEPATH,
+      'import/' .. spec, true, true)
+    file = found->empty() ? '' : found[0]
+  endif
+  return file != '' && filereadable(file) ? FullPath(file) : ''
+enddef
+
+const IMPORT = '^\s*\%(export\s\+\)\=import\s\+\(autoload\s\+\)\=\([''"]\)'
+  .. '\(.\{-}\)\2'
+
+# The files of the imports in "lines", the script at "path", that are not
+# autoload imports.
+def Imports(path: string, lines: list<string>): list<string>
+  var files: list<string> = []
+  for line in lines
+    var m = matchlist(line, IMPORT)
+    if !m->empty() && m[1] == ''
+      var file = ImportFile(path, m[3])
+      if file != ''
+        add(files, file)
+      endif
+    endif
+  endfor
+  return files
+enddef
+
+# The files of the scripts read so far.
+def ReadFiles(): dict<bool>
+  var read: dict<bool> = {}
+  for info in getscriptinfo()
+    read[FullPath(info.name)] = true
+  endfor
+  return read
+enddef
+
+# "lines" of the script at "path" with every import of a script that has not
+# been read made an autoload import, which reads nothing until it is used:
+# the file is not to run.
+def Guarded(path: string, lines: list<string>): list<string>
+  var read = ReadFiles()
+  return lines->mapnew((_, line) => {
+    var m = matchlist(line, IMPORT)
+    if m->empty() || m[1] != '' || read->has_key(ImportFile(path, m[3]))
+      return line
+    endif
+    return substitute(line, '\<import\s\+', 'import autoload ', '')
+  })
+enddef
+
+# Reads the scripts "lines", the script at "path", imports that have not been
+# read, see ReadDefinitions().
+def ReadImports(path: string, lines: list<string>, visiting: dict<bool>)
+  var read = ReadFiles()
+  for file in Imports(path, lines)
+    if !read->has_key(file)
+      ReadDefinitions(file, visiting)
+    endif
+  endfor
+enddef
+
+# Reads the script at "file" with its definitions only, under its own name,
+# after what it imports, so that an import of it finds it and does not run
+# the file.  "visiting" are the scripts on the way here.
+def ReadDefinitions(file: string, visiting: dict<bool>)
+  if visiting->has_key(file) || Own(file) || loaded_here->has_key(file)
+    return
+  endif
+  visiting[file] = true
+  var lines: list<string>
+  try
+    lines = readfile(file)
+  catch
+    return
+  endtry
+  lines = RenameDictFuncs(lines)
+  var definitions = defs.Lines(parse.Parse(lines), lines)
+  ReadImports(file, definitions, visiting)
+  Load(file, Guarded(file, definitions))
+  Source(':%source')
+  read_as[file] = Stamp(file)
 enddef
 
 # Has the scripts read before that changed since then read again, but for
@@ -94,7 +210,7 @@ def Refresh(path: string)
     endif
     var stamp = Stamp(file)
     if read_as->has_key(file) && read_as[file] != stamp
-      silent! execute 'source ++dryrun' fnameescape(file)
+      ReadAgain(file)
     endif
     read_as[file] = stamp
     noted_sid = max([noted_sid, info.sid])
@@ -359,24 +475,34 @@ def RenameDictFuncs(lines: list<string>): list<string>
     ? substitute(line, DICT_FUNC, 's:Vim9lsDict' .. (i + 1), '') : line)
 enddef
 
+# "base" with "wrapped", the script level as a function, appended, and the
+# command that compiles the functions when no dry run does.
+def Text(base: list<string>, wrapped: any): list<string>
+  var text = type(wrapped) != v:t_list ? base
+    : base + ['def ScriptLevel()'] + wrapped + ['enddef']
+  return DRYRUN ? text : text + ['defcompile']
+enddef
+
 # What Vim reports for "lines" as the script at "path".  "wrapped" is the
 # script level of a Vim9 script as the body of a function, see wrap.vim; it
 # is appended to the script, so that it is compiled along with the rest.
 # An error in it is reported on the line of the script it came from.
-# Looking at every script read is slow when many were, so it is done when
-# "refresh" is true, the server knowing of a change, and every
-# REFRESH_SECONDS for what it does not know of.
+# "definitions" are "lines" with the definitions only, see defs.vim, made
+# here when empty.  Looking at every script read is slow when many were, so
+# it is done when "refresh" is true, the server knowing of a change, and
+# every REFRESH_SECONDS for what it does not know of.
 def Check(path_arg: string, lines: list<string>, wrapped: any,
-    refresh: bool, calls: list<any>): list<dict<any>>
+    refresh: bool, calls: list<any>,
+    definitions: list<string>): list<dict<any>>
   var path = FullPath(path_arg)
-  # A script loaded here is read under another name.  This script is running
-  # here, its functions cannot be defined again.
-  if path == FullPath(SELF) || loaded_here->has_key(path)
+  # A script loaded here is read under another name.  The scripts of vim9ls
+  # are running here, their functions cannot be defined again.  So is an
+  # autoload script without a dry run: Vim refuses to define its class again.
+  if Own(path) || loaded_here->has_key(path)
+      || (!DRYRUN && path =~ '[/\\]autoload[/\\]')
     path ..= '.dryrun'
   endif
   var renamed = RenameDictFuncs(lines)
-  var text = type(wrapped) != v:t_list ? renamed
-    : renamed + ['def ScriptLevel()'] + wrapped + ['enddef']
   var started = localtime()
   if refresh || stale || reltimefloat(reltime(refreshed)) >= REFRESH_SECONDS
     Refresh(path)
@@ -384,18 +510,28 @@ def Check(path_arg: string, lines: list<string>, wrapped: any,
   for file in keys(from_text)
     if file != path
       remove(from_text, file)
-      silent! execute 'source ++dryrun' fnameescape(file)
+      ReadAgain(file)
       read_as[file] = Stamp(file)
     endif
   endfor
-  Load(path, text)
+  var base = renamed
   # The range needs the colon: ":execute" from a ":def" reads the Vim9 way.
-  var messages = Source(':%source ++dryrun')
-  if messages =~ '\<E1588:'
+  var cmd = ':%source ++dryrun'
+  if !DRYRUN
+    var only = RenameDictFuncs(definitions->empty()
+      ? defs.Lines(parse.Parse(lines), lines) : definitions)
+    ReadImports(path, only, {[path]: true})
+    base = Guarded(path, only)
+    cmd = ':%source'
+  endif
+  var text = Text(base, wrapped)
+  Load(path, text)
+  var messages = Source(cmd)
+  if DRYRUN && messages =~ '\<E1588:'
     loaded_here[path] = true
     path ..= '.dryrun'
     Load(path, text)
-    messages = Source(':%source ++dryrun')
+    messages = Source(cmd)
   endif
   var errors = Errors(messages, path)
   NoteNew(path, started)
@@ -404,8 +540,8 @@ def Check(path_arg: string, lines: list<string>, wrapped: any,
       errors->mapnew((_, e) => e->copy()->extend(
         {line: e.line - len(lines) - 1})))
     if declared != wrapped
-      Load(path, renamed + ['def ScriptLevel()'] + declared + ['enddef'])
-      errors = Errors(Source(':%source ++dryrun'), path)
+      Load(path, Text(base, declared))
+      errors = Errors(Source(cmd), path)
       NoteNew(path, started)
     endif
   endif
@@ -448,7 +584,8 @@ def OnMessage(ch: channel, msg: any)
     try
       ch_sendexpr(ch, {id: msg.id, result: {
         errors: Check(msg.params.path, msg.params.lines, msg.params.wrapped,
-          msg.params->get('refresh', true), msg.params->get('calls', [])),
+          msg.params->get('refresh', true), msg.params->get('calls', []),
+          msg.params->get('definitions', [])),
       }})
     catch
       ch_sendexpr(ch, {id: msg.id, error: {code: -32603,
@@ -466,6 +603,11 @@ export def Start()
   # kept.
   set eventignore=all undolevels=-1 nomodeline
   silent! language messages C
+  if !DRYRUN
+    for info in getscriptinfo()
+      loaded_here[FullPath(info.name)] = true
+    endfor
+  endif
   conn = ch_open('stdio', {mode: 'lsp', callback: OnMessage,
     close_cb: OnClose})
   if ch_status(conn) != 'open'

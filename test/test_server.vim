@@ -1293,20 +1293,24 @@ def g:Test_compile_diagnostics()
   assert_equal([], After(['vim9script', 'legacy let $X = 1', 'def Fine()',
     '  legacy let x = 1', 'enddef'], 3))
 
-  # A "const" is left alone, what comes after "finish" is read as well, and
-  # every line with an error is reported, in a function and at the script
-  # level.
-  assert_equal([
+  # A "const" is left alone and what comes after "finish" is read as well.
+  # With a dry run every line with an error is reported, in a function and
+  # at the script level; without one Vim stops at the first error of each.
+  assert_equal(util.DRYRUN ? [
     [1, 'E1012: Type mismatch; expected number but got string'],
     [4, 'E1012: Type mismatch; expected number but got string'],
     [6, 'Unused variable: s'],
     [6, 'E1012: Type mismatch; expected string but got number'],
     [7, 'E1001: Variable not found: undefined_name'],
+  ] : [
+    [1, 'E1012: Type mismatch; expected number but got string'],
+    [6, 'Unused variable: s'],
+    [6, 'E1012: Type mismatch; expected string but got number'],
   ], After(['vim9script', 'var n: number = "t"', 'const LIMIT = 10', 'finish',
       'var m: number = "s"', 'def Two(): number', '  var s: string = 1',
       '  echo undefined_name', '  return 1', 'enddef'], 3))
 
-  # A user command the dry run cannot know and a variable declared inside a
+  # A user command the checker cannot know and a variable declared inside a
   # block are no errors.
   assert_equal([], After(['vim9script', "Plug 'x/y'", 'command! Log echo 1',
     'Log', "if has('iconv')", "  var enc = 'euc-jp'", "  enc = 'eucjp-ms'",
@@ -1426,7 +1430,7 @@ def g:Test_compile_block_variable_declared_later()
 enddef
 
 # A declaration in a lambda at the script level stays a declaration of the
-# lambda, the dry run declaring no script variable for it, and the script
+# lambda, the checker declaring no script variable for it, and the script
 # level is still checked.
 def g:Test_compile_declaration_in_lambda()
   helper.StartServer()
@@ -1575,6 +1579,34 @@ def g:Test_compile_import_changed()
     assert_equal([E1012],
       helper.WaitNotification('textDocument/publishDiagnostics')
         .params.diagnostics->mapnew((_, d) => d.message), 'same size')
+  finally
+    helper.StopServer()
+  endtry
+enddef
+
+# Nothing a script or what it imports does runs, while what it imports is
+# known: its names and their types.
+def g:Test_compile_runs_nothing()
+  var root = helper.HERE .. '/Xnorun'
+  mkdir(root, 'pR')
+  writefile(['vim9script', $"writefile(['lib'], '{root}/Xran_lib')",
+    'export const N: number = 1'], root .. '/xlib.vim')
+  var user = ['vim9script', "import './xlib.vim'", 'def F(): string',
+    '  return xlib.N', 'enddef', 'def G(): number', '  return xlib.Nope',
+    'enddef', 'def Mark(): number',
+    $"  writefile(['static'], '{root}/Xran_static')", '  return 1', 'enddef',
+    'class C', '  static var s = Mark()', 'endclass',
+    $"writefile(['user'], '{root}/Xran_user')"]
+  writefile(user, root .. '/user.vim')
+  try
+    helper.StartServer()
+    helper.Initialize()
+    helper.OpenDoc(user, util.PathToUri(root .. '/user.vim'))
+    assert_equal([[3, 'E1012: Type mismatch; expected string but got number'],
+      [6, 'E1048: Item not found in script: Nope']],
+      helper.WaitNotification('textDocument/publishDiagnostics')
+      .params.diagnostics->mapnew((_, d) => [d.range.start.line, d.message]))
+    assert_equal([], glob(root .. '/Xran_*', true, true))
   finally
     helper.StopServer()
   endtry

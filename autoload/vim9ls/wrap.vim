@@ -3,16 +3,16 @@ vim9script
 # vim9ls - the script level of a Vim9 script as a function
 # Maintainer: Hirohito Higashi <h.east.727@gmail.com>
 #
-# ":source ++dryrun" defines what a script defines and compiles its
-# functions, but skips the statements at the script level.  To have Vim
-# compile those as well, they are made the body of a function that the
-# checker appends to the script: what the dry run has already read
-# (functions, classes, imports, type aliases, "vim9script" and what comes
-# before it) is blanked, and so is a user command, which nothing defines in
-# the checker's Vim.  A declaration becomes an assignment to the script
-# variable the dry run declared; one inside a block, which the dry run does
-# not keep, stays a declaration and is a local of the function.  The body
-# has one line for each line of the script.
+# The checker defines what a script defines and compiles its functions,
+# with ":source ++dryrun" or with what defs.vim leaves of it, but not the
+# statements at the script level.  To have Vim compile those as well, they
+# are made the body of a function that the checker appends to the script:
+# what was read already (functions, classes, imports, type aliases,
+# "vim9script" and what comes before it) is blanked, and so is a user
+# command, which nothing defines in the checker's Vim.  A declaration
+# becomes an assignment to the script variable declared already; one inside
+# a block, which is no script variable, stays a declaration and is a local
+# of the function.  The body has one line for each line of the script.
 
 import autoload './parse.vim'
 
@@ -50,6 +50,24 @@ export def Lines(parsed: dict<any>, lines: list<string>): list<string>
         && !done->has_key(s.line) && !s->has_key('scope_start')
       done[s.line] = true
       out[s.line] = Assignment(out[s.line])
+    endif
+  endfor
+  # A variable of a block differs from a script variable of the same name
+  # declared after the block, which the function already sees, so it gets a
+  # name of its own in the block.
+  var declared_at: dict<number> = {}
+  for s in parsed.symbols
+    if (s.kind == parse.KIND_VARIABLE || s.kind == parse.KIND_CONSTANT)
+        && !s->has_key('scope_start') && !declared_at->has_key(s.name)
+      declared_at[s.name] = s.line
+    endif
+  endfor
+  for s in parsed.symbols
+    if s->has_key('scope_start') && declared_at->get(s.name, -1) > s.line
+      for lnum in range(s.line, min([s.scope_end, len(out) - 1]))
+        out[lnum] = substitute(out[lnum], '[.:$&@]\@<!\<' .. s.name .. '\>',
+          s.name .. '_vim9ls', 'g')
+      endfor
     endif
   endfor
   var heredoc: dict<bool> = {}

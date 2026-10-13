@@ -3,6 +3,11 @@ vim9script
 # vim9ls - conversions between Vim and LSP representations
 # Maintainer: Hirohito Higashi <h.east.727@gmail.com>
 
+# Whether the checker reads a script with ":source ++dryrun", which Vim
+# 9.2.1084 to 9.2.1183 have, instead of with its definitions only, see
+# defs.vim.
+export const DRYRUN = false
+
 # Characters that may appear in a URI path without being escaped.
 const UNRESERVED = '[A-Za-z0-9\-._~/]'
 

@@ -85,7 +85,7 @@ def g:Test_wrap_script_level()
 enddef
 
 # A user command is left out, its continuation lines with it: a plugin or a
-# ":command" the dry run skipped may define it.  A declaration inside a block
+# ":command" the checker skipped may define it.  A declaration inside a block
 # stays a declaration, the block ends its scope.
 def g:Test_wrap_commands_and_blocks()
   var lines =<< trim END
