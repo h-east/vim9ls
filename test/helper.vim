@@ -46,6 +46,8 @@ export def StartServer(cmd: list<string> = null_list, tmp = LOG): job
     in_mode: 'lsp',
     out_mode: 'lsp',
     err_mode: 'nl',
+    # As a client does, for a document bigger than the pipe holds.
+    noblock: true,
     out_cb: (_, msg) => add(notifications, msg),
     err_cb: (_, msg) => add(stderr, msg),
     env: {VIM9LS_LOG: '1', TMPDIR: tmp, TEMP: tmp, VIM9LS_VIM: v:progpath,
