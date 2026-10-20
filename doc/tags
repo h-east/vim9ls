@@ -1,4 +1,5 @@
 vim9ls#Command()	vim9ls.txt	/*vim9ls#Command()*
+vim9ls-checker	vim9ls.txt	/*vim9ls-checker*
 vim9ls-cmdline-completion	vim9ls.txt	/*vim9ls-cmdline-completion*
 vim9ls-contents	vim9ls.txt	/*vim9ls-contents*
 vim9ls-development	vim9ls.txt	/*vim9ls-development*
