@@ -17,10 +17,12 @@ vim9script
 # declared.  The arguments of each value, and the value of a static class
 # variable, which its declaration loses, go to a static method that is
 # compiled and never called.  These lines are added; Lines() gives the line
-# of the script for each line.
+# of the script for each line.  With util.DRYRUN set, Checks() adds them to
+# the script.
 
 import autoload './parse.vim'
 import autoload './selection.vim'
+import autoload './util.vim'
 
 const BLOCKS = [parse.KIND_FUNCTION, parse.KIND_CLASS, parse.KIND_INTERFACE,
   parse.KIND_ENUM]
@@ -234,6 +236,94 @@ export def Lines(parsed: dict<any>, lines: list<string>): dict<any>
     endfor
   endfor
   return {lines: result, origin: origin}
+enddef
+
+# The lines of the parsed script "lines" for a dry run, as {lines, origin}
+# like Lines(), with the static methods of Lines() for what a dry run does
+# not check: the value of a static class variable and the arguments of the
+# enum values.  An enum cannot call its own new(), so the latter go to a
+# class after the script that has the variables and the new() of the enum;
+# the other lines of that class have the origin -1.
+export def Checks(parsed: dict<any>, lines: list<string>): dict<any>
+  var count = len(lines)
+  var added: dict<list<list<any>>> = {}
+  var tail: list<list<any>> = []
+  var checks = 0
+  for s in parsed.symbols
+    if s.line >= count
+        || (s.kind != parse.KIND_CLASS && s.kind != parse.KIND_ENUM)
+      continue
+    endif
+    var end = min([s.end_line, count - 1])
+    var indent = matchstr(lines[s.line], '^\s*') .. '  '
+    for c in s.children
+      if c.kind != parse.KIND_FIELD || c.line >= count
+          || lines[c.line] !~ STATIC
+        continue
+      endif
+      var last = selection.StatementAt(lines, c.line)[1]
+      var m = matchlist(Joined(lines, c.line, last), STATIC .. '\(.*\)$')
+      checks += 1
+      for l in Check(indent, checks, $'{c.name} = {m[2]}')
+        if !added->has_key(end - 1)
+          added[end - 1] = []
+        endif
+        add(added[end - 1], [l, c.line])
+      endfor
+    endfor
+    if s.kind != parse.KIND_ENUM
+      continue
+    endif
+    var copy = 'Vim9lsEnum_' .. s.name
+    add(tail, [$'class {copy}', -1])
+    var has_new = false
+    for c in s.children
+      if c.line >= count || (c.kind != parse.KIND_FIELD
+          && (c.kind != parse.KIND_METHOD || c.name != 'new'))
+          || lines[c.line] =~ STATIC
+        continue
+      endif
+      has_new = has_new || c.kind == parse.KIND_METHOD
+      var last = c.kind == parse.KIND_METHOD ? min([c.end_line, count - 1])
+        : selection.StatementAt(lines, c.line)[1]
+      for lnum in range(c.line, last)
+        add(tail, [lines[lnum], -1])
+      endfor
+    endfor
+    if !has_new
+      tail += [['  def new()', -1], ['  enddef', -1]]
+    endif
+    var rest = s.children->copy()
+      ->filter((_, c) => c.kind != parse.KIND_ENUM_MEMBER)
+    var values_end = (rest->empty() ? end : rest[0].line) - 1
+    for v in Values(lines, s.line + 1, values_end)
+      checks += 1
+      for l in Check('  ', checks, $'{copy}.new({v.args})')
+        add(tail, [l, v.line])
+      endfor
+    endfor
+    add(tail, ['endclass', -1])
+  endfor
+  var result: list<string> = []
+  var origin: list<number> = []
+  for lnum in range(count)
+    add(result, lines[lnum])
+    add(origin, lnum)
+    for [text, from] in added->get(lnum, [])
+      add(result, text)
+      add(origin, from)
+    endfor
+  endfor
+  for [text, from] in tail
+    add(result, text)
+    add(origin, from)
+  endfor
+  return {lines: result, origin: origin}
+enddef
+
+# What the checker reads for the parsed script "lines".
+export def ForChecker(parsed: dict<any>, lines: list<string>): dict<any>
+  return util.DRYRUN ? Checks(parsed, lines) : Lines(parsed, lines)
 enddef
 
 # test/run sets this to have every :def compiled as the script is read.

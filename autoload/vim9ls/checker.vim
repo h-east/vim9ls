@@ -76,7 +76,7 @@ var stale = false
 # read from the file before another script is checked.
 var from_text: dict<bool> = {}
 # The scripts this Vim loaded itself, such as $VIMRUNTIME/syntax/vim.vim,
-# which Vim does not read with a dry run (E1588) and which are not to be
+# which ViAI does not read with a dry run (E8000) and which are not to be
 # read again here.
 var loaded_here: dict<bool> = {}
 
@@ -398,8 +398,9 @@ def Errors(messages: string, path: string): list<dict<any>>
     endif
     # The summary of a failed compilation, after the error that caused it.
     # It is only reported with ":silent!".  A line defs.vim added is no
-    # command once the class it is in failed.
-    if line =~ '^E1028:' || line =~ '\<_Vim9lsCheck\d'
+    # command once the class it is in failed, and the class it makes of an
+    # enum is not in the script.
+    if line =~ '^E1028:' || line =~ '\<\%(_Vim9lsCheck\d\|Vim9lsEnum_\)'
       continue
     endif
     var at = FromText(Where(context, lnum, path))
@@ -722,7 +723,6 @@ def Check(path_arg: string, lines: list<string>, wrapped: any,
       || (!DRYRUN && path =~ '[/\\]autoload[/\\]')
     path ..= '.dryrun'
   endif
-  var renamed = RenameDictFuncs(lines)
   var started = localtime()
   if refresh || stale || reltimefloat(reltime(refreshed)) >= REFRESH_SECONDS
     Refresh(path)
@@ -734,24 +734,22 @@ def Check(path_arg: string, lines: list<string>, wrapped: any,
       read_as[file] = Stamp(file)
     endif
   endfor
-  var base = renamed
+  var made = definitions->empty()
+    ? defs.ForChecker(parse.Parse(lines), lines) : definitions
+  var base = RenameDictFuncs(made.lines)
   # The range needs the colon: ":execute" from a ":def" reads the Vim9 way.
   var cmd = ':%source ++dryrun'
-  origin = []
+  origin = made.origin
+  origin_count = len(lines)
   if !DRYRUN
-    var made = definitions->empty()
-      ? defs.Lines(parse.Parse(lines), lines) : definitions
-    var only = RenameDictFuncs(made.lines)
-    ReadImports(path, only, {[path]: true})
-    base = Guarded(path, only)
+    ReadImports(path, base, {[path]: true})
+    base = Guarded(path, base)
     cmd = ':%source'
-    origin = made.origin
-    origin_count = len(lines)
   endif
   var text = Text(base, wrapped)
   Load(path, text)
   var messages = Source(cmd)
-  if DRYRUN && messages =~ '\<E1588:'
+  if DRYRUN && messages =~ '\<E8000:'
     loaded_here[path] = true
     path ..= '.dryrun'
     Load(path, text)
@@ -772,6 +770,11 @@ def Check(path_arg: string, lines: list<string>, wrapped: any,
   endif
   if !DRYRUN && !errors->empty()
     errors = Recover(path, cmd, text, lines, errors, started)
+  endif
+  if DRYRUN
+    # A function of the script that failed has its own error.
+    errors->filter((_, e) => e.message !~ '^E1191:'
+      || StartLine(matchstr(e.message, '\S\+$'), path) == 0)
   endif
   for e in errors
     if e.line > len(lines)

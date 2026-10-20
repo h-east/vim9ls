@@ -1484,15 +1484,18 @@ def g:Test_compile_recovery()
     Errors(['vim9script', 'def L()', '  var F = (x: number): string => {',
       '    if x > 0', '      return 1', '    endif', "    return 'a'", '  }',
       "  var n: number = 'b'", 'enddef'], 9))
-  # No value for a type alias: nothing after it is checked.
-  assert_equal([[4, 'E1012: Type mismatch; expected string but got number']],
+  # No value for a type alias: without a dry run nothing after it is checked.
+  assert_equal([[4, 'E1012: Type mismatch; expected string but got number']]
+    + (util.DRYRUN
+      ? [[6, 'E1012: Type mismatch; expected number but got string']] : []),
     Errors(['vim9script', 'type Name = string', 'def A(x: number): Name',
       '  if x > 0', '    return 1', '  endif', "  var n: number = 'c'",
       "  return 'n'", 'enddef'], 10))
-  # The script is read again 20 times at most.
+  # The script is read again 20 times at most.  A dry run reports every
+  # error at once.
   var many = ['vim9script', 'def M()']
     + range(25)->mapnew((i, _) => $"  var v{i}: number = 'x'") + ['enddef']
-  assert_equal(21, len(Errors(many, 11)))
+  assert_equal(util.DRYRUN ? 25 : 21, len(Errors(many, 11)))
   helper.StopServer()
 enddef
 
@@ -1726,8 +1729,10 @@ def g:Test_compile_enum()
     helper.URI, 2)
   var reported = helper.WaitNotification('textDocument/publishDiagnostics')
     .params.diagnostics->mapnew((_, d) => [d.range.start.line, d.message])
-  assert_true(index(reported, [3, 'E1369: Duplicate variable: A']) >= 0,
-    string(reported))
+  # Without a dry run the enum is a class, see defs.vim.
+  assert_true(index(reported, util.DRYRUN
+    ? [3, 'E1428: Duplicate enum value: A']
+    : [3, 'E1369: Duplicate variable: A']) >= 0, string(reported))
   assert_equal([], reported->copy()->filter((_, r) => r[1] =~ '_Vim9ls'))
   helper.StopServer()
 enddef
