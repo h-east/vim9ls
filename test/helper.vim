@@ -1,6 +1,8 @@
 vim9script
 # What the tests use to drive the server: this Vim is the client.
 
+import autoload '../autoload/vim9ls/util.vim'
+
 export const HERE = expand('<sfile>:p:h')
 export const SERVER = fnamemodify(HERE, ':h') .. '/autoload/vim9ls.vim'
 # The temporary directory of the servers, where they log, a file each;
@@ -32,6 +34,14 @@ enddef
 
 export def Job(): job
   return job
+enddef
+
+# Skips a test of what the checker reports: without the dry run of ":source"
+# there is no checker, see compile.vim.
+export def NeedChecker()
+  if !util.DRYRUN
+    throw 'Skipped: no checker without ":source ++dryrun"'
+  endif
 enddef
 
 # Starts the server as this Vim would as a client; the channel is in "lsp"

@@ -14,8 +14,12 @@ import autoload './util.vim'
 import autoload './parse.vim'
 import autoload './diag.vim'
 
-# What the checker runs, and how long it is given for a check; the tests
-# change them.
+# Whether a checker is started: without the dry run of ":source" the checker
+# would run what it reads, which a malicious script could make use of.
+# What the checker runs, and how long it is given for a check.  The tests
+# change all three.
+const DRYRUN = util.DRYRUN
+export var enabled: bool = DRYRUN
 export var checker_script = expand('<sfile>:p:h') .. '/checker.vim'
 export var check_msecs = 5000
 
@@ -124,11 +128,14 @@ enddef
 # answered with null.  A
 # check made "in_background" waits until no other one does.  "calls" are the
 # calls in keys to look up, see names.KeyCalls().  "definitions" is what
-# the checker reads for the script, as defs.ForChecker() gives it; when
-# empty the checker makes it.  Returns false when there is no checker to ask.
+# the checker reads for the script, as defs.Checks() gives it; when empty
+# the checker makes it.  Returns false when there is no checker to ask.
 export def Check(path: string, lines: list<string>, wrapped: any,
     Done: func(any), in_background = false,
     calls: list<dict<any>> = [], definitions: dict<any> = {}): bool
+  if !enabled
+    return false
+  endif
   if !Running()
     Start()
     if !Running()

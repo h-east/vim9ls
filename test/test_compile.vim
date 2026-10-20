@@ -13,17 +13,34 @@ def Ask(path: string, lines: list<string> = [], in_background = false)
   }, in_background)
 enddef
 
+const ENABLED = compile.enabled
+
 def Setup(msecs: number)
   answers = []
+  compile.enabled = true
   compile.checker_script = helper.HERE .. '/fake_checker.vim'
   compile.check_msecs = msecs
 enddef
 
 def Teardown()
   compile.Stop()
+  compile.enabled = ENABLED
   compile.checker_script = fnamemodify(helper.SERVER, ':h')
     .. '/vim9ls/checker.vim'
   compile.check_msecs = 5000
+enddef
+
+# Without the dry run of ":source" there is no checker to ask.
+def g:Test_compile_disabled()
+  Setup(1000)
+  compile.enabled = false
+  assert_false(compile.Check('/x/one.vim', ['vim9script'], null,
+    (_) => {
+      add(answers, 'answered')
+    }))
+  sleep 50m
+  assert_equal([], answers)
+  Teardown()
 enddef
 
 # The checks are handed over one at a time, in the order asked; a check of a
@@ -77,6 +94,7 @@ enddef
 # A check that fails in the checker is answered with null at once, not when
 # its time runs out, and the checker takes the next one.
 def g:Test_compile_check_fails()
+  helper.NeedChecker()
   answers = []
   try
     compile.Check('/x/fails.vim', ['vim9script'], null, (errors: any) => {

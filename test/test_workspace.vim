@@ -51,6 +51,7 @@ def WaitReport(token: string, name: string, pattern: string): list<string>
 enddef
 
 def g:Test_workspace_diagnostic()
+  helper.NeedChecker()
   mkdir(ROOT .. '/one', 'pR')
   mkdir(ROOT .. '/two', 'p')
   writefile(['vim9script', 'export const N: number = 1'],
@@ -175,6 +176,7 @@ enddef
 # report for every tenth and end, which comes once what the checker reports
 # is in.
 def g:Test_workspace_diagnostic_progress()
+  helper.NeedChecker()
   mkdir(ROOT, 'pR')
   for i in range(12)
     writefile(['vim9script'], printf('%s/s%02d.vim', ROOT, i))
@@ -237,6 +239,7 @@ enddef
 # What a server found is kept on disk; a server started again reports it
 # without reading the scripts that did not change since.
 def g:Test_workspace_diagnostic_cache()
+  helper.NeedChecker()
   mkdir(ROOT, 'pR')
   writefile(['vim9script'], ROOT .. '/good.vim')
   writefile(['vim9script', 'def G(): number', '  return "x"', 'enddef'],
@@ -284,6 +287,7 @@ enddef
 # reported again, the work goes out under the token of the command, which
 # is answered at its end.
 def g:Test_workspace_reload()
+  helper.NeedChecker()
   mkdir(ROOT, 'pR')
   writefile(['vim9script', 'def G(): number', '  return "x"', 'enddef'],
     ROOT .. '/bad.vim')
@@ -326,6 +330,7 @@ enddef
 # A client that takes it is asked to watch the "*.vim" files; what it reports
 # changed is read again, and what it reports gone has its report emptied.
 def g:Test_workspace_watched_files()
+  helper.NeedChecker()
   mkdir(ROOT, 'pR')
   writefile(['vim9script'], ROOT .. '/a.vim')
   writefile(['vim9script', 'def G(): number', '  return "x"', 'enddef'],

@@ -4,6 +4,11 @@
 [![Update doc/tags](https://github.com/h-east/vim9ls/actions/workflows/update-doc-tags.yml/badge.svg)](https://github.com/h-east/vim9ls/actions/workflows/update-doc-tags.yml)
 [![Vim 9.2.1160+](https://img.shields.io/badge/Vim-9.2.1160%2B-015b01?logo=vim&logoColor=white)](#requirements)
 
+> [!IMPORTANT]
+> vim9ls has stopped using `:source` to get its diagnostics, so with Vim
+> it reports far fewer diagnostics.  Please use vim9ls 0.1.026 or later.
+> See [Issues#11](https://github.com/h-east/vim9ls/issues/11) for the details.
+
 A language server for Vim9 script and legacy Vim script, run by Vim itself.
 
 vim9ls is written in Vim9 script and runs in a Vim of its own, so it answers
@@ -12,10 +17,10 @@ help files, and the plugins you already have.  A new function or option is
 there as soon as Vim has it, since nothing is copied out of Vim.  Nothing
 else needs to be installed.
 
-The diagnostics are Vim's own.  Vim reads the script with its definitions
-only, so that nothing in it runs, and compiles its `:def` functions.  What
-is reported is what Vim finds in the script, not what another parser
-guesses.
+The diagnostics come from reading the script line by line, which runs
+nothing in it.  A Vim that has `:source ++dryrun` reads the script as well,
+compiles its `:def` functions and reports what it finds there.  Vim itself
+no longer has it, see [Issues#11](https://github.com/h-east/vim9ls/issues/11).
 
 ## Requirements
 
@@ -101,11 +106,12 @@ See `:help vim9ls` for the details.
 - Diagnostics: blocks that do not add up, `:let` under Vim9 rules, in legacy
   script words that are not commands, calls of functions that are not
   defined, `v:` variables Vim does not have, and, as hints, the variables and
-  parameters of a `:def` function that are not used.  And from Vim itself: a
-  type mismatch, a name that is not found, an argument too many, in a `:def`
-  function and, in a Vim9 script, at the script level.  In a Vim9 script also
-  a call in the keys of a mapping that is not defined where the keys find it,
-  or takes another number of arguments.
+  parameters of a `:def` function that are not used.  And, from a Vim that
+  has `:source ++dryrun`: a type mismatch, a name that is not found, an
+  argument too many, in a `:def` function and, in a Vim9 script, at the
+  script level.  In a Vim9 script also a call in the keys of a mapping that
+  is not defined where the keys find it, or takes another number of
+  arguments.
 - Workspace diagnostics: the same for the scripts of the workspace folders
   that are not open, at most 4096 by default, sent as they are read and
   again when they may have changed.  What was found is kept on disk, so that
@@ -258,7 +264,7 @@ In the order they are meant to be taken up.
       item that is looked at rather than sent with every item.
 - [x] Diagnostics for what compiling a `:def` reports, from the checker: a
       Vim of its own that is started once and kept, and reads the script
-      with its definitions only.
+      with `:source ++dryrun`, where Vim has it.
 - [x] `textDocument/codeAction` with a quick fix for what a diagnostic
       reports: `:let` to `var` under Vim9 rules, the `endif` a block lacks.
 - [x] Signature help with the types of a builtin's arguments; the help entry

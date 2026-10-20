@@ -29,7 +29,7 @@ import autoload './vim9ls/selection.vim'
 import autoload './vim9ls/unused.vim'
 import autoload './vim9ls/cache.vim'
 
-export const VERSION = '0.1.025'
+export const VERSION = '0.1.026'
 
 const SCRIPT = expand('<sfile>:p')
 
@@ -183,7 +183,7 @@ def DocumentPull(id: any, params: dict<any>)
         endif
         Reply(id, {kind: 'full', items: items})
       }, false, names.KeyCalls(parsed, d.lines),
-      defs.ForChecker(parsed, d.lines))
+      defs.Checks(parsed, d.lines))
     Reply(id, {kind: 'full', items: items})
   endif
 enddef
@@ -390,7 +390,7 @@ def ReadScript(path: string)
   var parsed = Parsed(d)
   if compile.Check(path, d.lines, parsed.vim9 ? wrap.Lines(parsed, d.lines)
       : null, (errors: any) => Checked(path, stamp, d, items, errors, w),
-      true, names.KeyCalls(parsed, d.lines), defs.ForChecker(parsed, d.lines))
+      true, names.KeyCalls(parsed, d.lines), defs.Checks(parsed, d.lines))
     checking += 1
   else
     Step(w)
@@ -572,7 +572,7 @@ def PublishDiagnostics(uri: string)
   if path == '' || !compile.Check(path, d.lines,
       parsed.vim9 ? wrap.Lines(parsed, d.lines) : null,
       (errors: any) => Publish(uri, version, items, errors), false,
-      names.KeyCalls(parsed, d.lines), defs.ForChecker(parsed, d.lines))
+      names.KeyCalls(parsed, d.lines), defs.Checks(parsed, d.lines))
     Publish(uri, version, items, null)
   endif
 enddef

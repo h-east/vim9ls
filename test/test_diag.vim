@@ -1,6 +1,7 @@
 vim9script
 
 import autoload '../autoload/vim9ls/parse.vim'
+import autoload '../autoload/vim9ls/util.vim'
 
 def Messages(lines: list<string>): list<string>
   return parse.Parse(lines).diags->mapnew((_, d) => d.message)
@@ -69,7 +70,8 @@ enddef
 
 # An :endwhile or :endfor in an :if inside a loop is "Missing :endif" on its
 # line, as Vim reports it, with no more reports after it; with a :try in
-# between it is not.  In code Vim compiles the report is left to the checker.
+# between it is not.  In code Vim compiles the report is left to the checker,
+# when there is one.
 def g:Test_diag_end_of_loop_in_if()
   var diags = parse.Parse(['func F()', '  while 1', '    if 1', '  endwhile',
     'endfunc']).diags
@@ -82,15 +84,20 @@ def g:Test_diag_end_of_loop_in_if()
     Messages(['while 1', '  try', '    if 1', 'endwhile']))
   assert_equal(['E171: Missing :endif', 'E170: Missing :endwhile'],
     Messages(['while 1', '  if 1', 'endfor']))
-  assert_equal([], Messages(['vim9script', 'def F()', '  while 1',
-    '    if 1', '  endwhile', 'enddef']))
+  assert_equal(util.DRYRUN ? [] : ['E171: Missing :endif'],
+    Messages(['vim9script', 'def F()', '  while 1', '    if 1', '  endwhile',
+      'enddef']))
 enddef
 
 # What Vim reports on the same line in code it compiles is left to the
-# checker; the rest the parser reports there as well.
+# checker, when there is one; the rest the parser reports there as well.
 def g:Test_diag_left_to_vim()
-  assert_equal([], Messages(['vim9script', 'endif', 'else', 'endfor',
-    'endtry', 'catch', 'def F()', '  endwhile', 'enddef']))
+  assert_equal(util.DRYRUN ? [] : ['E580: :endif without :if',
+    'E581: :else without :if', 'E588: :endfor without :for',
+    'E602: :endtry without :try', 'E603: :catch without :try',
+    'E588: :endwhile without :while'],
+    Messages(['vim9script', 'endif', 'else', 'endfor', 'endtry', 'catch',
+      'def F()', '  endwhile', 'enddef']))
   assert_equal(['E193: :enddef not inside a function',
     'E1057: Missing :enddef'], Messages(['vim9script', 'enddef', 'def F()']))
   assert_equal(['E580: :endif without :if'], Messages(['endif']))
@@ -98,15 +105,17 @@ def g:Test_diag_left_to_vim()
     Messages(['vim9script', 'function F()', '  endif', 'endfunction']))
 enddef
 
-# The checker has Vim report ":let" in a Vim9 script and in a :def; the
-# parser reports it where Vim does not compile, after "vim9cmd".
+# The checker, when there is one, has Vim report ":let" in a Vim9 script and
+# in a :def; the parser reports it where Vim does not compile, after
+# "vim9cmd".
 def g:Test_diag_let_in_vim9()
   var diags = parse.Parse(["echo 'x'", 'vim9cmd let x = 1']).diags
   assert_equal(['E1126: Cannot use :let in Vim9 script'],
     diags->mapnew((_, d) => d.message))
   assert_equal(1, diags[0].line)
-  assert_equal([], Messages(['vim9script', 'let x = 1']))
-  assert_equal([], Messages(['def Foo()', '  let x = 1', 'enddef']))
+  var reported = util.DRYRUN ? [] : ['E1126: Cannot use :let in Vim9 script']
+  assert_equal(reported, Messages(['vim9script', 'let x = 1']))
+  assert_equal(reported, Messages(['def Foo()', '  let x = 1', 'enddef']))
   # "legacy" reads the command the legacy way.
   assert_equal([], Messages(['vim9script', 'legacy let $X = 1',
     'def Foo()', '  legacy let x = 1', 'enddef']))

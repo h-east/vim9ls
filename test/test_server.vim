@@ -71,8 +71,9 @@ def g:Test_document_diagnostic()
   helper.Initialize()
   var text = ['vim9script', 'def F(): number', '  var left = 1',
     '  return "x"', 'enddef']
-  var both = ['Unused variable: left',
-    'E1012: Type mismatch; expected number but got string']
+  # Without the dry run of ":source" there is no checker, see compile.vim.
+  var both = ['Unused variable: left'] + (util.DRYRUN
+    ? ['E1012: Type mismatch; expected number but got string'] : [])
   helper.OpenDoc(text)
   assert_equal(both, helper.WaitNotification('textDocument/publishDiagnostics')
     .params.diagnostics->mapnew((_, d) => d.message))
@@ -100,8 +101,8 @@ def g:Test_document_diagnostic_to_a_client_that_pulls()
   helper.Notify('initialized', {})
   var text = ['vim9script', 'def F(): number', '  var left = 1',
     '  return "x"', 'enddef']
-  var both = ['Unused variable: left',
-    'E1012: Type mismatch; expected number but got string']
+  var both = ['Unused variable: left'] + (util.DRYRUN
+    ? ['E1012: Type mismatch; expected number but got string'] : [])
   helper.OpenDoc(text)
   helper.ChangeDoc(text + [''])
   sleep 500m
@@ -1234,8 +1235,10 @@ def g:Test_code_action()
   helper.ChangeDoc(['vim9script', 'if 1', '  echo 1'], helper.URI, 3)
   published = helper.WaitNotification('textDocument/publishDiagnostics')
     .params.diagnostics
-  assert_true(published->indexof((_, d) => d.range.start.line > 1
-    && d.message =~ 'E171:') >= 0, string(published))
+  if util.DRYRUN
+    assert_true(published->indexof((_, d) => d.range.start.line > 1
+      && d.message =~ 'E171:') >= 0, string(published))
+  endif
   assert_equal([[1, 'Insert endif']],
     Ask(0, 2)->mapnew((_, a) => [a.diagnostics[0].range.start.line, a.title]))
 enddef
@@ -1284,6 +1287,7 @@ def After(lines: list<string>, version: number): list<list<any>>
 enddef
 
 def g:Test_compile_diagnostics()
+  helper.NeedChecker()
   helper.StartServer()
   helper.Initialize()
   helper.OpenDoc([
@@ -1433,6 +1437,7 @@ enddef
 # Vim stops a function at its first error; the checker reads the script again
 # with that statement made harmless, for the errors after it.
 def g:Test_compile_recovery()
+  helper.NeedChecker()
   helper.StartServer()
   helper.Initialize()
   var Errors = (lines: list<string>, version: number): list<list<any>> =>
@@ -1484,22 +1489,21 @@ def g:Test_compile_recovery()
     Errors(['vim9script', 'def L()', '  var F = (x: number): string => {',
       '    if x > 0', '      return 1', '    endif', "    return 'a'", '  }',
       "  var n: number = 'b'", 'enddef'], 9))
-  # No value for a type alias: without a dry run nothing after it is checked.
-  assert_equal([[4, 'E1012: Type mismatch; expected string but got number']]
-    + (util.DRYRUN
-      ? [[6, 'E1012: Type mismatch; expected number but got string']] : []),
+  # A function that returns a type alias.
+  assert_equal([[4, 'E1012: Type mismatch; expected string but got number'],
+    [6, 'E1012: Type mismatch; expected number but got string']],
     Errors(['vim9script', 'type Name = string', 'def A(x: number): Name',
       '  if x > 0', '    return 1', '  endif', "  var n: number = 'c'",
       "  return 'n'", 'enddef'], 10))
-  # The script is read again 20 times at most.  A dry run reports every
-  # error at once.
+  # A dry run reports every error at once.
   var many = ['vim9script', 'def M()']
     + range(25)->mapnew((i, _) => $"  var v{i}: number = 'x'") + ['enddef']
-  assert_equal(util.DRYRUN ? 25 : 21, len(Errors(many, 11)))
+  assert_equal(25, len(Errors(many, 11)))
   helper.StopServer()
 enddef
 
 def g:Test_compile_block_variable_declared_later()
+  helper.NeedChecker()
   helper.StartServer()
   helper.Initialize()
   helper.OpenDoc([
@@ -1525,6 +1529,7 @@ enddef
 # lambda, the checker declaring no script variable for it, and the script
 # level is still checked.
 def g:Test_compile_declaration_in_lambda()
+  helper.NeedChecker()
   helper.StartServer()
   helper.Initialize()
   helper.OpenDoc([
@@ -1546,6 +1551,7 @@ enddef
 # A global function of a script checked before is gone when the next one is
 # checked: a class of the same name is not reported as E1041.
 def g:Test_compile_global_function_of_another_script()
+  helper.NeedChecker()
   helper.StartServer()
   helper.Initialize()
   helper.OpenDoc(['def Xglobal()', 'enddef'], 'file:///tmp/Xvim9ls_global.vim')
@@ -1582,6 +1588,7 @@ enddef
 # the script, after ":call" everywhere but the script.  Its arguments are
 # counted, also in continuation lines.
 def g:Test_compile_calls_in_keys()
+  helper.NeedChecker()
   helper.StartServer()
   helper.Initialize()
   helper.OpenDoc([
@@ -1621,6 +1628,7 @@ enddef
 # the change, and otherwise when the scripts are next looked at, which is
 # done every two seconds.
 def g:Test_compile_import_changed()
+  helper.NeedChecker()
   var root = helper.HERE .. '/Xchanged'
   mkdir(root, 'pR')
   var user = ['vim9script', "import './xlib.vim'", 'def F(): number',
@@ -1679,6 +1687,7 @@ enddef
 # Nothing a script or what it imports does runs, while what it imports is
 # known: its names and their types.
 def g:Test_compile_runs_nothing()
+  helper.NeedChecker()
   var root = helper.HERE .. '/Xnorun'
   mkdir(root, 'pR')
   writefile(['vim9script', $"writefile(['lib'], '{root}/Xran_lib')",
@@ -1707,6 +1716,7 @@ enddef
 # An enum makes no values, its constructor does not run, while the arguments
 # of its values are checked, and so are the values of static variables.
 def g:Test_compile_enum()
+  helper.NeedChecker()
   var mark = tempname()
   helper.StartServer()
   helper.Initialize()
@@ -1729,10 +1739,8 @@ def g:Test_compile_enum()
     helper.URI, 2)
   var reported = helper.WaitNotification('textDocument/publishDiagnostics')
     .params.diagnostics->mapnew((_, d) => [d.range.start.line, d.message])
-  # Without a dry run the enum is a class, see defs.vim.
-  assert_true(index(reported, util.DRYRUN
-    ? [3, 'E1428: Duplicate enum value: A']
-    : [3, 'E1369: Duplicate variable: A']) >= 0, string(reported))
+  assert_true(index(reported, [3, 'E1428: Duplicate enum value: A']) >= 0,
+    string(reported))
   assert_equal([], reported->copy()->filter((_, r) => r[1] =~ '_Vim9ls'))
   helper.StopServer()
 enddef
@@ -1740,6 +1748,7 @@ enddef
 # A script bigger than a pipe holds goes to the server and on to the
 # checker, see compile.Start().
 def g:Test_compile_big_document()
+  helper.NeedChecker()
   var lines = ['vim9script'] + range(3000)->mapnew((i, _) =>
     $"var long_name_of_a_variable_{i}: string = 'some text to make it long'")
     + ['def F(): number', "  return 'x'", 'enddef']
@@ -1755,6 +1764,7 @@ enddef
 
 # A script that imports one being edited is checked against its file.
 def g:Test_compile_import_of_edited_document()
+  helper.NeedChecker()
   var root = helper.HERE .. '/Xedited'
   mkdir(root, 'pR')
   var user = ['vim9script', "import './xlib.vim'", 'def F(): number',
@@ -1785,6 +1795,7 @@ enddef
 # against its own, also when the other plugin was checked in between, and a
 # file only the other one has is not found.
 def g:Test_compile_import_of_own_plugin()
+  helper.NeedChecker()
   var root = helper.HERE .. '/Xplugins'
   mkdir(root, 'R')
   for [name, text] in [

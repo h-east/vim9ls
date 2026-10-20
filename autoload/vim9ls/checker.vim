@@ -4,22 +4,17 @@ vim9script
 # it and reports what does not compile
 # Maintainer: Hirohito Higashi <h.east.727@gmail.com>
 #
-# compile.vim starts this with --stdio-channel and sends it the text of a
-# script.  Nothing in the script runs: what is sourced is the script with its
-# definitions only (see defs.vim), and ":defcompile" compiles its functions.
-# A script it imports is read the same way first, so that the import finds
-# it and does not run the file.  With util.DRYRUN set the script is read
-# with ":source ++dryrun" instead.  What Vim reports comes back with the
-# line it is about.  Reading the script, and the command that is meant to
-# fail, carry ":silent!": an error would abort the ":def" it runs in, while
-# what is reported still reaches ":redir".
+# compile.vim starts this with --stdio-channel, only in a Vim that has
+# ":source ++dryrun", and sends it the text of a script.  Nothing in the
+# script runs: the dry run defines what it defines and compiles its
+# functions.  What Vim reports
+# comes back with the line it is about.  Reading the script, and the command
+# that is meant to fail, carry ":silent!": an error would abort the ":def" it
+# runs in, while what is reported still reaches ":redir".
 
 import autoload './util.vim'
 import autoload './parse.vim'
 import autoload './defs.vim'
-import autoload './selection.vim'
-
-const DRYRUN = util.DRYRUN
 
 var conn: channel
 
@@ -97,104 +92,7 @@ enddef
 
 # Reads the script at "file" again, as it is now.
 def ReadAgain(file: string)
-  if DRYRUN
-    silent! execute 'source ++dryrun' fnameescape(file)
-  else
-    ReadDefinitions(file, {})
-  endif
-enddef
-
-# The file "spec" of an import in the script at "importer" names, "" when it
-# is not found: relative to the script, or in an "import" directory of the
-# plugin or of 'runtimepath'.
-def ImportFile(importer: string, spec: string): string
-  var file = ''
-  if spec =~ '^\.\.\=/'
-    file = fnamemodify(importer, ':h') .. '/' .. spec
-  elseif spec =~ '^\%(/\|\a:[/\\]\|\~\)'
-    file = expand(spec)
-  else
-    var root = util.PluginRoot(importer)
-    var found = globpath((root == '' ? '' : root .. ',') .. RUNTIMEPATH,
-      'import/' .. spec, true, true)
-    file = found->empty() ? '' : found[0]
-  endif
-  return file != '' && filereadable(file) ? FullPath(file) : ''
-enddef
-
-const IMPORT = '^\s*\%(export\s\+\)\=import\s\+\(autoload\s\+\)\=\([''"]\)'
-  .. '\(.\{-}\)\2'
-
-# The files of the imports in "lines", the script at "path", that are not
-# autoload imports.
-def Imports(path: string, lines: list<string>): list<string>
-  var files: list<string> = []
-  for line in lines
-    var m = matchlist(line, IMPORT)
-    if !m->empty() && m[1] == ''
-      var file = ImportFile(path, m[3])
-      if file != ''
-        add(files, file)
-      endif
-    endif
-  endfor
-  return files
-enddef
-
-# The files of the scripts read so far.
-def ReadFiles(): dict<bool>
-  var read: dict<bool> = {}
-  for info in getscriptinfo()
-    read[FullPath(info.name)] = true
-  endfor
-  return read
-enddef
-
-# "lines" of the script at "path" with every import of a script that has not
-# been read made an autoload import, which reads nothing until it is used:
-# the file is not to run.
-def Guarded(path: string, lines: list<string>): list<string>
-  var read = ReadFiles()
-  return lines->mapnew((_, line) => {
-    var m = matchlist(line, IMPORT)
-    if m->empty() || m[1] != '' || read->has_key(ImportFile(path, m[3]))
-      return line
-    endif
-    return substitute(line, '\<import\s\+', 'import autoload ', '')
-  })
-enddef
-
-# Reads the scripts "lines", the script at "path", imports that have not been
-# read, see ReadDefinitions().
-def ReadImports(path: string, lines: list<string>, visiting: dict<bool>)
-  var read = ReadFiles()
-  for file in Imports(path, lines)
-    if !read->has_key(file)
-      ReadDefinitions(file, visiting)
-    endif
-  endfor
-enddef
-
-# Reads the script at "file" with its definitions only, under its own name,
-# after what it imports, so that an import of it finds it and does not run
-# the file.  "visiting" are the scripts on the way here.
-def ReadDefinitions(file: string, visiting: dict<bool>)
-  if visiting->has_key(file) || Own(file) || loaded_here->has_key(file)
-    return
-  endif
-  visiting[file] = true
-  var lines: list<string>
-  try
-    lines = readfile(file)
-  catch
-    return
-  endtry
-  lines = RenameDictFuncs(lines)
-  var definitions = defs.Lines(parse.Parse(lines), lines).lines
-  ReadImports(file, definitions, visiting)
-  Load(file, Guarded(file, definitions))
-  Source(':%source')
-  read_as[file] = Stamp(file)
+  silent! execute 'source ++dryrun' fnameescape(file)
 enddef
 
 # Has the scripts read before that changed since then read again, but for
@@ -351,9 +249,9 @@ def Where(context: string, lnum: number, path: string): number
   return -1
 enddef
 
-# The line of the document for each line of the definitions read last, see
-# defs.Lines(), and how many lines the document has.  Empty when each line
-# of the definitions is the line of the document.
+# The line of the document for each line of the text read last, see
+# defs.Checks(), and how many lines the document has.  Empty when each line
+# of the text is the line of the document.
 var origin: list<number> = []
 var origin_count = 0
 
@@ -364,15 +262,6 @@ def FromText(line: number): number
     return line
   endif
   return line < len(origin) ? origin[line] : line - len(origin) + origin_count
-enddef
-
-# The line of the text read for "line" of the document.
-def ToText(line: number): number
-  if origin->empty()
-    return line
-  endif
-  return line >= origin_count ? line - origin_count + len(origin)
-    : index(origin, line)
 enddef
 
 # The errors in what Vim reported, as {line, message}, in the order of the
@@ -502,214 +391,18 @@ def RenameDictFuncs(lines: list<string>): list<string>
     ? substitute(line, DICT_FUNC, 's:Vim9lsDict' .. (i + 1), '') : line)
 enddef
 
-# How many times a script is read again for the errors after the first one
-# of a function.
-const MAX_ROUNDS = 20
-
-# The lines in the body of each ":def" function and method of "lines", past
-# its header.  A method of an interface and an abstract one have no body.
-def Bodies(lines: list<string>): dict<bool>
-  var bodies: dict<bool> = {}
-  var starts: list<number> = []
-  var interface = false
-  for lnum in range(len(lines))
-    var line = lines[lnum]
-    if stridx(line, 'def') < 0 && stridx(line, 'interface') < 0
-      continue
-    endif
-    if line =~ '^\s*\%(export\s\+\)\=interface\s'
-      interface = true
-    elseif line =~ '^\s*endinterface\>'
-      interface = false
-    elseif line =~ '^\s*enddef\>' && !starts->empty()
-      for k in range(remove(starts, -1), lnum - 1)
-        bodies[k] = true
-      endfor
-    elseif !interface
-        && line =~ '^\s*\%(\%(export\|static\|public\)\s\+\)*def\s'
-      add(starts, selection.StatementAt(lines, lnum)[1] + 1)
-    endif
-  endfor
-  return bodies
-enddef
-
-# A value of type "type" to return, "" for a function that returns nothing,
-# or "-" when there is no value to give: a type alias of "text" for one.
-def Zero(type: string, text: list<string>): string
-  const ZEROS = {'': '', void: '', number: '0', float: '0.0', bool: 'false',
-    string: "''", blob: '0z', any: 'null', job: 'null_job',
-    channel: 'null_channel'}
-  if ZEROS->has_key(type)
-    return ZEROS[type]
-  endif
-  var outer = matchstr(type, '^\h\w*')
-  if outer == 'list' || outer == 'dict' || outer == 'tuple'
-    return {list: '[]', dict: '{}', tuple: '()'}[outer]
-  elseif outer == 'func'
-    return 'null_function'
-  elseif outer == 'object'
-      || (type =~ '^\%(\h\w*\.\)\=\u\w*$' && text->indexof((_, l) =>
-        l =~ '^\s*\%(export\s\+\)\=type\s\+' .. outer .. '\>') < 0)
-    return 'null_object'
-  endif
-  return '-'
-enddef
-
-# The type the function or lambda around line "lnum" of "text" returns, ""
-# when it declares none, or "-" when there is no knowing: a lambda without a
-# type.  A function or a lambda that ends above "lnum" is passed over.
-def ReturnType(text: list<string>, lnum: number): string
-  var closed = 0
-  for k in range(lnum - 1, 0, -1)
-    var line = text[k]
-    var is_def = line =~ '^\s*\%(\%(export\|static\|public\)\s\+\)*def\s'
-    if line =~ '^\s*\%(}\|enddef\>\)'
-      closed += 1
-    elseif closed > 0 && (is_def || line =~ '{\s*$')
-      closed -= 1
-    elseif line =~ '=>\s*{\s*$'
-      var lambda = matchlist(line, ')\s*:\s*\(.\{-}\)\s*=>\s*{\s*$')
-      return lambda->empty() ? '-' : lambda[1]
-    elseif is_def
-      var [first, last] = selection.StatementAt(text, k)
-      var header = text[first : last]->mapnew((_, l) => trim(l))->join(' ')
-      return matchstr(header, ')\s*:\s*\zs.\{-}\ze\s*$')
-    endif
-  endfor
-  return '-'
-enddef
-
-# "text" with the statement from line "first" to "last" made harmless, so
-# that compiling goes on after it, or an empty list when it cannot be: a
-# declaration loses its value, then its type, a condition becomes a
-# constant, a "return" gives a value of the type the function returns, and
-# another statement is blanked.  "times" is how often it was made harmless
-# before.
-def Harmless(text: list<string>, first: number, last: number,
-    times: number): list<string>
-  var line = text[first]
-  var indent = matchstr(line, '^\s*')
-  var made = ''
-  var m = matchlist(line, '^\s*\%(var\|const\|final\)\s\+'
-    .. '\(\[[^]]*\]\|\h\w*\)\%(\s*:\s*\([^=]\{-}\)\)\=\s*\%(=\(.*\)\)\=$')
-  if !m->empty()
-    if times >= 2 || m[3] =~ '^<<'
-      return []
-    endif
-    var type = times == 0 && m[2] != '' ? trim(m[2]) : 'any'
-    made = indent .. split(trim(m[1], '[]'), ',\s*')
-      ->mapnew((_, n) => 'var ' .. n .. ': ' .. type)->join(' | ')
-  elseif line =~ '^\s*return\>' && times == 0
-    var type = ReturnType(text, first)
-    var value = type == '-' ? '-' : Zero(type, text)
-    if value == '-'
-      return []
-    endif
-    made = indent .. 'return' .. (value == '' ? '' : ' ' .. value)
-  elseif times > 0
-      || line =~ '^\s*\%(end\h*\|else\|finally\|try\|return\|def\)\>'
-      || line =~ '^\s*\%(fu\%[nction]\>\|[{}]\s*$\)'
-    return []
-  elseif line =~ '^\s*\%(if\|elseif\)\>'
-    made = indent .. matchstr(line, '^\s*\zs\a\+') .. ' true'
-  elseif line =~ '^\s*while\>'
-    made = indent .. 'while false'
-  elseif line =~ '^\s*for\s'
-    made = indent .. matchstr(line, '^\s*\zsfor\s.\{-}\s\+in\>') .. ' []'
-  elseif line =~ '^\s*catch\>'
-    made = indent .. 'catch'
-  endif
-  var out = copy(text)
-  out[first] = made
-  for lnum in range(first + 1, last)
-    out[lnum] = ''
-  endfor
-  return out
-enddef
-
-# The errors of "text", the script at "path" read with "cmd", after
-# "first_errors", where Vim stopped each function: the statement of each
-# error is made harmless and the text read again, until none can be.
-# "lines" is the document; the text has a line for each of its lines, and
-# again for the script level after the header line.  An error of a call to
-# a function that failed to compile is kept only when the last reading gives
-# it too.
-def Recover(path: string, cmd: string, text: list<string>,
-    lines: list<string>, first_errors: list<dict<any>>,
-    started: number): list<dict<any>>
-  var count = len(lines)
-  var bodies = Bodies(lines)
-  var all = copy(first_errors)
-  var errors = first_errors
-  var current = text
-  var tried: dict<number> = {}
-  for _ in range(MAX_ROUNDS)
-    var changed = false
-    for e in errors
-      # The line of the document, and how far the text has it further down.
-      var lnum = e.line > count ? e.line - count - 1 : e.line
-      var shift = e.line - lnum
-      # A call of a function that failed compiles once that function does.
-      # A line that opens the block of a lambda cannot go without its end.
-      if lnum < 0 || lnum >= count || (shift == 0 && !bodies->has_key(lnum))
-          || e.message =~ '^E1191:' || lines[lnum] =~ '{\s*$'
-        continue
-      endif
-      # A statement in the block of a lambda is one of its own, though the
-      # lines of the lambda go on from the one that opens it.
-      var [first, last] = selection.StatementAt(lines, lnum)
-      for k in range(lnum - 1, first, -1)
-        if lines[k] =~ '{\s*$'
-          first = k + 1
-          break
-        endif
-      endfor
-      for k in range(lnum + 1, last)
-        if lines[k] =~ '^\s*}'
-          last = k - 1
-          break
-        endif
-      endfor
-      first += shift
-      var times = tried->get(first, 0)
-      var made = Harmless(current, ToText(first), ToText(last + shift), times)
-      if !made->empty()
-        current = made
-        tried[first] = times + 1
-        changed = true
-      endif
-    endfor
-    if !changed
-      break
-    endif
-    Load(path, current)
-    errors = Errors(Source(cmd), path)
-    NoteNew(path, started)
-    for e in errors
-      # Vim reports a block left open at the end of the function, the
-      # parser on the line that opens it.
-      if index(all, e) < 0 && e.message !~ '^E\%(170\|171\|600\|1026\):'
-        add(all, e)
-      endif
-    endfor
-  endfor
-  return all->filter((_, e) => e.message !~ '^E1191:' || index(errors, e) >= 0)
-enddef
-
-# "base" with "wrapped", the script level as a function, appended, and the
-# command that compiles the functions when no dry run does.
+# "base" with "wrapped", the script level as a function, appended.
 def Text(base: list<string>, wrapped: any): list<string>
-  var text = type(wrapped) != v:t_list ? base
+  return type(wrapped) != v:t_list ? base
     : base + ['def ScriptLevel()'] + wrapped + ['enddef']
-  return DRYRUN ? text : text + ['defcompile']
 enddef
 
 # What Vim reports for "lines" as the script at "path".  "wrapped" is the
 # script level of a Vim9 script as the body of a function, see wrap.vim; it
 # is appended to the script, so that it is compiled along with the rest.
 # An error in it is reported on the line of the script it came from.
-# "definitions" are "lines" with the definitions only, see defs.vim, made
-# here when empty.  Looking at every script read is slow when many were, so
+# "definitions" are "lines" with what defs.vim adds, made here when empty.
+# Looking at every script read is slow when many were, so
 # it is done when "refresh" is true, the server knowing of a change, and
 # every REFRESH_SECONDS for what it does not know of.
 def Check(path_arg: string, lines: list<string>, wrapped: any,
@@ -717,10 +410,8 @@ def Check(path_arg: string, lines: list<string>, wrapped: any,
     definitions: dict<any>): list<dict<any>>
   var path = FullPath(path_arg)
   # A script loaded here is read under another name.  The scripts of vim9ls
-  # are running here, their functions cannot be defined again.  So is an
-  # autoload script without a dry run: Vim refuses to define its class again.
+  # are running here, their functions cannot be defined again.
   if Own(path) || loaded_here->has_key(path)
-      || (!DRYRUN && path =~ '[/\\]autoload[/\\]')
     path ..= '.dryrun'
   endif
   var started = localtime()
@@ -735,21 +426,16 @@ def Check(path_arg: string, lines: list<string>, wrapped: any,
     endif
   endfor
   var made = definitions->empty()
-    ? defs.ForChecker(parse.Parse(lines), lines) : definitions
+    ? defs.Checks(parse.Parse(lines), lines) : definitions
   var base = RenameDictFuncs(made.lines)
   # The range needs the colon: ":execute" from a ":def" reads the Vim9 way.
-  var cmd = ':%source ++dryrun'
+  const cmd = ':%source ++dryrun'
   origin = made.origin
   origin_count = len(lines)
-  if !DRYRUN
-    ReadImports(path, base, {[path]: true})
-    base = Guarded(path, base)
-    cmd = ':%source'
-  endif
   var text = Text(base, wrapped)
   Load(path, text)
   var messages = Source(cmd)
-  if DRYRUN && messages =~ '\<E8000:'
+  if messages =~ '\<E8000:'
     loaded_here[path] = true
     path ..= '.dryrun'
     Load(path, text)
@@ -768,14 +454,9 @@ def Check(path_arg: string, lines: list<string>, wrapped: any,
       NoteNew(path, started)
     endif
   endif
-  if !DRYRUN && !errors->empty()
-    errors = Recover(path, cmd, text, lines, errors, started)
-  endif
-  if DRYRUN
-    # A function of the script that failed has its own error.
-    errors->filter((_, e) => e.message !~ '^E1191:'
-      || StartLine(matchstr(e.message, '\S\+$'), path) == 0)
-  endif
+  # A function of the script that failed has its own error.
+  errors->filter((_, e) => e.message !~ '^E1191:'
+    || StartLine(matchstr(e.message, '\S\+$'), path) == 0)
   for e in errors
     if e.line > len(lines)
       e.line -= len(lines) + 1
@@ -834,11 +515,6 @@ export def Start()
   # kept.
   set eventignore=all undolevels=-1 nomodeline
   silent! language messages C
-  if !DRYRUN
-    for info in getscriptinfo()
-      loaded_here[FullPath(info.name)] = true
-    endfor
-  endif
   conn = ch_open('stdio', {mode: 'lsp', callback: OnMessage,
     close_cb: OnClose})
   if ch_status(conn) != 'open'

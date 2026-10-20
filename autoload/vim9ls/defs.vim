@@ -1,50 +1,17 @@
 vim9script
 
-# vim9ls - a script with nothing but its definitions
+# vim9ls - what a dry run of a script leaves unchecked
 # Maintainer: Hirohito Higashi <h.east.727@gmail.com>
 #
-# Unless util.DRYRUN is set, the checker sources this in place of the
-# script, so that nothing the script does runs: what remains are
-# "vim9script", the imports, the functions, classes, interfaces, enums and
-# type aliases, and the declarations of the script variables without their
-# values.  Everything else is blanked; a definition inside a block stays,
-# the block does not.  A declaration gets its declared type or "any", a
-# "const" or "final" becomes a "var", which needs no value.  A function or a
-# class defined a second time, in the other branch of an ":if" for one, gets
-# a name of its own.
-# An enum becomes a class, which makes no values: a static variable stands
-# for each value, and the builtin "name", "ordinal" and "values" are
-# declared.  The arguments of each value, and the value of a static class
-# variable, which its declaration loses, go to a static method that is
-# compiled and never called.  These lines are added; Lines() gives the line
-# of the script for each line.  With util.DRYRUN set, Checks() adds them to
-# the script.
+# ":source ++dryrun" does not evaluate the value of a static class variable
+# nor the arguments of the enum values.  Checks() adds them to the script as
+# static methods that are compiled and never called.
 
 import autoload './parse.vim'
 import autoload './selection.vim'
-import autoload './util.vim'
-
-const BLOCKS = [parse.KIND_FUNCTION, parse.KIND_CLASS, parse.KIND_INTERFACE,
-  parse.KIND_ENUM]
 
 const STATIC = '^\(\s*\%(public\s\+\)\=static\s\+\)\%(var\|const\|final\)\s\+'
   .. '\h\w*\%(\s*:\s*[^=]\{-}\)\=\s*=\s*'
-
-# The declaration of "s", a script variable, on the line "line".  A ":let"
-# stays one, for Vim to report it.
-def Declaration(line: string, s: dict<any>): string
-  var lead = matchstr(line, '^\s*\%(export\s\+\)\=')
-  if line =~ '^\s*let\>'
-    return lead .. 'let ' .. s.name
-  endif
-  return lead .. 'var ' .. s.name .. ': ' .. (s.detail == '' ? 'any' : s.detail)
-enddef
-
-# "line" with the name "name" after its "def", "function", "class" and the
-# like replaced by "other".
-def Rename(line: string, name: string, other: string): string
-  return substitute(line, '\V\<' .. escape(name, '\') .. '\>', other, '')
-enddef
 
 # The lines "first" to "last" of "lines" as one, without their comments.
 def Joined(lines: list<string>, first: number, last: number): string
@@ -114,136 +81,11 @@ def Check(indent: string, k: number, statement: string): list<string>
     $'{indent}enddef']
 enddef
 
-# The lines of the parsed script "lines" with its definitions only, see
-# above, as {lines, origin}: "origin" has the line of the script for each
-# line.
-export def Lines(parsed: dict<any>, lines: list<string>): dict<any>
-  var out = lines->mapnew((_, _) => '')
-  var count = len(lines)
-  var seen: dict<bool> = {}
-  var declared: dict<list<string>> = {}
-  # The lines added after a line of the script, as [text, origin].
-  var added: dict<list<list<any>>> = {}
-  var Add = (after: number, text: string, from: number) => {
-    if !added->has_key(after)
-      added[after] = []
-    endif
-    add(added[after], [text, from])
-  }
-  var checks = 0
-  for s in parsed.symbols
-    if s.line >= count
-      continue
-    endif
-    if index(BLOCKS, s.kind) >= 0 && s.detail != ':command'
-      var end = min([s.end_line, count - 1])
-      for lnum in range(s.line, end)
-        out[lnum] = lines[lnum]
-      endfor
-      var indent = matchstr(lines[s.line], '^\s*') .. '  '
-      if s.kind == parse.KIND_ENUM
-        out[s.line] = substitute(out[s.line], '\<enum\>', 'class', '')
-        out[end] = substitute(out[end], '^\s*\zsendenum\>', 'endclass', '')
-        for decl in ['final name: string', 'final ordinal: number',
-            $'static final values: list<{s.name}>']
-          Add(s.line, indent .. decl, s.line)
-        endfor
-        if s.children->indexof((_, c) => c.name == 'new') < 0
-          Add(s.line, indent .. 'def new()', s.line)
-          Add(s.line, indent .. 'enddef', s.line)
-        endif
-        var rest = s.children->copy()
-          ->filter((_, c) => c.kind != parse.KIND_ENUM_MEMBER)
-        var values_end = (rest->empty() ? end : rest[0].line) - 1
-        for lnum in range(s.line + 1, values_end)
-          out[lnum] = ''
-        endfor
-        # The declarations first: a value may be on the line the methods go
-        # after.
-        var values = Values(lines, s.line + 1, values_end)
-        for v in values
-          var decl = $'{indent}static var {v.name}: {s.name}'
-          if out[v.line] == ''
-            out[v.line] = decl
-          else
-            Add(v.line, decl, v.line)
-          endif
-        endfor
-        for v in values
-          checks += 1
-          for l in Check(indent, checks, $'{s.name}.new({v.args})')
-            Add(end - 1, l, v.line)
-          endfor
-        endfor
-      endif
-      if s.kind == parse.KIND_CLASS || s.kind == parse.KIND_ENUM
-        for c in s.children
-          if c.kind != parse.KIND_FIELD || c.line >= count
-              || lines[c.line] !~ STATIC
-            continue
-          endif
-          var last = selection.StatementAt(lines, c.line)[1]
-          var m = matchlist(Joined(lines, c.line, last), STATIC .. '\(.*\)$')
-          out[c.line] = matchstr(lines[c.line], STATIC)->matchstr(
-            '^\s*\%(public\s\+\)\=static\s\+') .. $'var {c.name}: '
-            .. (c.detail == '' ? 'any' : c.detail)
-          for lnum in range(c.line + 1, last)
-            out[lnum] = ''
-          endfor
-          checks += 1
-          for l in Check(indent, checks, $'{c.name} = {m[2]}')
-            Add(end - 1, l, c.line)
-          endfor
-        endfor
-      endif
-      if seen->has_key(s.name)
-        out[s.line] = Rename(out[s.line], s.name,
-          s.name .. '_vim9ls' .. (s.line + 1))
-      endif
-      seen[s.name] = true
-    elseif s.kind == parse.KIND_MODULE
-      out[s.line] = lines[s.line]
-    elseif parsed.vim9 && !s->has_key('scope_start')
-        && (s.kind == parse.KIND_VARIABLE || s.kind == parse.KIND_CONSTANT)
-      if !declared->has_key(s.line)
-        declared[s.line] = []
-      endif
-      add(declared[s.line], Declaration(lines[s.line], s))
-    endif
-  endfor
-  for [lnum, decls] in items(declared)
-    out[str2nr(lnum)] = join(decls, ' | ')
-  endfor
-  var heredoc: dict<bool> = {}
-  for lnum in parsed.heredoc_lines
-    heredoc[lnum] = true
-  endfor
-  for lnum in range(count)
-    if !heredoc->has_key(lnum)
-        && (lines[lnum] =~ '^\s*vim9s\%[cript]\>'
-          || lines[lnum] =~ '^\s*\%(export\s\+\)\=type\s\+\u')
-      out[lnum] = lines[lnum]
-    endif
-  endfor
-  var result: list<string> = []
-  var origin: list<number> = []
-  for lnum in range(count)
-    add(result, out[lnum])
-    add(origin, lnum)
-    for [text, from] in added->get(lnum, [])
-      add(result, text)
-      add(origin, from)
-    endfor
-  endfor
-  return {lines: result, origin: origin}
-enddef
-
-# The lines of the parsed script "lines" for a dry run, as {lines, origin}
-# like Lines(), with the static methods of Lines() for what a dry run does
-# not check: the value of a static class variable and the arguments of the
-# enum values.  An enum cannot call its own new(), so the latter go to a
-# class after the script that has the variables and the new() of the enum;
-# the other lines of that class have the origin -1.
+# The parsed script "lines" with those methods, as {lines, origin}: "origin"
+# has the line of the script for each line.  An enum cannot call its own
+# new(), so the methods for its values go to a class after the script that
+# has the variables and the new() of the enum; the other lines of that class
+# have the origin -1.
 export def Checks(parsed: dict<any>, lines: list<string>): dict<any>
   var count = len(lines)
   var added: dict<list<list<any>>> = {}
@@ -319,11 +161,6 @@ export def Checks(parsed: dict<any>, lines: list<string>): dict<any>
     add(origin, from)
   endfor
   return {lines: result, origin: origin}
-enddef
-
-# What the checker reads for the parsed script "lines".
-export def ForChecker(parsed: dict<any>, lines: list<string>): dict<any>
-  return util.DRYRUN ? Checks(parsed, lines) : Lines(parsed, lines)
 enddef
 
 # test/run sets this to have every :def compiled as the script is read.

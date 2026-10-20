@@ -9,6 +9,8 @@ vim9script
 # own; expressions are left alone.  Vim itself resolves the command names,
 # through fullcommand(), so abbreviations come out right.
 
+import autoload './util.vim'
+
 # LSP SymbolKind values.
 export const KIND_MODULE = 2
 export const KIND_NAMESPACE = 3
@@ -64,9 +66,11 @@ const CLOSES = {
 }
 const CONTINUES = {else: 'if', elseif: 'if', catch: 'try', finally: 'try'}
 # What Vim itself reports, on the same line, when it is out of place in code
-# it compiles: the checker has it reported there.
+# it compiles: the checker, when there is one, has it reported there.
 const VIM_REPORTS = {endif: 1, endwhile: 1, endfor: 1, endtry: 1, else: 1,
   elseif: 1, catch: 1, finally: 1}
+# Whether there is a checker, see compile.vim.
+const CHECKER = util.DRYRUN
 const OPENS = {if: 1, while: 1, for: 1, try: 1}
 const DECLARES = {var: 1, const: 1, final: 1, let: 1}
 # Commands that take a script in another language as a heredoc.
@@ -496,8 +500,8 @@ def Statement(st: dict<any>, lnum: number, text: string, col: number,
   endif
 
   if DECLARES->has_key(cmd)
-    # In a Vim9 script the checker has Vim report it.
-    if cmd == 'let' && is_vim9 && !InVim9(st)
+    # In a Vim9 script the checker, when there is one, has Vim report it.
+    if cmd == 'let' && is_vim9 && (!InVim9(st) || !CHECKER)
       add(st.diags, Diag(lnum, offset, offset + strlen(word),
         'E1126: Cannot use :let in Vim9 script'))
     endif
@@ -565,10 +569,10 @@ def Statement(st: dict<any>, lnum: number, text: string, col: number,
     endif
   elseif CLOSES->has_key(cmd)
     Close(st, cmd, lnum, offset, offset + strlen(word),
-      !is_vim9 || !VIM_REPORTS->has_key(cmd))
+      !is_vim9 || !CHECKER || !VIM_REPORTS->has_key(cmd))
   elseif CONTINUES->has_key(cmd)
     if !InKind(st, CONTINUES[cmd])
-      if !is_vim9
+      if !is_vim9 || !CHECKER
         add(st.diags, Diag(lnum, offset, offset + strlen(word),
           END_WITHOUT_START[cmd]))
       endif
