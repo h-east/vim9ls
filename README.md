@@ -3,12 +3,14 @@
 [![Test](https://github.com/h-east/vim9ls/actions/workflows/test.yml/badge.svg)](https://github.com/h-east/vim9ls/actions/workflows/test.yml)
 [![Update doc/tags](https://github.com/h-east/vim9ls/actions/workflows/update-doc-tags.yml/badge.svg)](https://github.com/h-east/vim9ls/actions/workflows/update-doc-tags.yml)
 [![Vim 9.2.1160+](https://img.shields.io/badge/Vim-9.2.1160%2B-015b01?logo=vim&logoColor=white)](#requirements)
-![ViAI](https://img.shields.io/badge/ViAI-1.0-06281A?logo=data:image/svg%2bxml;base64,PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+VmlBSTwvdGl0bGU+PHBhdGggZmlsbD0iI0ZGRkZGRiIgZD0iTTUuNzAyIDMuNDg5TDE4Ljk3OSAzLjQ4OUwxOC45NzkgNy41NzRMMjQgNy41NzRMMjQgMjRMNS43MDIgMjRBNS43MDIgNS43MDIgMCAwIDEgMCAxOC4yOThMMCA5LjE5MUE1LjcwMiA1LjcwMiAwIDAgMSA1LjcwMiAzLjQ4OVpNOC45MzYgMjEuMTA2TDEyLjM0IDIxLjEwNkwxOC4yMTMgNy4wNjRMMTQuNTUzIDcuMDY0TDEwLjYzOCAxNy4xOTFMNi43MjMgNy4wNjRMMy4wNjQgNy4wNjRaTTE4Ljk3OSAyMS4xMDZMMjIuMDQzIDIxLjEwNkwyMi4wNDMgMTIuMjU1TDE4Ljk3OSAxMi4yNTVaTTE4Ljk3OSAwTDIyLjA0MyAwTDIyLjA0MyAzLjA2NEwxOC45NzkgMy4wNjRaTTIyLjcyMyAwTDI0IDBMMjQgMy4wNjRMMjIuNzIzIDMuMDY0WiIvPjwvc3ZnPgo=)
+[![ViAI](https://img.shields.io/badge/ViAI-1.0-06281A?logo=data:image/svg%2bxml;base64,PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+VmlBSTwvdGl0bGU+PHBhdGggZmlsbD0iI0ZGRkZGRiIgZD0iTTUuNzAyIDMuNDg5TDE4Ljk3OSAzLjQ4OUwxOC45NzkgNy41NzRMMjQgNy41NzRMMjQgMjRMNS43MDIgMjRBNS43MDIgNS43MDIgMCAwIDEgMCAxOC4yOThMMCA5LjE5MUE1LjcwMiA1LjcwMiAwIDAgMSA1LjcwMiAzLjQ4OVpNOC45MzYgMjEuMTA2TDEyLjM0IDIxLjEwNkwxOC4yMTMgNy4wNjRMMTQuNTUzIDcuMDY0TDEwLjYzOCAxNy4xOTFMNi43MjMgNy4wNjRMMy4wNjQgNy4wNjRaTTE4Ljk3OSAyMS4xMDZMMjIuMDQzIDIxLjEwNkwyMi4wNDMgMTIuMjU1TDE4Ljk3OSAxMi4yNTVaTTE4Ljk3OSAwTDIyLjA0MyAwTDIyLjA0MyAzLjA2NEwxOC45NzkgMy4wNjRaTTIyLjcyMyAwTDI0IDBMMjQgMy4wNjRMMjIuNzIzIDMuMDY0WiIvPjwvc3ZnPgo=)](#requirements)
 
 > [!IMPORTANT]
 > vim9ls has stopped using `:source` to get its diagnostics, so with Vim
 > it reports far fewer diagnostics.  Please use vim9ls 0.1.026 or later.
 > See [Issues#11](https://github.com/h-east/vim9ls/issues/11) for the details.
+> With [ViAI](https://github.com/viai-editor/viai), which has `:source ++dryrun`
+> with fail-safes, vim9ls has no such limit, so ViAI is recommended.
 
 A language server for Vim9 script and legacy Vim script, run by Vim itself.
 
@@ -22,10 +24,12 @@ The diagnostics come from reading the script line by line, which runs
 nothing in it.  A Vim that has `:source ++dryrun` reads the script as well,
 compiles its `:def` functions and reports what it finds there.  Vim itself
 no longer has it, see [Issues#11](https://github.com/h-east/vim9ls/issues/11).
+ViAI has it, with fail-safes.
 
 ## Requirements
 
-Vim 9.2.1160 or later with `+channel` and `+job`.
+[ViAI](https://github.com/viai-editor/viai) 1.0 or later with `+channel` and `+job` (recommended).
+Vim 9.2.1160 or later with `+channel` and `+job`, where vim9ls has no checker.
 
 <details>
 <summary>What those patches are for</summary>
@@ -58,7 +62,7 @@ With lsp.vim: install it the same way and add the server to
     {filetypes: ['vim'], name: 'vim9ls', cmd: function('vim9ls#Command')}
 
 With another LSP client: point it at `bin/vim9ls` (`bin/vim9ls.cmd` on
-MS-Windows).
+MS-Windows).  To run it with ViAI, set `$VIM9LS_VIM` to `viai`.
 
 See `:help vim9ls` for the details.
 

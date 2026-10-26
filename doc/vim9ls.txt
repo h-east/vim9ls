@@ -27,12 +27,16 @@ installed.
 The diagnostics come from reading the script line by line, which runs
 nothing in it.  A Vim that has ":source ++dryrun" reads the script as well,
 compiles its |:def| functions and reports what it finds there.  Vim itself
-no longer has it, see |vim9ls-checker|.
+no longer has it, see |vim9ls-checker|.  ViAI has it, with fail-safes, and
+is recommended for vim9ls.
 
 ==============================================================================
 2. Requirements					*vim9ls-requirements*
 
-Vim 9.2.1160 or later with the |+channel| and |+job| features.
+ViAI 1.0 or later with the |+channel| and |+job| features (recommended).
+	https://github.com/viai-editor/viai
+Vim 9.2.1160 or later with the |+channel| and |+job| features, where vim9ls
+has no checker.
 
 What those patches are for:
 9.2.1160: |getinfo()| gives the names and the types of the arguments in
@@ -83,8 +87,8 @@ older than 9.2.1160.
 
 With another LSP client ~
 Point the client at bin/vim9ls (bin/vim9ls.cmd on MS-Windows), a script that
-starts the server with "vim" from $PATH.  $VIM9LS_VIM names another Vim.  What
-it runs is >
+starts the server with "vim" from $PATH.  $VIM9LS_VIM names another Vim; to
+run it with ViAI, set it to "viai".  What it runs is >
 	vim --clean --stdio-channel -S /path/to/autoload/vim9ls.vim
 and the server talks to the client on stdin and stdout, which every client
 supports.  See |--stdio-channel|.
@@ -338,7 +342,8 @@ Vim 9.2.1084 added ":source ++dryrun" and 9.2.1184 removed it again: what Vim
 skips while it reads a script, a heredoc among others, is not always what it
 leaves unexecuted, and a script made for that can have commands run.  The
 same holds for a plain ":source", so in a Vim without the dry run there is no
-checker and only the reading above reports.
+checker and only the reading above reports.  ViAI has ":source ++dryrun" with
+fail-safes: what would still run gives an error, so ViAI has the checker.
 
 The checker, a Vim of its own that the server starts once and keeps, reads
 the text under the file's own name, so that a relative import is found, with
