@@ -28,7 +28,7 @@ ViAI has it, with fail-safes.
 
 ## Requirements
 
-[ViAI](https://github.com/viai-editor/viai) 1.0 or later with `+channel` and `+job` (recommended).
+[ViAI](https://github.com/viai-editor/viai) 1.0 or later with `+channel` and `+job` (recommended).  
 Vim 9.2.1160 or later with `+channel` and `+job`, where vim9ls has no checker.
 
 <details>
