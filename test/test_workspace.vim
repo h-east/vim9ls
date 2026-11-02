@@ -225,15 +225,41 @@ def g:Test_workspace_diagnostic_progress()
   endtry
 enddef
 
-# Whether the request with a token for the work done has the server read a
-# script: only then does it tell of the work beginning.
-def ReadsAny(): bool
+# Sends the request with a token for the work done and returns the kinds of
+# the work that came under it, up to the end.
+def WorkKinds(): list<string>
   helper.Send('workspace/diagnostic', {previousResultIds: [],
     partialResultToken: 'tok', workDoneToken: 'work'}, (_) => {
     })
-  sleep 300m
-  return helper.notifications->indexof((_, n) =>
-    n->get('method', '') == '$/progress' && n.params.token == 'work') >= 0
+  var kinds: list<string> = []
+  helper.WaitFor(() => {
+    kinds = helper.notifications->copy()->filter((_, n) =>
+      n->get('method', '') == '$/progress' && n.params.token == 'work')
+      ->mapnew((_, n) => n.params.value.kind)
+    return index(kinds, 'end') >= 0
+  }, 10000)
+  return kinds
+enddef
+
+# Whether the request with a token for the work done has the server read a
+# script: only then does it report how far it has got.
+def ReadsAny(): bool
+  return index(WorkKinds(), 'report') >= 0
+enddef
+
+# With nothing to read, the only script being open, the work begins and ends
+# all the same.
+def g:Test_workspace_diagnostic_nothing_to_read()
+  mkdir(ROOT, 'pR')
+  writefile(['vim9script'], ROOT .. '/open.vim')
+  try
+    Start([ROOT])
+    helper.OpenDoc(readfile(ROOT .. '/open.vim'),
+      util.PathToUri(ROOT .. '/open.vim'))
+    assert_equal(['begin', 'end'], WorkKinds())
+  finally
+    helper.StopServer()
+  endtry
 enddef
 
 # What a server found is kept on disk; a server started again reports it

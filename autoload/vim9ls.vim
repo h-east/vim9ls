@@ -29,7 +29,7 @@ import autoload './vim9ls/selection.vim'
 import autoload './vim9ls/unused.vim'
 import autoload './vim9ls/cache.vim'
 
-export const VERSION = '0.1.029'
+export const VERSION = '0.1.030'
 
 const SCRIPT = expand('<sfile>:p')
 
@@ -440,10 +440,14 @@ def WorkspacePull(id: any, params: dict<any>)
   ScanWorkspace()
   var work_token = params->get('workDoneToken', null)
   if (type(work_token) == v:t_string || type(work_token) == v:t_number)
-      && pull != null_dict && !to_read->empty()
+      && pull != null_dict
     work = {token: work_token, total: 2 * len(to_read), done: 0, told: 0}
     Notify('$/progress', {token: work_token, value: {kind: 'begin',
       title: 'Reading the workspace', percentage: 0}})
+    # With nothing to read the client still hears of the end.
+    if to_read->empty()
+      EndWork()
+    endif
   endif
 enddef
 
