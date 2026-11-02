@@ -466,6 +466,15 @@ def Check(path_arg: string, lines: list<string>, wrapped: any,
       || getinfo('function', 'g:' .. matchstr(e.message, '\S\+$'))
         ->get('sid', 0) != sid)
   endif
+  # A dry run does not execute ":let", while a :def of a legacy script finds
+  # a script variable made by it without "s:" when it runs.
+  if type(wrapped) != v:t_list
+    errors->filter((_, e) => {
+      var name = matchstr(e.message, '^E1001: Variable not found: \zs\h\w*$')
+      return name == '' || lines->indexof((_, l) => l =~ '^\s*'
+        .. '\%(let\|cons\%[t]\)\s\+\%(\[[^]]*\)\=\<s:' .. name .. '\>') < 0
+    })
+  endif
   for e in errors
     if e.line > len(lines)
       e.line -= len(lines) + 1

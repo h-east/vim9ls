@@ -1773,6 +1773,24 @@ def g:Test_compile_static_constant()
   helper.StopServer()
 enddef
 
+# Only a name the legacy script makes with ":let" is left alone.
+def g:Test_compile_legacy_script_variable()
+  helper.NeedChecker()
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc(['if 1', '  let s:zip = {}', '  let [s:a, s:pair] = [1, 2]',
+    'endif', 'def s:F()', '  echo zip', '  echo pair',
+    "  var n: number = 'x'", '  echo n', 'enddef', 'def s:G(): number',
+    '  return nope', 'enddef'])
+  assert_equal([
+    [7, 'E1012: Type mismatch; expected number but got string'],
+    [11, 'E1001: Variable not found: nope'],
+  ], helper.WaitNotification('textDocument/publishDiagnostics')
+    .params.diagnostics->copy()->filter((_, d) => d.message =~ '^E\d')
+    ->mapnew((_, d) => [d.range.start.line, d.message]))
+  helper.StopServer()
+enddef
+
 # A script bigger than a pipe holds goes to the server and on to the
 # checker, see compile.Start().
 def g:Test_compile_big_document()
