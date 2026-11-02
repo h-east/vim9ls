@@ -10,8 +10,8 @@ vim9script
 import autoload './parse.vim'
 import autoload './selection.vim'
 
-const STATIC = '^\(\s*\%(public\s\+\)\=static\s\+\)\%(var\|const\|final\)\s\+'
-  .. '\h\w*\%(\s*:\s*[^=]\{-}\)\=\s*=\s*'
+const STATIC = '^\s*\%(public\s\+\)\=static\s\+\(var\|const\|final\)\s\+'
+  .. '\h\w*\%(\s*:\s*\([^=]\{-}\)\)\=\s*=\s*'
 
 # The lines "first" to "last" of "lines" as one, without their comments.
 def Joined(lines: list<string>, first: number, last: number): string
@@ -106,7 +106,12 @@ export def Checks(parsed: dict<any>, lines: list<string>): dict<any>
       var last = selection.StatementAt(lines, c.line)[1]
       var m = matchlist(Joined(lines, c.line, last), STATIC .. '\(.*\)$')
       checks += 1
-      for l in Check(indent, checks, $'{c.name} = {m[2]}')
+      # A constant cannot be assigned to: its value initializes a local
+      # variable of the same type.
+      var statement = m[1] == 'var' ? $'{c.name} = {m[3]}'
+        : m[2] == '' ? $'var _vim9ls_value = {m[3]}'
+        : $'var _vim9ls_value: {m[2]} = {m[3]}'
+      for l in Check(indent, checks, statement)
         if !added->has_key(end - 1)
           added[end - 1] = []
         endif

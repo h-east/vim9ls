@@ -1745,6 +1745,23 @@ def g:Test_compile_enum()
   helper.StopServer()
 enddef
 
+# The value of a static constant is checked against its type, without the
+# constant being assigned to.
+def g:Test_compile_static_constant()
+  helper.NeedChecker()
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc(['vim9script', 'class C', '  static const A = 4',
+    '  static final B: list<number> = [1]', "  static const D: number = 'x'",
+    '  static final E: string = 2', 'endclass'])
+  assert_equal([
+    [4, 'E1012: Type mismatch; expected number but got string'],
+    [5, 'E1012: Type mismatch; expected string but got number'],
+  ], helper.WaitNotification('textDocument/publishDiagnostics')
+    .params.diagnostics->mapnew((_, d) => [d.range.start.line, d.message]))
+  helper.StopServer()
+enddef
+
 # A script bigger than a pipe holds goes to the server and on to the
 # checker, see compile.Start().
 def g:Test_compile_big_document()
