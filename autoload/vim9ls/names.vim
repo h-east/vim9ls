@@ -68,7 +68,7 @@ def Candidates(line: string, vim9: bool): list<dict<any>>
     for [seg_start, seg_end] in code
       if seg_start <= m[1] && m[2] <= seg_end
         add(out, {text: m[0], col: m[1], end: m[2],
-          prev: m[1] == 0 ? '' : line[m[1] - 1], in_string: false})
+          prev: strpart(line, m[1] - 1, 1), in_string: false})
         break
       endif
     endfor

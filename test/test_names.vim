@@ -51,6 +51,13 @@ def g:Test_names_legacy()
     [diags[0].col, diags[0].end_col, diags[0].severity])
 enddef
 
+# After a multibyte character a method is left alone, a function is not.
+def g:Test_names_method_after_multibyte()
+  var lines = ["if x =~ '^\u3000' || self.method(1)", 'endif',
+    "if x =~ '^\u3000' || nosuch(1)", 'endif']
+  assert_equal([[2, 'E117: Unknown function: nosuch']], Undefined(lines))
+enddef
+
 # In the keys of a mapping, an abbreviation or a menu only a name that can
 # only be a call is looked at: one with <SID> or "#", or one after "call".
 def g:Test_names_keys()
