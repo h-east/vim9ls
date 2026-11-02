@@ -457,6 +457,15 @@ def Check(path_arg: string, lines: list<string>, wrapped: any,
   # A function of the script that failed has its own error.
   errors->filter((_, e) => e.message !~ '^E1191:'
     || StartLine(matchstr(e.message, '\S\+$'), path) == 0)
+  # Read under another name, the script meets the functions it defined when
+  # it was loaded here.
+  var sid = path == FullPath(path_arg) ? 0 : ScriptId(FullPath(path_arg))
+  if sid > 0
+    # In Vim9 script a global function is found with "g:".
+    errors->filter((_, e) => e.message !~ '^E8003:'
+      || getinfo('function', 'g:' .. matchstr(e.message, '\S\+$'))
+        ->get('sid', 0) != sid)
+  endif
   for e in errors
     if e.line > len(lines)
       e.line -= len(lines) + 1

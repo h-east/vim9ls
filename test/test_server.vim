@@ -1429,6 +1429,17 @@ def g:Test_compile_diagnostics()
   note = helper.WaitNotification('textDocument/publishDiagnostics')
   assert_equal([[len(lines) + 1, 'E1012']], note.params.diagnostics
     ->mapnew((_, d) => [d.range.start.line, matchstr(d.message, '^E\d\+')]))
+
+  # A global function $VIMRUNTIME/filetype.vim defined when the checker
+  # loaded it is not one of another script.
+  var filetype = $VIMRUNTIME .. '/filetype.vim'
+  lines = readfile(filetype)
+  helper.OpenDoc(lines + ['def g:Vim9lsBroken(): number', '  return "x"',
+    'enddef'], util.PathToUri(filetype))
+  note = helper.WaitNotification('textDocument/publishDiagnostics')
+  assert_equal([[len(lines) + 1, 'E1012']], note.params.diagnostics
+    ->copy()->filter((_, d) => d.message =~ '^E\d')
+    ->mapnew((_, d) => [d.range.start.line, matchstr(d.message, '^E\d\+')]))
 enddef
 
 # A variable of a block at the script level may have the name of a script
