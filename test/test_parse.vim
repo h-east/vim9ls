@@ -194,6 +194,42 @@ def g:Test_parse_bar_after_multibyte()
   assert_equal(31, after[0].name_end)
 enddef
 
+# A command after a bar closes a block even when the command before it does
+# not shape the script, unless that one takes the bar as its argument or the
+# bar is in a comment.
+def g:Test_parse_bar_after_other_command()
+  var lines =<< trim END
+    function! s:ExcludeOther(nr, exclude_preview)
+      if (getbufvar(a:nr, 'current_syntax') == 'qf') ||
+            \  (a:exclude_preview && getbufvar(a:nr, '&bufhidden') == 'wipe'
+            \  && getbufvar(a:nr, '&buftype') == 'nofile')
+        return 1 | endif
+      if a:nr
+        echo 1 | endif
+      if a:nr
+        normal! x | endif
+      endif
+      if a:nr
+        return 1 " x | endif
+      endif
+    endfunction
+
+    function! airline#extensions#tabline#buflist#list()
+    endfunction
+  END
+  var parsed = parse.Parse(lines)
+  assert_equal([], parsed.diags)
+  assert_equal(['s:ExcludeOther', 'airline#extensions#tabline#buflist#list'],
+    Names(parsed.symbols))
+  assert_equal(13, parsed.symbols[0].end_line)
+
+  # A comment under Vim9 rules.
+  parsed = parse.Parse(['vim9script', 'def A()', '  if 1',
+    '    return # x | endif', '  endif', 'enddef', 'def B()', 'enddef'])
+  assert_equal([], parsed.diags)
+  assert_equal(['A', 'B'], Names(parsed.symbols))
+enddef
+
 # A comma inside the type or the default of a parameter does not start
 # another one.
 def g:Test_parse_parameter_types()

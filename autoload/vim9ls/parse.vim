@@ -721,8 +721,10 @@ export def Parse(lines: list<string>): dict<any>
     endif
 
     # Most lines are expressions or commands that do not shape the script;
-    # they matter only inside an enum, and in legacy script as a typo.
+    # they matter only inside an enum, and in legacy script as a typo.  A
+    # command after a "|" may still shape the script: "return 1 | endif".
     if !SHAPING->has_key(cmd)
+        && (cmd == '' || stridx(line, '|') < 0 || TakesRest(line[col :]))
       if cmd != ''
         continue
       endif
