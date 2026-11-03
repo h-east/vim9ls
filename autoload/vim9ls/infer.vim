@@ -3,6 +3,8 @@ vim9script
 # vim9ls - the type of an expression, as the Vim9 compiler infers it
 # Maintainer: Hirohito Higashi <h.east.727@gmail.com>
 
+import autoload './parse.vim'
+
 # The names whose type is known without asking Vim.
 const LITERALS = {true: 'bool', false: 'bool', null: 'special',
   null_list: 'list<any>', null_dict: 'dict<any>', null_string: 'string',
@@ -14,7 +16,7 @@ const LITERALS = {true: 'bool', false: 'bool', null: 'special',
 # The operators, longest first so that ".." is not taken as "." twice.
 const OPERATOR = '^\%(\.\.\|->\|=>\|[=!][=~][#?]\=\|[<>]=\=[#?]\=\|&&\|||'
   .. '\|??\|[-+*/%!?:.,()[\]{}]\)'
-const NAME = '^\%(<SID>\)\=\%([gvsablwt]:\)\=\h[[:alnum:]_#]*'
+const NAME = '^\%(' .. parse.SID .. '\)\=\%([gvsablwt]:\)\=\h[[:alnum:]_#]*'
 const NUMBER = '^\%(0[xX]\x\+\|0[bB][01]\+\|0[zZ]\x*\|0[oO]\=\o\+'
   .. '\|\d\+\.\d\+\%([eE][+-]\=\d\+\)\=\|\d\+\)'
 
@@ -49,7 +51,7 @@ def Tokenize(expr: string): list<dict<string>>
     elseif c == '@'
       m = [strpart(expr, pos, 2), pos, pos + 2]
       kind = 'reg'
-    elseif c =~ '\h' || strpart(expr, pos) =~ '^<SID>'
+    elseif c =~ '\h' || strpart(expr, pos) =~ '^' .. parse.SID
       m = matchstrpos(expr, NAME, pos)
       kind = m[0] == 'is' || m[0] == 'isnot' ? 'op' : 'name'
     else

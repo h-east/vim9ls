@@ -333,7 +333,7 @@ def KeyCallErrors(path: string, calls: list<any>): list<dict<any>>
     return errors
   endif
   for c in calls
-    var name = substitute(c.name, '^<SID>', '', '')
+    var name = substitute(c.name, '^' .. parse.SID, '', '')
     var local = getinfo('function', $'<SNR>{sid}_{name}')
     var info = c.scope == 'global' ? {} : local
     if info->empty() && c.scope != 'sid'

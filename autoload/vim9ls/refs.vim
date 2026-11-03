@@ -149,7 +149,8 @@ export def Tokens(line: string, vim9: bool): list<dict<any>>
   for [seg_start, seg_end] in spans.code
     var pos = seg_start
     while pos < seg_end
-      var m = matchstrpos(line, '\%(<SID>\)\=' .. NAME .. '\+', pos)
+      var m = matchstrpos(line, '\%(' .. parse.SID .. '\)\=' .. NAME .. '\+',
+        pos)
       if m[1] < 0 || m[1] >= seg_end
         break
       endif
@@ -157,7 +158,7 @@ export def Tokens(line: string, vim9: bool): list<dict<any>>
       var stop_col = min([m[2], seg_end])
       var text = strpart(line, col, stop_col - col)
       pos = stop_col
-      if text !~ '^\%(<SID>\)\=\h'
+      if text !~ '^\%(' .. parse.SID .. '\)\=\h'
         continue
       endif
       var prev = col == 0 ? '' : strpart(line, col - 1, 1)
@@ -167,7 +168,7 @@ export def Tokens(line: string, vim9: bool): list<dict<any>>
   endfor
   for [seg_start, seg_end] in spans.strings
     var text = strpart(line, seg_start, seg_end - seg_start)
-    if text =~ '^\*\=\%(<SID>\|[sg]:\)\=\h' .. NAME .. '*$'
+    if text =~ '^\*\=\%(' .. parse.SID .. '\|[sg]:\)\=\h' .. NAME .. '*$'
       var col = seg_start + (text[0] == '*' ? 1 : 0)
       add(tokens, {text: strpart(text, col - seg_start), col: col,
         end: seg_end, prev: '', in_string: true})
@@ -189,7 +190,7 @@ enddef
 
 # The name without its script prefix, and the prefix.
 def Split(name: string): list<string>
-  if name =~ '^<SID>'
+  if name =~ '^' .. parse.SID
     return ['s:', name[5 :]]
   endif
   var scope = matchstr(name, '^[sgbwtlv]:')

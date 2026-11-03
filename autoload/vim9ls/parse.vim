@@ -31,6 +31,9 @@ export const SEVERITY_HINT = 4
 # LSP DiagnosticTag value.
 export const TAG_UNNECESSARY = 1
 
+# "<SID>" in any case, as Vim takes it.
+export const SID = '<[sS][iI][dD]>'
+
 # Commands that only qualify the command after them.
 const MODIFIERS = {
   aboveleft: 1, belowright: 1, botright: 1, browse: 1, confirm: 1, hide: 1,
@@ -150,7 +153,7 @@ enddef
 # The name defined by "def"/"function" arguments, or an empty string for a
 # listing.
 def FunctionName(arg_text: string): string
-  return matchstr(arg_text, '^\%(<SID>\|[sgbwtl]:\)\=\h[[:alnum:]_#.]*')
+  return matchstr(arg_text, '^\%(' .. SID .. '\|[sgbwtl]:\)\=\h[[:alnum:]_#.]*')
 enddef
 
 # The variables a "var"/"let"/"const"/"final" statement declares.

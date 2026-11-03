@@ -56,13 +56,13 @@ def Candidates(line: string, vim9: bool): list<dict<any>>
   var code = refs.CodeSpans(line, vim9).code
   var pos = 0
   while true
-    var m = matchstrpos(line, '\%(<SID>\)\=' .. refs.NAME .. '\+\ze(\|v:\w\+',
-      pos)
+    var m = matchstrpos(line,
+      '\%(' .. parse.SID .. '\)\=' .. refs.NAME .. '\+\ze(\|v:\w\+', pos)
     if m[1] < 0
       break
     endif
     pos = m[2]
-    if m[0] !~ '^\%(<SID>\)\=\h'
+    if m[0] !~ '^\%(' .. parse.SID .. '\)\=\h'
       continue
     endif
     for [seg_start, seg_end] in code
@@ -137,7 +137,7 @@ export def KeyCalls(parsed: dict<any>, lines: list<string>): list<dict<any>>
         continue
       endif
       var before = strpart(line, 0, token.col)
-      var scope = token.text =~ '^<SID>' ? 'sid'
+      var scope = token.text =~ '^' .. parse.SID ? 'sid'
         : before =~? '<ScriptCmd>\%(call\s\+\)\=$' ? 'script'
         : before =~ '\<call\s\+$' ? 'global' : ''
       if scope != ''
@@ -221,14 +221,14 @@ export def Undefined(parsed: dict<any>, lines: list<string>,
         continue
       endif
       # In keys a name followed by "(" is a call only when it can only be one.
-      if keys && name !~ '^<SID>' && name !~ '#'
+      if keys && name !~ '^' .. parse.SID && name !~ '#'
           && strpart(line, 0, token.col) !~ '\<call\s\+$'
         continue
       endif
       var unknown = false
       if name =~ '#'
         unknown = Autoload(name) == 0
-      elseif name =~ '^<SID>' || name =~ '^s:'
+      elseif name =~ '^' .. parse.SID || name =~ '^s:'
         unknown = refs.Find(index, token, lnum, same) == null_dict
       elseif name =~ ':'
         continue

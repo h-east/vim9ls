@@ -51,6 +51,23 @@ def g:Test_names_legacy()
     [diags[0].col, diags[0].end_col, diags[0].severity])
 enddef
 
+# "<SID>" in any case is the script.
+def g:Test_names_sid_case()
+  var lines =<< trim END
+    function! s:check_defined_section(name)
+    endfunction
+    function! airline#extensions#append_to_section(name, value)
+      call <sid>check_defined_section(a:name)
+    endfunction
+    function! airline#extensions#prepend_to_section(name, value)
+      call <sid>check_defined_section(a:name)
+    endfunction
+    call <Sid>missing()
+  END
+  assert_equal([[8, 'E117: Unknown function: <Sid>missing']],
+    Undefined(lines))
+enddef
+
 # After a multibyte character a method is left alone, a function is not.
 def g:Test_names_method_after_multibyte()
   var lines = ["if x =~ '^\u3000' || self.method(1)", 'endif',
