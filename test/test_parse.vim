@@ -230,6 +230,30 @@ def g:Test_parse_bar_after_other_command()
   assert_equal(['A', 'B'], Names(parsed.symbols))
 enddef
 
+# A listing opens no block, even when its "{expr}" has a "(".
+def g:Test_parse_function_listing()
+  var lines =<< trim END
+    func Test_throw_func()
+      function F0
+      function F{T73_expr('function-lst-ok', 3)}
+      function! F{T73_expr('function-def-ok', 1)}()
+      endfunction
+    endfunc
+    func After()
+    endfunc
+  END
+  var parsed = parse.Parse(lines)
+  assert_equal([], parsed.diags)
+  assert_equal(['Test_throw_func', 'After'], Names(parsed.symbols))
+  assert_equal(['F'], Names(parsed.symbols[0].children))
+  assert_equal(5, parsed.symbols[0].end_line)
+
+  parsed = parse.Parse(['vim9script', 'def A()', '  def F0', 'enddef',
+    'def B()', 'enddef'])
+  assert_equal([], parsed.diags)
+  assert_equal(['A', 'B'], Names(parsed.symbols))
+enddef
+
 # A comma inside the type or the default of a parameter does not start
 # another one.
 def g:Test_parse_parameter_types()
