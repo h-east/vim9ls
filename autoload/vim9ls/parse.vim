@@ -394,7 +394,9 @@ enddef
 # The commands of "text", each with its offset: a bar separates them, but
 # not "||", not "\|" and not one inside a string.  A legacy comment counts as
 # a string that does not end.  A quote after a backslash, "\"", starts none.
-def Parts(text: string): list<list<any>>
+# Under Vim9 rules a "#" after white space starts a comment, which ends the
+# commands.
+def Parts(text: string, vim9: bool): list<list<any>>
   var parts: list<list<any>> = []
   # The characters of the line, and the byte the current one starts at: the
   # offsets go out as columns, which the rest of the parser counts in bytes.
@@ -420,6 +422,8 @@ def Parts(text: string): list<list<any>>
       endif
     elseif (c == "'" || c == '"') && (i == 0 || chars[i - 1] != '\')
       quote = c
+    elseif vim9 && c == '#' && (i == 0 || chars[i - 1] =~ '\s')
+      break
     elseif c == '|'
       if i + 1 < len && chars[i + 1] == '|'
         pair = true
@@ -763,7 +767,7 @@ export def Parse(lines: list<string>): dict<any>
       continue
     endif
     var is_first = true
-    for [offset, part] in Parts(line[col :])
+    for [offset, part] in Parts(line[col :], InVim9(st))
       var text = substitute(part, '^\s*', '', '')
       var pword = matchstr(text, '^\h\w*')
       if pword != ''

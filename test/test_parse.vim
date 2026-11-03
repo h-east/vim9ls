@@ -223,11 +223,25 @@ def g:Test_parse_bar_after_other_command()
     Names(parsed.symbols))
   assert_equal(13, parsed.symbols[0].end_line)
 
-  # A comment under Vim9 rules.
-  parsed = parse.Parse(['vim9script', 'def A()', '  if 1',
-    '    return # x | endif', '  endif', 'enddef', 'def B()', 'enddef'])
+  # A "|" in a Vim9 comment separates nothing, whatever the command before
+  # it; the "#" of "=~#" starts no comment.
+  lines =<< trim END
+    vim9script
+    def A()
+      if 1
+        return # x | endif
+      endif
+      if 1 # x | enddef
+      endif
+      if 'a' =~# 'a' | endif
+    enddef
+    def B()
+    enddef
+  END
+  parsed = parse.Parse(lines)
   assert_equal([], parsed.diags)
   assert_equal(['A', 'B'], Names(parsed.symbols))
+  assert_equal(8, parsed.symbols[0].end_line)
 enddef
 
 # A listing opens no block, even when its "{expr}" has a "(".
