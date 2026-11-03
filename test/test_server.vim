@@ -1791,6 +1791,52 @@ def g:Test_compile_legacy_script_variable()
   helper.StopServer()
 enddef
 
+# A function made of heredocs that ":execute" runs is defined, and an error
+# in it is reported on the line of the heredoc.  One that evaluates or is not
+# run is not.
+def g:Test_compile_executed_heredoc()
+  helper.NeedChecker()
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc(['vim9script', 'var src: list<string> = []',
+    'var tmp: list<string>', 'src =<< trim END', '  def Made(): number',
+    'END', 'if 1',
+    '  tmp =<< trim END', "    return 'x'", '  END', '  src += tmp', 'endif',
+    'tmp =<< trim END', '  enddef', 'END', 'src += tmp',
+    'execute join(src, "\n")',
+    'var good =<< trim END', '  def Good(): number', '    return 1',
+    '  enddef', 'END', 'execute join(good, "\n")',
+    'var lazy =<< trim eval END', '  def Lazy(): number', '    return {1}',
+    '  enddef', 'END', 'execute join(lazy, "\n")',
+    'var unused =<< trim END', '  def Unused(): number', '    return 1',
+    '  enddef', 'END',
+    'def F(): number', '  return Good() + Lazy()', 'enddef',
+    'def G(): number', '  return Good() + Unused()', 'enddef'])
+  assert_equal([
+    [8, 'E1012: Type mismatch; expected number but got string'],
+    [35, 'E117: Unknown function: Lazy'],
+    [38, 'E117: Unknown function: Unused'],
+  ], helper.WaitNotification('textDocument/publishDiagnostics')
+    .params.diagnostics->copy()->filter((_, d) => d.message =~ '^E\d')
+    ->mapnew((_, d) => [d.range.start.line, d.message]))
+  helper.StopServer()
+enddef
+
+# The same for a heredoc a legacy script writes to a file and sources.
+def g:Test_compile_sourced_heredoc()
+  helper.NeedChecker()
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc(['let s:file = tempname()', 'let s:src =<< trim END',
+    '  def s:Written(): number', "    return 'x'", '  enddef', 'END',
+    'call writefile(s:src, s:file)', "execute 'source' fnameescape(s:file)"])
+  assert_equal([[3, 'E1012: Type mismatch; expected number but got string']],
+    helper.WaitNotification('textDocument/publishDiagnostics')
+    .params.diagnostics->copy()->filter((_, d) => d.message =~ '^E\d')
+    ->mapnew((_, d) => [d.range.start.line, d.message]))
+  helper.StopServer()
+enddef
+
 # A script bigger than a pipe holds goes to the server and on to the
 # checker, see compile.Start().
 def g:Test_compile_big_document()

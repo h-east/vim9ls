@@ -370,6 +370,13 @@ such a function under a name of its own.  A :def that uses a script
 variable made by ":let" without "s:" is not reported for it.  A dry run
 does not evaluate the value of a static class variable nor the arguments
 of the values of an enum; the checker has them compiled all the same.
+Nor does it run ":execute" and ":source".  A list of heredocs that is run at
+the script level with `execute join(lines, "\n")`, or written with
+|writefile()| and sourced, is read in place of that command: a function made
+that way is found, and an error in it is reported on the line of the heredoc.
+Every heredoc added to the list is read, even one that the script adds only
+under a condition.  A list with anything else in it, such as a heredoc that
+evaluates, is not read.
 
 Workspace diagnostics ~
 A client that asks with "workspace/diagnostic" is told about the "*.vim" files
