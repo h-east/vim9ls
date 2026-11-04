@@ -81,9 +81,9 @@ from.
 
 						*vim9ls#Command()*
 vim9ls#Command() returns the command that starts the server with the Vim it is
-called in.  On MS-Windows it names vim.exe when called from gvim.exe, so that
-no window opens.  It throws when that Vim lacks |+channel| or |+job|, or is
-older than 9.2.1160.
+called in.  On MS-Windows it names vim.exe or viai.exe when called from
+gvim.exe or gviai.exe.  It throws when that Vim lacks |+channel| or |+job|, or
+is older than 9.2.1160.
 
 With another LSP client ~
 Point the client at bin/vim9ls (bin/vim9ls.cmd on MS-Windows), a script that

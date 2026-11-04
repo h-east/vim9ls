@@ -29,7 +29,7 @@ import autoload './vim9ls/selection.vim'
 import autoload './vim9ls/unused.vim'
 import autoload './vim9ls/cache.vim'
 
-export const VERSION = '0.1.037'
+export const VERSION = '0.1.038'
 
 const SCRIPT = expand('<sfile>:p')
 
@@ -46,9 +46,10 @@ export def Command(): list<string>
     throw $'vim9ls: this Vim needs {PATCH} or later to run the server'
   endif
   var vim = v:progpath
-  # gvim.exe would open a window; vim.exe next to it does not.
-  if has('win32') && vim =~? 'gvim\.exe$'
-    var console = substitute(vim, '\c[^\\/]*$', 'vim.exe', '')
+  # The server needs no GUI: use the console program next to gvim.exe or
+  # gviai.exe.
+  if has('win32') && vim =~? '[\\/]g[^\\/]*\.exe$'
+    var console = substitute(vim, '\c[\\/]\zsg\ze[^\\/]*\.exe$', '', '')
     if executable(console)
       vim = console
     endif
