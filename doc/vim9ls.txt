@@ -61,6 +61,7 @@ load on its own, and add this to your |vimrc|: >vim9
 
 	packadd! vim9ls
 <
+ViAI has it in "pack/dist/opt/vim9ls" already and only needs the line above.
 
 ==============================================================================
 4. Setup					*vim9ls-setup*

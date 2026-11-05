@@ -45,7 +45,10 @@ Vim 9.2.1160 or later with `+channel` and `+job`, where vim9ls has no checker.
 
 ## Installation
 
-With a plugin manager, vim-plug for instance:
+ViAI comes with vim9ls as an optional package, add `packadd! vim9ls`
+to your vimrc, see `:help package-vim9ls` in ViAI.
+
+In Vim, use a plugin manager, vim-plug for instance:
 
 ```vim
 Plug 'h-east/vim9ls'
