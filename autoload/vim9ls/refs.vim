@@ -223,16 +223,22 @@ def Matches(token: dict<any>, symbol: dict<any>, vim9: bool): bool
   return tscope == sscope
 enddef
 
-# Every symbol with the lines its name is visible in: a member and a
-# top-level name everywhere, a Vim9 variable from its declaration to the end
-# of its block, anything else inside the function that holds it.
+# A line number past the end of any script.
+const LAST_LINE = 1000000000
+
+# Every symbol with the lines its name is visible in: a member, a top-level
+# name and one with "s:", "g:", "b:", "w:" or "t:" everywhere, a Vim9
+# variable from its declaration to the end of its block, anything else
+# inside the function that holds it.
 def Scoped(symbols: list<dict<any>>, first: number, last: number,
     out: list<dict<any>>)
   for s in symbols
     var in_function = s.kind == parse.KIND_FUNCTION
       || s.kind == parse.KIND_METHOD
-    add(out, {symbol: s, first: s->get('scope_start', first),
-      last: s->get('scope_end', last)})
+    var shared = !s->has_key('scope_start') && s.name =~ '^[sgbwt]:'
+    add(out, {symbol: s,
+      first: shared ? 0 : s->get('scope_start', first),
+      last: shared ? LAST_LINE : s->get('scope_end', last)})
     var child_first = in_function ? s.line : first
     var child_last = in_function ? s.end_line : last
     Scoped(s.children, child_first, child_last, out)
@@ -243,7 +249,7 @@ enddef
 # looking many names up in one parse.
 export def Index(parsed: dict<any>): dict<list<dict<any>>>
   var scoped: list<dict<any>> = []
-  Scoped(parsed.symbols, 0, 1000000000, scoped)
+  Scoped(parsed.symbols, 0, LAST_LINE, scoped)
   var index: dict<list<dict<any>>> = {}
   for entry in scoped
     var core = Core(entry.symbol.name)

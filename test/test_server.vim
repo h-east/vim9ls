@@ -1594,6 +1594,18 @@ def g:Test_compile_script_level_call_of_global_function()
   helper.StopServer()
 enddef
 
+# "call s:Fn()" in one function gives no E117 when another function sets
+# "s:Fn".
+def g:Test_call_script_funcref_set_in_function()
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc(['function F()', "  let s:Fn = function('tr')",
+    'endfunction', 'function G()', '  call s:Fn()', 'endfunction'])
+  assert_equal([], helper.WaitNotification('textDocument/publishDiagnostics')
+    .params.diagnostics->copy()->filter((_, d) => d.message =~ '^E\d'))
+  helper.StopServer()
+enddef
+
 # The functions of a Dictionary that ":let" makes in a legacy script give no
 # error and are completed after its name.
 def g:Test_dictionary_functions()

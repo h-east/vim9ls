@@ -79,6 +79,26 @@ def g:Test_resolve_scopes()
   assert_equal(null_dict, refs.Resolve(parsed, other, 7))
 enddef
 
+# A script variable set in a function is found in another function, a local
+# variable is not.
+def g:Test_resolve_script_variable_set_in_function()
+  var lines =<< trim END
+    function F()
+      let s:Fn = function('tr')
+      let l:local = 1
+    endfunction
+    function G()
+      call s:Fn()
+      echo l:local
+    endfunction
+  END
+  var parsed = parse.Parse(lines)
+  var token = {text: 's:Fn', col: 7, end: 11, prev: ' ', in_string: false}
+  assert_equal(1, refs.Resolve(parsed, token, 5).line)
+  var local = {text: 'l:local', col: 7, end: 14, prev: ' ', in_string: false}
+  assert_equal(null_dict, refs.Resolve(parsed, local, 6))
+enddef
+
 def Spans(refs_list: list<dict<number>>): list<list<number>>
   return refs_list->mapnew((_, r) => [r.line, r.col, r.end])
 enddef
