@@ -1626,6 +1626,26 @@ def g:Test_dictionary_functions()
   helper.StopServer()
 enddef
 
+# A function whose name has a script variable that ":let" sets gives no
+# error.
+def g:Test_curly_braces_function_names()
+  helper.NeedChecker()
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc([
+    "let s:_plugin_name = expand('<sfile>:t:r')",
+    'function! xlib#{s:_plugin_name}#new() abort',
+    '  return xlib#{s:_plugin_name[1:]}#new()',
+    'endfunction',
+    'function! {s:_plugin_name}#Fn(a) abort',
+    '  return a:a',
+    'endfunction',
+  ])
+  assert_equal([], helper.WaitNotification('textDocument/publishDiagnostics')
+    .params.diagnostics)
+  helper.StopServer()
+enddef
+
 # A call in the keys of a mapping is looked up where the keys find it when
 # typed: after <ScriptCmd> in the script and then everywhere, with <SID> in
 # the script, after ":call" everywhere but the script.  Its arguments are
