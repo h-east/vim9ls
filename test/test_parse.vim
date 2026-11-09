@@ -244,6 +244,25 @@ def g:Test_parse_bar_after_other_command()
   assert_equal(8, parsed.symbols[0].end_line)
 enddef
 
+# A command after a bar on a continuation line belongs to the line it
+# continues, also with a continued comment in between.
+def g:Test_parse_bar_on_continuation_line()
+  var lines =<< trim END
+    function! F() abort
+      if 1 && (1
+          "\ comment
+          \ && 1) | return | endif
+      return
+    endfunction
+    function! G() abort
+    endfunction
+  END
+  var parsed = parse.Parse(lines)
+  assert_equal([], parsed.diags)
+  assert_equal(['F', 'G'], Names(parsed.symbols))
+  assert_equal(5, parsed.symbols[0].end_line)
+enddef
+
 # A listing opens no block, even when its "{expr}" has a "(".
 def g:Test_parse_function_listing()
   var lines =<< trim END

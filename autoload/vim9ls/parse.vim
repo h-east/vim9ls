@@ -443,6 +443,24 @@ def Parts(text: string, vim9: bool): list<list<any>>
   return parts
 enddef
 
+# The line at "lnum", with its continuation lines joined to it when one of
+# them has a "|", as in "if x\n\ | endif", so that the command after the
+# "|" is seen.  A continued comment, '"\ ' or "#\ ", is left out.
+def Joined(lines: list<string>, lnum: number): string
+  var text = lines[lnum]
+  var bar = false
+  var i = lnum + 1
+  while i < len(lines) && lines[i] =~ '^\s*\%(\\\|["#]\\ \)'
+    if lines[i] =~ '^\s*\\'
+      var cont = substitute(lines[i], '^\s*\\', '', '')
+      text ..= cont
+      bar = bar || stridx(cont, '|') >= 0
+    endif
+    i += 1
+  endwhile
+  return bar ? text : lines[lnum]
+enddef
+
 # Whether the statement "text" starts with a command that takes the rest of
 # the line, so that a bar after it does not separate a command.
 def TakesRest(text: string): bool
@@ -739,6 +757,8 @@ export def Parse(lines: list<string>): dict<any>
       endif
     endif
 
+    line = Joined(lines, lnum)
+
     # Most lines are expressions or commands that do not shape the script;
     # they matter only inside an enum, and in legacy script as a typo.  A
     # command after a "|" may still shape the script: "return 1 | endif".
@@ -771,8 +791,11 @@ export def Parse(lines: list<string>): dict<any>
       var text = substitute(part, '^\s*', '', '')
       var pword = matchstr(text, '^\h\w*')
       if pword != ''
-        Statement(st, lnum, text, col + offset + strlen(part) - strlen(text),
-          is_first, pword, CommandOf(pword))
+        # A command on a continuation line gets the end of the first line as
+        # its column.
+        var pcol = min([col + offset + strlen(part) - strlen(text),
+          strlen(lines[lnum])])
+        Statement(st, lnum, text, pcol, is_first, pword, CommandOf(pword))
       endif
       is_first = false
       if TakesRest(text)
