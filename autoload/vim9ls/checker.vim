@@ -391,6 +391,15 @@ def RenameDictFuncs(lines: list<string>): list<string>
     ? substitute(line, DICT_FUNC, 's:Vim9lsDict' .. (i + 1), '') : line)
 enddef
 
+# Whether "e", an error of the script level, is E117 for "call Name(": at
+# the script level ":call" finds a global function without "g:", but not in
+# the function that wrap.vim makes of it.
+def GlobalCall(e: dict<any>, lines: list<string>): bool
+  var name = matchstr(e.message, '^E117: Unknown function: \zs\u\w*$')
+  return name != '' && e.line < len(lines)
+    && lines[e.line] =~ '^\s*cal\%[l]\s\+' .. name .. '('
+enddef
+
 # "base" with "wrapped", the script level as a function, appended.
 def Text(base: list<string>, wrapped: any): list<string>
   return type(wrapped) != v:t_list ? base
@@ -475,11 +484,16 @@ def Check(path_arg: string, lines: list<string>, wrapped: any,
         .. '\%(let\|cons\%[t]\)\s\+\%(\[[^]]*\)\=\<s:' .. name .. '\>') < 0
     })
   endif
+  var global_calls: list<dict<any>> = []
   for e in errors
     if e.line > len(lines)
       e.line -= len(lines) + 1
+      if GlobalCall(e, lines)
+        global_calls->add(e)
+      endif
     endif
   endfor
+  errors->filter((_, e) => index(global_calls, e) < 0)
   errors += KeyCallErrors(path, calls)
   ForgetGlobalFunctions(path)
   ForgetPlaceholders()

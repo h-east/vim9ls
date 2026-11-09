@@ -1574,6 +1574,26 @@ def g:Test_compile_global_function_of_another_script()
   helper.StopServer()
 enddef
 
+# At the script level ":call" finds a global function without "g:", so E117
+# for it from the function that wrap.vim makes of the script level is left
+# out.  E117 stays for a call without ":call", one in a function and a
+# lowercase name.
+def g:Test_compile_script_level_call_of_global_function()
+  helper.NeedChecker()
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc(['vim9script', 'call Xvim9lsNone(1)', 'Xvim9lsNone(2)',
+    'call xvim9lsnone(3)', 'def F()', '  call Xvim9lsNone(4)', 'enddef'])
+  assert_equal([
+    [2, 'E117: Unknown function: Xvim9lsNone'],
+    [3, 'E117: Unknown function: xvim9lsnone'],
+    [5, 'E117: Unknown function: Xvim9lsNone'],
+  ], helper.WaitNotification('textDocument/publishDiagnostics')
+    .params.diagnostics->copy()->filter((_, d) => d.message =~ '^E\d')
+    ->mapnew((_, d) => [d.range.start.line, d.message]))
+  helper.StopServer()
+enddef
+
 # The functions of a Dictionary that ":let" makes in a legacy script give no
 # error and are completed after its name.
 def g:Test_dictionary_functions()
