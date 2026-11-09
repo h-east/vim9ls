@@ -150,8 +150,8 @@ def Diag(line: number, col: number, end_col: number, message: string,
     severity: severity}
 enddef
 
-# The name defined by "def"/"function" arguments, or an empty string for a
-# listing: no "(" after the name and its "{expr}" parts.
+# The name defined by "def"/"function" arguments, with its "{expr}" parts,
+# or an empty string for a listing: no "(" after the name.
 def FunctionName(arg_text: string): string
   var name = matchstr(arg_text,
     '^\%(' .. SID .. '\|[sgbwtl]:\)\=\h[[:alnum:]_#.]*')
@@ -168,7 +168,7 @@ def FunctionName(arg_text: string): string
     endwhile
     pos += strlen(matchstr(strpart(arg_text, pos), '^[[:alnum:]_#.]*'))
   endwhile
-  return stridx(arg_text, '(', pos) < 0 ? '' : name
+  return stridx(arg_text, '(', pos) < 0 ? '' : strpart(arg_text, 0, pos)
 enddef
 
 # The variables a "var"/"let"/"const"/"final" statement declares.

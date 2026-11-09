@@ -29,7 +29,7 @@ import autoload './vim9ls/selection.vim'
 import autoload './vim9ls/unused.vim'
 import autoload './vim9ls/cache.vim'
 
-export const VERSION = '0.1.041'
+export const VERSION = '0.1.042'
 
 const SCRIPT = expand('<sfile>:p')
 
@@ -993,10 +993,14 @@ def AutoloadDefined(path: string, name: string): number
 enddef
 
 # The top-level symbol "name" of a script; a legacy autoload function is
-# defined under its full name.
+# defined under its full name.  An "{expr}" part of a symbol name, as in
+# "xlib#{s:plugin_name}#import", matches any text without "#".
 def TopLevel(parsed: dict<any>, name: string): dict<any>
   for s in parsed.symbols
     if s.name == name || s.name =~ '#' .. name .. '$'
+        || (stridx(s.name, '{') >= 0 && name =~ '^\V'
+          .. split(s.name, '{[^{}]*}', true)
+            ->map((_, part) => escape(part, '\'))->join('\[^#]\*') .. '\$')
       return s
     endif
   endfor

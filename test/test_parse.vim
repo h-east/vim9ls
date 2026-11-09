@@ -263,6 +263,16 @@ def g:Test_parse_bar_on_continuation_line()
   assert_equal(5, parsed.symbols[0].end_line)
 enddef
 
+# The name of a function keeps its "{expr}" parts, also when it starts with
+# one.
+def g:Test_parse_curly_braces_function_name()
+  var parsed = parse.Parse(['function! xlib#{s:plugin_name}#import(...)',
+    'endfunction', 'function {"F"}oo()', 'endfunction'])
+  assert_equal([], parsed.diags)
+  assert_equal(['xlib#{s:plugin_name}#import', '{"F"}oo'],
+    Names(parsed.symbols))
+enddef
+
 # A listing opens no block, even when its "{expr}" has a "(".
 def g:Test_parse_function_listing()
   var lines =<< trim END
@@ -278,7 +288,8 @@ def g:Test_parse_function_listing()
   var parsed = parse.Parse(lines)
   assert_equal([], parsed.diags)
   assert_equal(['Test_throw_func', 'After'], Names(parsed.symbols))
-  assert_equal(['F'], Names(parsed.symbols[0].children))
+  assert_equal(["F{T73_expr('function-def-ok', 1)}"],
+    Names(parsed.symbols[0].children))
   assert_equal(5, parsed.symbols[0].end_line)
 
   parsed = parse.Parse(['vim9script', 'def A()', '  def F0', 'enddef',

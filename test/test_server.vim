@@ -2061,6 +2061,26 @@ def g:Test_definition_other_files()
     end: {line: 0, character: 18}}, resp.result[0].range)
 enddef
 
+# A legacy autoload function with an "{expr}" part in its name is found
+# by any text for that part.
+def g:Test_autoload_function_with_curly_braces_name()
+  var root = helper.HERE .. '/Xproj'
+  mkdir(root .. '/autoload/xlib', 'pR')
+  mkdir(root .. '/plugin', 'p')
+  writefile(["let s:plugin_name = expand('<sfile>:t:r')",
+    'function! xlib#{s:plugin_name}#import(...) abort', 'endfunction'],
+    root .. '/autoload/xlib/xsub.vim')
+  var uri = util.PathToUri(root .. '/plugin/xmain.vim')
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc(["call xlib#xsub#import('x')", 'call xlib#xsub#none()'],
+    uri)
+  assert_equal([[1, 'E117: Unknown function: xlib#xsub#none']],
+    helper.WaitNotification('textDocument/publishDiagnostics')
+    .params.diagnostics->mapnew((_, d) => [d.range.start.line, d.message]))
+  helper.StopServer()
+enddef
+
 def g:Test_references_other_files()
   var root = helper.HERE .. '/Xproj'
   mkdir(root .. '/autoload', 'pR')
