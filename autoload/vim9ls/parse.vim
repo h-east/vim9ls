@@ -80,10 +80,12 @@ const DECLARES = {var: 1, const: 1, final: 1, let: 1}
 const LANGUAGES = {python: 1, python3: 1, pythonx: 1, py3: 1, pyx: 1,
   perl: 1, lua: 1, ruby: 1, tcl: 1, mzscheme: 1}
 # Commands that take the rest of the line, bars included; see ":help :bar".
-# A mapping is not one of them.
+# A mapping is not one of them.  ":syntax" is taken as one too: a bar in a
+# pattern does not separate a command, and a command after the pattern that
+# shapes the script is rare.
 const TAKES_REST = {command: 1, autocmd: 1, normal: 1, global: 1, vglobal: 1,
   windo: 1, bufdo: 1, argdo: 1, tabdo: 1, cdo: 1, cfdo: 1, ldo: 1, lfdo: 1,
-  folddoopen: 1, folddoclosed: 1, help: 1, sign: 1, terminal: 1}
+  folddoopen: 1, folddoclosed: 1, help: 1, sign: 1, terminal: 1, syntax: 1}
 const TYPES = {class: KIND_CLASS, interface: KIND_INTERFACE, enum: KIND_ENUM}
 # A line of ":append", ":change" or ":insert", after a range of numbers,
 # marks and the like.

@@ -512,4 +512,17 @@ def g:Test_parse_vim9_no_shorten()
     {line: 10, end_line: 10}], parsed.blocks)
 enddef
 
+# A bar in a pattern of ":syntax" does not separate a command.
+def g:Test_parse_bar_in_syntax_pattern()
+  var lines =<< trim END
+    if 1
+      syn match Err /\v%(^\s*%(return|if|while)>[^;]+)@<=:?\=/
+      syn region Str start=/a|for/ end=/b/
+    endif
+  END
+  var parsed = parse.Parse(lines)
+  assert_equal([], parsed.diags)
+  assert_equal([{line: 0, end_line: 3}], parsed.blocks)
+enddef
+
 # vim: ts=2 sw=0 et
