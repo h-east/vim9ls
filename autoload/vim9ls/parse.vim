@@ -113,15 +113,21 @@ const SHAPING = extend({
 # fullcommand() costs more than a lookup, and the same words come up again
 # and again.
 var commands: dict<string> = {}
+var vim9_commands: dict<string> = {}
 
 # The command "word" stands for, expanded; empty when it is not one.  A
 # command name has no underscore: for "for_buf" fullcommand() would settle
-# for "for".
-export def CommandOf(word: string): string
-  if !commands->has_key(word)
-    commands[word] = word =~ '_' ? '' : fullcommand(word, false)
+# for "for".  Under Vim9 rules ("vim9") "end" is not ":endif".
+export def CommandOf(word: string, vim9: bool = false): string
+  var cache = vim9 ? vim9_commands : commands
+  if !cache->has_key(word)
+    # fullcommand() gives no error for a short form that Vim9 rules do not
+    # allow, but leaves "E1065" in v:errmsg.
+    var errmsg = v:errmsg
+    cache[word] = word =~ '_' ? '' : fullcommand(word, vim9)
+    v:errmsg = errmsg
   endif
-  return commands[word]
+  return cache[word]
 enddef
 
 # Whether "word" only qualifies the command after it.
@@ -524,7 +530,7 @@ def Statement(st: dict<any>, lnum: number, text: string, col: number,
     if word == ''
       return
     endif
-    cmd = CommandOf(word)
+    cmd = CommandOf(word, is_vim9)
     arg_text = ArgText(rest, 0, word)
   endwhile
   var name_col = offset + strlen(rest) - strlen(arg_text)
@@ -731,7 +737,7 @@ export def Parse(lines: list<string>): dict<any>
     if line[m[2]] == ':'
       continue
     endif
-    var cmd = CommandOf(word)
+    var cmd = CommandOf(word, InVim9(st))
 
     # ":loadkeymap" reads the rest of the script as keymap lines, a heredoc
     # with a marker that no line has.
@@ -795,7 +801,8 @@ export def Parse(lines: list<string>): dict<any>
         # its column.
         var pcol = min([col + offset + strlen(part) - strlen(text),
           strlen(lines[lnum])])
-        Statement(st, lnum, text, pcol, is_first, pword, CommandOf(pword))
+        Statement(st, lnum, text, pcol, is_first, pword,
+          CommandOf(pword, InVim9(st)))
       endif
       is_first = false
       if TakesRest(text)

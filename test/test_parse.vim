@@ -489,4 +489,27 @@ def g:Test_parse_loadkeymap()
   assert_equal([], parsed.diags)
 enddef
 
+# Under Vim9 rules "end" is not short for ":endif": "end = 1" assigns to a
+# variable and the ":if" goes on.  In legacy script it still ends the ":if".
+def g:Test_parse_vim9_no_shorten()
+  var lines =<< trim END
+    function Legacy()
+      if 1
+        let end = 1
+      end
+    endfunction
+    def Vim9()
+      var end = 0
+      if true
+        end = 1
+      endif
+      if true | end = 2 | endif
+    enddef
+  END
+  var parsed = parse.Parse(lines)
+  assert_equal([], parsed.diags)
+  assert_equal([{line: 1, end_line: 3}, {line: 7, end_line: 9},
+    {line: 10, end_line: 10}], parsed.blocks)
+enddef
+
 # vim: ts=2 sw=0 et
