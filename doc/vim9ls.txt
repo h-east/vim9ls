@@ -72,8 +72,18 @@ recommended one:
 
 With lsp.vim ~
 Install it the same way and add an entry for "vim" files to
-|g:lsp_server_list|: >
-	{filetypes: ['vim'], name: 'vim9ls', cmd: function('vim9ls#Command')}
+|g:lsp_server_list|.  Example: >vim9
+	g:lsp_server_list = [{
+	  filetypes: ['vim'], name: 'vim9ls',
+	  cmd: function('vim9ls#Command'),
+	}]
+<
+For legacy Vim script: >vim
+	let g:lsp_server_list = [
+	      \ #{filetypes: ['vim'], name: 'vim9ls',
+	      \   cmd: function('vim9ls#Command')},
+	      \ ]
+<
 lsp.vim calls the Funcref when the server starts, so vim9ls does not have to
 be in 'runtimepath' yet when the vimrc is read.
 The server takes on every workspace folder the client adds, so lsp.vim starts
