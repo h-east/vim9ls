@@ -1286,6 +1286,18 @@ def After(lines: list<string>, version: number): list<list<any>>
     ->sort((a, b) => a[0] - b[0])
 enddef
 
+# The checker loads no script of the runtime: its filetype.vim would define
+# the function, and a dry run of another one, as in a copy of the runtime,
+# would give E8003.
+def g:Test_compile_runtime_script()
+  helper.NeedChecker()
+  helper.StartServer()
+  helper.Initialize()
+  helper.OpenDoc(['func TestFiletypeFuncs(testlist)', 'endfunc'])
+  var note = helper.WaitNotification('textDocument/publishDiagnostics')
+  assert_equal([], note.params.diagnostics->mapnew((_, d) => d.message))
+enddef
+
 def g:Test_compile_diagnostics()
   helper.NeedChecker()
   helper.StartServer()

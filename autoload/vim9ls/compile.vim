@@ -46,10 +46,12 @@ def Running(): bool
   return job != null_job && job_status(job) == 'run'
 enddef
 
-# The checker runs the Vim the server runs in.
+# The checker runs the Vim the server runs in.  "-u NONE" leaves out
+# defaults.vim and the filetype.vim it loads: a function defined there would
+# give E8003 for the same function in the script checked.
 def Start()
-  job = job_start([v:progpath, '--clean', '--stdio-channel', '-i', 'NONE',
-    '-n', '-S', checker_script], {
+  job = job_start([v:progpath, '--clean', '-u', 'NONE', '-N',
+    '--stdio-channel', '-i', 'NONE', '-n', '-S', checker_script], {
     in_mode: 'lsp',
     out_mode: 'lsp',
     err_mode: 'nl',
