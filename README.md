@@ -60,9 +60,24 @@ Any LSP client that talks stdio can use the server.
 [lsp.vim](https://github.com/h-east/lsp.vim) is the recommended one.
 
 With lsp.vim: install it the same way and add the server to
-`g:lsp_server_list`:
+`g:lsp_server_list`.  Example:
 
-    {filetypes: ['vim'], name: 'vim9ls', cmd: function('vim9ls#Command')}
+```vim
+g:lsp_server_list = [{
+  filetypes: ['vim'], name: 'vim9ls', cmd: function('vim9ls#Command'),
+}]
+```
+
+<details>
+<summary>For legacy Vim script</summary>
+
+```vim
+let g:lsp_server_list = [
+      \ #{filetypes: ['vim'], name: 'vim9ls', cmd: function('vim9ls#Command')},
+      \ ]
+```
+
+</details>
 
 With another LSP client: point it at `bin/vim9ls` (`bin/vim9ls.cmd` on
 MS-Windows).  To run it with ViAI, set `$VIM9LS_VIM` to `viai`.
@@ -255,44 +270,6 @@ given.
 | `telemetry/event` | no | there is nothing to report |
 
 </details>
-
-## TODO
-
-In the order they are meant to be taken up.
-
-- [x] Diagnostics for a function that is neither defined by the script nor
-      a builtin, and for a `v:` variable Vim does not have.
-- [x] Definition, references and rename across files: a name defined in an
-      imported script or an autoload file, found in the files that use it.
-- [x] Vim9 block scope: a `var` inside a block belongs to that block, so two
-      blocks of one function can declare the same name.
-- [x] Completion of the exported names after an import alias, of autoload
-      functions after `foo#`, and of members after `.`.
-- [x] `completionItem/resolve`: the help entry of a builtin, fetched for the
-      item that is looked at rather than sent with every item.
-- [x] Diagnostics for what compiling a `:def` reports, from the checker: a
-      Vim of its own that is started once and kept, and reads the script
-      with `:source ++dryrun`, where Vim has it.
-- [x] `textDocument/codeAction` with a quick fix for what a diagnostic
-      reports: `:let` to `var` under Vim9 rules, the `endif` a block lacks.
-- [x] Signature help with the types of a builtin's arguments; the help entry
-      names them but does not type them.  Vim hands them out with
-      `getinfo()`.
-- [x] The type of an expression as the Vim9 compiler infers it, for the
-      hints and the hover to come: literals, operators, indexing, lambdas,
-      the script's own functions by their declared type and the builtins by
-      what `getinfo()` reports for the argument types.
-- [x] `textDocument/inlayHint` with the type of a `var` that leaves it to
-      the initializer, and the parameter names at a call from what
-      signature help knows.
-- [x] `workspace/symbol` over the autoload and plugin files on `'runtimepath'`.
-- [x] `textDocument/foldingRange`, from what the parser already knows.
-- [x] `textDocument/typeDefinition`, `textDocument/implementation` and the
-      type hierarchy for Vim9 classes and interfaces.
-- [x] `textDocument/formatting` and `rangeFormatting` with Vim's own indent
-      script, run in the server; for editors other than Vim.
-- [x] Tests on MS-Windows in CI, and the launchers `bin/vim9ls` and
-      `bin/vim9ls.cmd` started the way a client starts them.
 
 ## Contributing
 
